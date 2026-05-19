@@ -100,7 +100,7 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 
 ## Constraints
 
-- **Tech Stack**: Expo (React Native) — iOS + Android, GPS-first UX. Supabase + PostGIS for DB/auth. Google Maps API for mapping (already configured). Already committed to from prior setup.
+- **Tech Stack**: Expo SDK 55 (React Native 0.83 + React 19.2, New Architecture mandatory). Supabase JS v2.58+ for DB/auth. `@rnmapbox/maps` ^10.1.x for map rendering (react-native-maps Google provider broken on SDK 55 iOS). Google Maps API key retained for geocoding/Places REST calls. TanStack Query v5 + Zustand 5 for state. MSW v2 for TDD-compatible API mocking.
 - **Data Integrity**: Minimum 2 independent GPS verifications (or 1 + 48hr no-flag window) before location publishes. Single-verification threshold is an unacceptable abuse surface.
 - **Liability**: Policy tags use community-reported framing, not declarative. "Users report this as accessible" not "this place allows free use." Moves liability to crowd, not platform.
 - **Gamification ordering**: If reward tiers are implemented, "Just used this" freshness confirmation must be lowest-reward or capped per location/user/window — not 3rd highest as in original design.
@@ -114,7 +114,7 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 |----------|-----------|---------|
 | React Native (Expo) over PWA | GPS verification and emergency mode require native performance; mobile is the use-case trigger | — Pending |
 | Supabase + PostGIS | Schema already live, proximity queries built in, auth included | — Pending |
-| Google Maps API (not Mapbox) | Already set up and configured before computer theft | — Pending |
+| Mapbox for map rendering (not react-native-maps) | react-native-maps Google provider is broken on Expo SDK 55 iOS (expo/expo#43288). Google Maps API key still usable for geocoding/Places REST calls. | — Pending |
 | Eugene → Las Vegas launch sequence | Validate dense urban model before tourist-corridor model | — Pending |
 | Gamification in DB from day one, UI in v2 | Track data now; don't surface rewards until volume justifies them | — Pending |
 | 2-verification publish threshold | 1 verification is too easy to abuse with GPS spoofing | — Pending |
