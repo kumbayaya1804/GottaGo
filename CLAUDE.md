@@ -6,6 +6,27 @@ This project uses [metaswarm](https://github.com/dsifry/metaswarm) for multi-age
 
 **Update metaswarm:** Run `/metaswarm-update-version` to check for and apply updates.
 
+---
+
+## Session Startup Protocol — Read These Before Any Work
+
+Before writing a single line of code, reviewing a file, or making a plan, every agent (Claude, Gemini, Codex) must read the following files in full:
+
+1. **`AGENTS_ROSTER.md`** — all agents, roles, invocation, and the complete review workflow
+2. **`AGENTS.md`** — coordination rules, conflict resolution, non-negotiables
+3. **`SPEC.md`** — product scope, user flows, GPS, privacy, trust, shadowban, gamification
+4. **`docs/schema-contract.md`** — database contract, RLS rules, migration review checklist
+5. **`docs/review-severity.md`** — APPROVE / REQUEST CHANGES / BLOCK verdict definitions
+6. **`docs/verification.md`** — required verification commands and reporting format
+7. **`.planning/PROJECT.md`** — current requirements, constraints, key decisions, build order
+
+**If you are Gemini:** also read `GEMINI.md` before reviewing anything.
+**If you are Codex:** also read `CODEX.md` before reviewing anything.
+
+Skipping this startup read is not allowed. These documents are the source of truth. Implementation that conflicts with them must either update the docs in the same change or flag the conflict for human review.
+
+---
+
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
