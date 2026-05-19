@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Gotta Go is a crowdsourced mobile app that helps people find usable bathrooms when they urgently need one. Unlike static directories, it collects time-sensitive bathroom access codes (PINs), community-verified policy tags, quality ratings, and optimal timing windows — the kind of hyperlocal knowledge that exists only in people's heads. The parent segment is the primary acquisition wedge: parents with toddlers face bathroom urgency as a genuine crisis, and changing table data is a high-signal differentiator nobody else is collecting systematically.
+Gotta Go is a crowdsourced mobile app that helps people find usable bathrooms when they urgently need one — specifically people for whom urgency is not an inconvenience but a real need: people with IBS, Crohn's, colitis, or other bowel conditions; people who need wheelchair-accessible stalls; parents with infants who need changing tables. Unlike static directories, it maps community-reported "chill spots" (bars, hotel lobbies, university buildings, businesses that welcome walk-ins), accessibility ratings, and optimal timing windows. Access codes (PINs) for code-locked bathrooms are an optional layer — gated to logged-in users and only applied to locations where community consensus suggests the business is tolerant of the listing.
 
 ## Core Value
 
@@ -19,10 +19,12 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 **Map & Discovery**
 - [ ] User can view a map of bathrooms near their current GPS location
 - [ ] User can search for bathrooms in any city/area
-- [ ] User can filter by: access type, changing table, cleanliness rating, currently open
-- [ ] User can tap a listing to see full details (code, hours, ratings, policy tag, timing tips)
+- [ ] User can filter by: Chill Spot, wheelchair accessible, changing table, cleanliness rating, currently open
+- [ ] User can tap a listing to see full details (hours, ratings, policy tag, accessibility features, timing tips)
 - [ ] "Emergency Mode" — one-tap nearest available bathroom with current GPS
 - [ ] "Changing Table NOW" emergency mode — one-tap nearest confirmed changing station
+- [ ] "Accessible NOW" emergency mode — one-tap nearest wheelchair-accessible confirmed bathroom
+- [ ] Access codes (PINs) visible only to signed-in users; only shown for listings where community policy tag allows it
 
 **Submissions**
 - [ ] User can submit a new bathroom location with: name, address, policy tag, access type, hours
@@ -47,10 +49,11 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 - [ ] User can sign up / log in with Google OAuth
 - [ ] User session persists across app restarts
 
-**Policy Tags**
-- [ ] Each location has a policy tag: Free, Purchase Required, Code Required, Community-Reported Accessible
-- [ ] "Chill Spot" is community-reported language (not declarative, avoids liability) — users report perceived accessibility, not guaranteed policy
-- [ ] Family Restroom tag (single-occupancy, lockable)
+**Policy Tags & Accessibility**
+- [ ] Each location has a policy tag: Chill Spot, Purchase Required, Code Required, Public Facility
+- [ ] "Chill Spot" = community-reported walk-in welcome (bars, hotel lobbies, libraries, universities, businesses that don't mind). Not a guaranteed policy — community-reported framing, not declarative.
+- [ ] Accessibility tags: Wheelchair Accessible, Baby Changing Table, Family Restroom (single-occupancy/lockable), Changing Surface Cleanliness rating
+- [ ] Access codes (PINs) are an optional field, only visible to signed-in users, only relevant for Code Required locations where community indicates the listing is tolerated
 
 **Trust System (backend, v1)**
 - [ ] Trust score tracked per user (affects verification weight)
@@ -78,7 +81,9 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 
 **Existing scaffolding:** The project already has: `SPEC.md` (product spec), `docs/schema-contract.md`, `docs/review-severity.md`, `docs/verification.md`, `docs/SYSTEM_MAP.md`, `AGENTS.md` (full multi-agent review workflow), `GEMINI.md`, `CODEX.md`. One git commit exists with this scaffolding.
 
-**Launch strategy:** Eugene, OR as the seed market. Target 50 high-quality verified locations before public launch — prioritize: 5–8 Chill Spots (hotel lobbies, university buildings), 3–4 with changing stations, full downtown/food corridor coverage. Quality over density. Las Vegas is phase 2: tourist density, international visitors, severe lack of public bathroom infrastructure outside casinos.
+**Target users (refined):** People for whom urgency is a real need, not just inconvenience: (1) people with IBS, Crohn's, colitis, or other bowel/GI conditions, (2) wheelchair users and mobility-impaired people needing accessible stalls, (3) parents with infants needing changing tables. General urgency users are also served, but the accessibility-focused users are the ones who will contribute data most reliably and share most organically.
+
+**Launch strategy:** Eugene, OR as the seed market. Target 50 high-quality verified locations before public launch — prioritize: 5–8 Chill Spots (hotel lobbies, UO buildings, friendly bars), 3–4 with confirmed changing stations, accessible bathroom coverage in downtown corridor. Quality over density. Las Vegas is phase 2: tourist density, international visitors, severe lack of public bathroom infrastructure outside casinos.
 
 **Parent segment:** Changing table data is the feature that drives word-of-mouth in parenting communities (Facebook groups, Reddit parenting subs, Buy Nothing networks). "Changing Table NOW" emergency mode is the single-feature driver for this segment.
 
@@ -106,7 +111,9 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 | Eugene → Las Vegas launch sequence | Validate dense urban model before tourist-corridor model | — Pending |
 | Gamification in DB from day one, UI in v2 | Track data now; don't surface rewards until volume justifies them | — Pending |
 | 2-verification publish threshold | 1 verification is too easy to abuse with GPS spoofing | — Pending |
-| Parent segment as primary acquisition wedge | Higher emotional stakes, stronger community sharing, changing table data is unique | — Pending |
+| Accessibility-focused users as primary segment | IBS/Crohn's, wheelchair users, and parents have the highest urgency and will contribute + share most organically | — Pending |
+| Access codes (PINs) gated to signed-in users only | Businesses may not want codes publicly indexed; community-reported tolerance is the signal, not blanket exposure | — Pending |
+| Chill Spots as the primary map category | Walk-in welcoming places (bars, hotel lobbies, libraries) are the most valuable, safest to list, and most community-shareable | — Pending |
 | Multi-agent review (Claude + Gemini + Codex) | No self-approval; PostGIS correctness audited by Gemini; security/privacy audited by Codex | — Pending |
 | TDD enforced via tdd-guard | Red → Green → Refactor for all non-trivial behavior; tests must cover integrity/security paths | — Pending |
 
