@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gemini *)",
+      "Bash(codex *)",
+      "Bash(npx *)",
+      "Bash(git *)",
+      "Bash(npm *)",
+      "Bash(node *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$j = [Console]::In.ReadToEnd() | ConvertFrom-Json; $fp = $j.tool_input.file_path; if ($fp) { Add-Content -Path '.claude\\review-queue.txt' -Value $fp }",
+            "statusMessage": "Queuing file for Gemini + Codex review..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "@{systemMessage='Reviewers needed: run Gemini + Codex review on changed files before committing. Check .claude/review-queue.txt for the list.'} | ConvertTo-Json -Compress",
+            "statusMessage": "Checking review queue..."
+          }
+        ]
+      }
+    ]
+  }
+}
