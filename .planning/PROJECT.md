@@ -47,6 +47,7 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 **Authentication**
 - [ ] User can sign up with email/password
 - [ ] User can sign up / log in with Google OAuth
+- [ ] User can sign up / log in with Apple Sign-In (required by App Store when Google OAuth is offered)
 - [ ] User session persists across app restarts
 
 **Policy Tags & Accessibility**
@@ -92,6 +93,10 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 **Multi-agent workflow:** Claude (primary coder via GSD + TDD), Gemini CLI (correctness/logic/architecture/PostGIS), Codex app (quality/security/style/test coverage). Review workflow: Claude implements → logs files to `.claude/review-queue.txt` → Gemini + Codex review → address all BLOCK/REQUEST CHANGES → commit with reviewer verdicts. Claude does not self-approve.
 
 **TDD:** `tdd-guard` is installed (package.json). Red → Green → Refactor enforced for all non-trivial behavior. Tests must cover security-sensitive and data-integrity behavior, not only rendering or happy paths.
+
+## Blockers
+
+- [ ] **Apple Developer Program enrollment** — $99/year, required before: Apple Sign-In can be configured, TestFlight beta testing, App Store submission. Enroll at developer.apple.com/programs. Everything can be built and tested on Android/simulator without it, but iOS release is blocked until enrolled.
 
 ## Constraints
 
