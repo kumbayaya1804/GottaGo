@@ -77,6 +77,8 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 
 **Origin:** App was conceived because of the real frustration of finding bathroom codes (PINs) in fast food restaurants and retail — information that exists only locally and degrades over time. The code expiration mechanic is the Waze parallel: data degrades without community contribution, which creates organic contribution pressure.
 
+**Legal:** Termly privacy policy and terms of service already created. The app must link to these in onboarding and settings. GPS consent is already a first-class field in the `users` table (`gps_consent`, `gps_consent_at`) — GDPR-ready from the schema.
+
 **Schema:** Full Supabase schema recovered after a computer theft. The database is live and intact — no schema design work needed, only implementation. Tables: `locations`, `users`, `verification_events`, `trust_events`, `respect_signal_log`, `respect_signal_90d` (materialized view), `confidence_scores`, `availability_flags`, `failure_events`, `reports`, `ratings`, `submissions`, `tags`, `app_config`.
 
 **Existing scaffolding:** The project already has: `SPEC.md` (product spec), `docs/schema-contract.md`, `docs/review-severity.md`, `docs/verification.md`, `docs/SYSTEM_MAP.md`, `AGENTS.md` (full multi-agent review workflow), `GEMINI.md`, `CODEX.md`. One git commit exists with this scaffolding.
@@ -93,7 +95,7 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 
 ## Constraints
 
-- **Tech Stack**: Expo (React Native) — iOS + Android, GPS-first UX. Supabase + PostGIS for DB/auth. Mapbox for mapping. Already committed to from prior design work.
+- **Tech Stack**: Expo (React Native) — iOS + Android, GPS-first UX. Supabase + PostGIS for DB/auth. Google Maps API for mapping (already configured). Already committed to from prior setup.
 - **Data Integrity**: Minimum 2 independent GPS verifications (or 1 + 48hr no-flag window) before location publishes. Single-verification threshold is an unacceptable abuse surface.
 - **Liability**: Policy tags use community-reported framing, not declarative. "Users report this as accessible" not "this place allows free use." Moves liability to crowd, not platform.
 - **Gamification ordering**: If reward tiers are implemented, "Just used this" freshness confirmation must be lowest-reward or capped per location/user/window — not 3rd highest as in original design.
@@ -107,7 +109,7 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 |----------|-----------|---------|
 | React Native (Expo) over PWA | GPS verification and emergency mode require native performance; mobile is the use-case trigger | — Pending |
 | Supabase + PostGIS | Schema already live, proximity queries built in, auth included | — Pending |
-| Mapbox over Google Maps | Better offline tiles, better React Native SDK | — Pending |
+| Google Maps API (not Mapbox) | Already set up and configured before computer theft | — Pending |
 | Eugene → Las Vegas launch sequence | Validate dense urban model before tourist-corridor model | — Pending |
 | Gamification in DB from day one, UI in v2 | Track data now; don't surface rewards until volume justifies them | — Pending |
 | 2-verification publish threshold | 1 verification is too easy to abuse with GPS spoofing | — Pending |
