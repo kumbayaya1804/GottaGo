@@ -1,12 +1,22 @@
 # Gotta Go
 
+Gotta Go is a venture under the [Watch the Gap](../docs/watch-the-gap.md) human-infrastructure studio.
+
 ## What This Is
 
 Gotta Go is a crowdsourced mobile app that helps people find usable bathrooms when they urgently need one — specifically people for whom urgency is not an inconvenience but a real need: people with IBS, Crohn's, colitis, or other bowel conditions; people who need wheelchair-accessible stalls; parents with infants who need changing tables. Unlike static directories, it maps community-reported "chill spots" (bars, hotel lobbies, university buildings, businesses that welcome walk-ins), accessibility ratings, and optimal timing windows. Access codes (PINs) for code-locked bathrooms are an optional layer — gated to logged-in users and only applied to locations where community consensus suggests the business is tolerant of the listing.
 
 ## Core Value
 
-When you urgently need a bathroom, Gotta Go finds you one with accurate, community-verified access info — including the current door code.
+The real product is not just restroom locations, but **certainty under urgency**. When you urgently need a bathroom, Gotta Go finds you one with accurate, community-verified access info — including the current door code.
+
+
+## Watch the Gap Fit
+
+- **Gap:** Public restroom access is unreliable, hidden, stigmatized, or uncertain.
+- **Population:** Parents, road-trippers, delivery drivers, people with medical conditions, disabled people, menstruating people, people with urgency needs, and anyone navigating public space under bodily pressure.
+- **Cheap pilot:** Seed Eugene, OR with 50 high-quality verified locations and validate urgent discovery, changing-table, and accessibility flows before broader expansion.
+- **One-sentence explanation:** Gotta Go turns unreliable public restroom access into community-verified infrastructure for certainty under urgency.
 
 ## Requirements
 
@@ -82,7 +92,7 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 
 **Schema:** Full Supabase schema recovered after a computer theft. The database is live and intact — no schema design work needed, only implementation. Tables: `locations`, `users`, `verification_events`, `trust_events`, `respect_signal_log`, `respect_signal_90d` (materialized view), `confidence_scores`, `availability_flags`, `failure_events`, `reports`, `ratings`, `submissions`, `tags`, `app_config`.
 
-**Existing scaffolding:** The project already has: `SPEC.md` (product spec), `docs/schema-contract.md`, `docs/review-severity.md`, `docs/verification.md`, `docs/SYSTEM_MAP.md`, `AGENTS.md` (full multi-agent review workflow), `GEMINI.md`, `CODEX.md`. One git commit exists with this scaffolding.
+**Existing scaffolding:** The project already has: `SPEC.md` (product spec), `docs/schema-contract.md`, `docs/review-severity.md`, `docs/verification.md`, `docs/SYSTEM_MAP.md`, `docs/watch-the-gap.md`, `AGENTS.md` (full multi-agent review workflow), `ANTIGRAVITY.md`, `CODEX.md`. One git commit exists with this scaffolding.
 
 **Target users (refined):** People for whom urgency is a real need, not just inconvenience: (1) people with IBS, Crohn's, colitis, or other bowel/GI conditions, (2) wheelchair users and mobility-impaired people needing accessible stalls, (3) parents with infants needing changing tables. General urgency users are also served, but the accessibility-focused users are the ones who will contribute data most reliably and share most organically.
 
@@ -90,7 +100,7 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 
 **Parent segment:** Changing table data is the feature that drives word-of-mouth in parenting communities (Facebook groups, Reddit parenting subs, Buy Nothing networks). "Changing Table NOW" emergency mode is the single-feature driver for this segment.
 
-**Multi-agent workflow:** Claude (primary coder via GSD + TDD), Gemini CLI (correctness/logic/architecture/PostGIS), Codex app (quality/security/style/test coverage). Review workflow: Claude implements → logs files to `.claude/review-queue.txt` → Gemini + Codex review → address all BLOCK/REQUEST CHANGES → commit with reviewer verdicts. Claude does not self-approve.
+**Multi-agent workflow:** Claude (primary coder via GSD + TDD), Antigravity CLI (correctness/logic/architecture/PostGIS), Codex app (quality/security/style/test coverage). Review workflow: Claude implements → logs files to `.claude/review-queue.txt` → Antigravity + Codex review → address all BLOCK/REQUEST CHANGES → commit with reviewer verdicts. Claude does not self-approve.
 
 **TDD:** `tdd-guard` is installed (package.json). Red → Green → Refactor enforced for all non-trivial behavior. Tests must cover security-sensitive and data-integrity behavior, not only rendering or happy paths.
 
@@ -106,7 +116,7 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 - **Gamification ordering**: If reward tiers are implemented, "Just used this" freshness confirmation must be lowest-reward or capped per location/user/window — not 3rd highest as in original design.
 - **Eugene density requirement**: 50 locations is the floor, but coverage type matters more than count.
 - **Security**: No raw SQL strings unless migrations or safely parameterized server-only code. GPS coordinates in PostGIS geometry/geography columns only. No PII in logs.
-- **Review gate**: No commit without APPROVE from both Gemini and Codex (or all BLOCK/REQUEST CHANGES resolved).
+- **Review gate**: No commit without APPROVE from both Antigravity and Codex (or all BLOCK/REQUEST CHANGES resolved).
 
 ## Key Decisions
 
@@ -121,7 +131,7 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 | Accessibility-focused users as primary segment | IBS/Crohn's, wheelchair users, and parents have the highest urgency and will contribute + share most organically | — Pending |
 | Access codes (PINs) gated to signed-in users only | Businesses may not want codes publicly indexed; community-reported tolerance is the signal, not blanket exposure | — Pending |
 | Chill Spots as the primary map category | Walk-in welcoming places (bars, hotel lobbies, libraries) are the most valuable, safest to list, and most community-shareable | — Pending |
-| Multi-agent review (Claude + Gemini + Codex) | No self-approval; PostGIS correctness audited by Gemini; security/privacy audited by Codex | — Pending |
+| Multi-agent review (Claude + Antigravity + Codex) | No self-approval; PostGIS correctness audited by Antigravity; security/privacy audited by Codex | — Pending |
 | TDD enforced via tdd-guard | Red → Green → Refactor for all non-trivial behavior; tests must cover integrity/security paths | — Pending |
 
 ## Evolution
@@ -129,6 +139,7 @@ When you urgently need a bathroom, Gotta Go finds you one with accurate, communi
 This document evolves at phase transitions and milestone boundaries.
 
 **After each phase transition** (via `/gsd-transition`):
+0. Run `/stale-info-scan`; resolve or explicitly defer findings that affect the next phase
 1. Requirements invalidated? → Move to Out of Scope with reason
 2. Requirements validated? → Move to Validated with phase reference
 3. New requirements emerged? → Add to Active
@@ -136,10 +147,16 @@ This document evolves at phase transitions and milestone boundaries.
 5. "What This Is" still accurate? → Update if drifted
 
 **After each milestone** (via `/gsd:complete-milestone`):
-1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
+1. Run `/stale-info-scan`; resolve or explicitly defer findings before closing
+2. Full review of all sections
+3. Core Value check — still the right priority?
+4. Audit Out of Scope — reasons still valid?
+5. Update Context with current state
+
+**Monthly while active:**
+1. Run `/stale-info-scan`
+2. Refresh `.planning/stale-info-scan-latest.md`
+3. Fix or explicitly defer BLOCKING STALE INFO and UPDATE REQUIRED findings
 
 ---
 *Last updated: 2026-05-18 after initialization*

@@ -4,7 +4,9 @@ Status: provisional project contract. This document captures the intended produc
 
 ## Product Summary
 
-Gotta Go is a crowdsourced bathroom finder that helps people quickly find nearby bathrooms while protecting contributor privacy and resisting abuse.
+Gotta Go is a crowdsourced bathroom finder built under the [Watch the Gap](docs/watch-the-gap.md) human-infrastructure studio. The product focuses on providing **certainty under urgency** while protecting contributor privacy and resisting abuse.
+
+Public restroom access is treated like a minor inconvenience until urgency turns it into humiliation. Gotta Go treats that gap as missing human infrastructure: a basic access problem that can be made visible, verified, and navigable.
 
 The product must balance:
 - Fast discovery for users who urgently need a bathroom
@@ -141,7 +143,7 @@ Shadowbanning is an abuse-control mechanism for users and locations.
 Rules:
 - Shadowbanned users must not influence public trust, confidence, leaderboards, or visible contribution counts
 - Shadowbanned locations must not appear in public search results
-- Shadowban filtering must happen at query/database/service boundaries, not only in UI rendering
+- Shadowban filtering must happen at query/database/service boundaries (e.g., via Antigravity-audited RLS), not only in UI rendering
 - Hidden status must not leak to shadowbanned users through obvious error differences unless intentionally designed
 
 ## Gamification Requirements
@@ -175,4 +177,3 @@ These must be resolved before production:
 - Trust score formula and caps
 - Respect signal formula
 - Retention policy for sensitive location-related data
-

@@ -230,7 +230,7 @@ Use the AskUserQuestion tool to ask ONLY the questions that are relevant based o
 **Ask only if relevant:**
 
 2. **External AI tools** — Ask ONLY if the project would benefit from it (non-trivial project):
-   - "Set up external AI tools (Codex/Gemini) for cost savings on implementation tasks?"
+   - "Set up external AI tools (Codex/Antigravity) for cost savings on implementation and review tasks?"
    - Options: "Yes (Recommended)", "No"
    - Header: "AI Tools"
 
@@ -412,19 +412,19 @@ target/
 If the user chose YES for external AI tools:
 
 1. Check if Codex CLI is installed: run `which codex` via Bash
-2. Check if Gemini CLI is installed: run `which gemini` via Bash
+2. Check if Antigravity CLI is installed: run `which antigravity` via Bash
 3. For any tool NOT installed, tell the user:
    - Codex: "Codex CLI is not installed. Install it with: `npm i -g @openai/codex`"
-   - Gemini: "Gemini CLI is not installed. Install it with: `npm i -g @google/gemini-cli`"
-   - Ask if the user wants you to install them now. If yes, run the install commands via Bash.
+   - Antigravity: "Antigravity CLI is not installed. Install or configure it using the current Google Antigravity instructions for your platform."
+   - Ask if the user wants you to install or configure them now. Codex may be installed with the command above; Antigravity setup must follow current vendor instructions rather than an invented package command.
 4. For installed tools, verify they're authenticated:
    - Codex: run `codex --version` — if it works, it's likely configured
-   - Gemini: run `gemini --version` — if it works, it's likely configured
+   - Antigravity: run `antigravity --version` — if it works, the CLI is available; confirm auth/configuration before relying on it for review
 5. Ensure `.metaswarm/` directory exists (create via Bash `mkdir -p .metaswarm` if needed)
 6. Copy or create `.metaswarm/external-tools.yaml` with both tools configured:
    - Set `enabled: true` for installed tools
    - Set `enabled: false` for tools that aren't installed
-7. Tell the user about any auth steps needed (e.g., "Run `codex login` to authenticate with OpenAI")
+7. Tell the user about any auth steps needed (e.g., "Run `codex login` to authenticate with OpenAI" and complete Antigravity CLI authentication/configuration if required)
 
 ### 4.5 — Visual Review Setup
 
@@ -542,8 +542,8 @@ If external tools were enabled, run health checks for each enabled tool:
 # For Codex
 codex --version 2>/dev/null && echo "Codex: OK" || echo "Codex: NOT AVAILABLE"
 
-# For Gemini
-gemini --version 2>/dev/null && echo "Gemini: OK" || echo "Gemini: NOT AVAILABLE"
+# For Antigravity
+antigravity --version 2>/dev/null && echo "Antigravity: OK" || echo "Antigravity: NOT AVAILABLE"
 ```
 
 Report any tools that failed health checks and suggest remediation.

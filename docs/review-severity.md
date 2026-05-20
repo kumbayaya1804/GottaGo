@@ -1,6 +1,6 @@
 # Review Severity Rules
 
-Use this document to keep Claude, Gemini, and Codex aligned on what blocks a merge.
+Use this document to keep Claude, Antigravity, and Codex aligned on what blocks a merge.
 
 ## Verdicts
 

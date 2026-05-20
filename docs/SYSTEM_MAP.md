@@ -2,7 +2,7 @@
 
 **Status:** Recovery Phase (Architectural Baseline)
 **Last Updated:** May 18, 2026
-**Lead Auditor:** Gemini
+**Lead Auditor:** Antigravity
 
 ## 1. Data Core (Supabase + PostGIS)
 
@@ -53,7 +53,7 @@
 - **Owner-only**: Users can only update their own profiles.
 - **Verified-only**: Certain actions (e.g., adding new locations) may require a minimum `trust_score`.
 
-## 4. Audit Log (Gemini)
+## 4. Audit Log (Antigravity)
 
 | Date | Scope | Verdict | Notes |
 | :--- | :--- | :--- | :--- |

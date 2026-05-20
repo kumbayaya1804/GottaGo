@@ -1,0 +1,153 @@
+# Agent Harness
+
+Status: active project contract.
+Last reviewed: 2026-05-20.
+
+This document defines how Claude, Antigravity, and Codex work together on Gotta Go. It is the harness contract: role boundaries, handoff artifacts, review gates, permissions posture, and failure handling.
+
+## Research Basis
+
+The harness follows current primary-source guidance from agentic coding platforms:
+
+- OpenAI Codex can read, edit, and run code, and can work on background tasks in isolated cloud environments. Codex review quality depends on clear prompts, constraints, exact file citations, and reviewable outputs. See:
+  - https://developers.openai.com/codex/cloud
+  - https://developers.openai.com/cookbook/examples/codex/build_code_review_with_codex_sdk
+- OpenAI recommends explicit orchestration decisions for specialist agents, including handoffs, guardrails, human review, and traces/evaluation loops. See:
+  - https://developers.openai.com/api/docs/guides/agents
+  - https://openai.github.io/openai-agents-python/handoffs/
+  - https://openai.github.io/openai-agents-python/guardrails/
+  - https://openai.github.io/openai-agents-python/tracing/
+- Codex internet access should stay limited because external content can introduce prompt injection, exfiltration, malware, vulnerable dependencies, or license risk. See:
+  - https://developers.openai.com/codex/cloud/internet-access
+- Claude Code project instructions belong in version-controlled project memory, and specialized work should be routed through focused subagents/skills/commands with explicit tool limits and clear descriptions. Hooks can enforce or observe workflow events, but hook scripts must be treated as executable code and kept conservative. See:
+  - https://code.claude.com/docs/en/memory
+  - https://code.claude.com/docs/en/sub-agents
+  - https://code.claude.com/docs/en/slash-commands
+  - https://code.claude.com/docs/en/hooks
+- Antigravity is strongest when used with planning mode, review policies, implementation artifacts, walkthroughs, diffs, screenshots, and user feedback loops. Its browser and terminal autonomy should be permissioned deliberately. See:
+  - https://codelabs.developers.google.com/getting-started-google-antigravity
+
+## Harness Principles
+
+1. Claude is the orchestrator and default implementer.
+   Claude owns GSD workflow execution, TDD, file edits, verification commands, reviewer invocation, fixing findings, and final commit preparation.
+
+2. Antigravity and Codex are independent reviewers.
+   Antigravity owns architecture, PostGIS, RLS placement, trust math, confidence decay, aggregate correctness, and system-level data integrity. Codex owns implementation quality, security/privacy, TypeScript correctness, test quality, user-visible failure states, and practical production risk.
+
+3. Review is artifact-driven.
+   No reviewer approves from intent alone. Every review must have a concrete artifact bundle: scope, context, changed files, exact file contents or diff, verification evidence, and requested output format.
+
+4. Handoffs are explicit.
+   Claude must state what is being handed off, which files are in scope, what verdict is requested, and what evidence the reviewer should inspect. Reviewers must not silently expand into unrelated changes unless they uncover a security, privacy, data-integrity, or production-breaking risk.
+
+5. Guardrails beat speed.
+   Any BLOCK verdict stops the line. Any REQUEST CHANGES verdict requires a fix and re-review. Conflicts between Antigravity and Codex are resolved by documenting the conflict and taking the stricter interpretation for security, privacy, RLS, GPS integrity, and data-loss concerns.
+
+6. Permissions stay narrow.
+   Agents should run with the least authority needed. Avoid unrestricted internet, destructive shell commands, broad filesystem writes, and hidden credential access. Browser/network access is allowed only when the task needs it and the source is trusted.
+
+7. Verification is part of the artifact.
+   A review is incomplete without the commands run, results observed, and commands not run with reasons. Test, typecheck, lint, build, Supabase, and browser verification should be run when configured and relevant.
+
+8. Reviewer independence is preserved.
+   Claude cannot self-approve. Antigravity and Codex do not approve changes they did not inspect. Codex must read `.claude/codex-prompt-latest.md` before returning a Codex review. Antigravity must read `.claude/review-queue.txt` and the current project context before returning an Antigravity review.
+
+## Required Review Artifacts
+
+Claude maintains these artifacts during every non-trivial task:
+
+- `.claude/review-queue.txt`: newline-delimited files written or edited by Claude. This is the queue for reviewer scope.
+- `.claude/antigravity-review-latest.md`: the latest Antigravity verdict and findings, generated or copied after `/antigravity-review`.
+- `.claude/codex-prompt-latest.md`: the full Codex review packet generated by `/codex-prompt`.
+- `.claude/codex-review-latest.md`: the latest Codex verdict and findings, copied in when Codex returns a review.
+- `.planning/stale-info-scan-latest.md`: the latest stale-information scan report, generated by `/stale-info-scan`.
+
+These files are coordination artifacts. They do not replace inspecting the actual files from disk.
+
+## Periodic Stale-Information Scans
+
+Claude must run `/stale-info-scan` on the cadence defined in `docs/stale-info-scan.md`: every 30 days while active, before phase transitions, before milestone close, after dependency/tool/schema/harness changes, and before release or new-market launch.
+
+The scan is a project-control artifact, not a substitute for review. BLOCKING STALE INFO and UPDATE REQUIRED findings must be fixed or explicitly deferred before the related phase, milestone, release, or commit closes. Antigravity and Codex may request a scan when stale context could affect review safety.
+
+## Standard Flow
+
+1. Claude reads startup context.
+   Required: `AGENTS_ROSTER.md`, `AGENTS.md`, `docs/agent-harness.md`, `SPEC.md`, `docs/schema-contract.md`, `docs/review-severity.md`, `docs/verification.md`, `.planning/PROJECT.md`, `ANTIGRAVITY.md`, and `CODEX.md`.
+
+2. Claude implements through GSD.
+   Use `/gsd-quick`, `/gsd-debug`, or `/gsd-execute-phase` unless the human explicitly bypasses GSD. All non-trivial behavior uses TDD when practical.
+
+3. Claude verifies locally.
+   Run configured checks before reviewer handoff. If a check cannot run, record the exact blocker.
+
+4. Claude invokes Antigravity.
+   Run `/antigravity-review` first. Antigravity receives the queue, project context, changed file contents, and verification notes. Save the result to `.claude/antigravity-review-latest.md`.
+
+5. Claude generates the Codex packet.
+   Run `/codex-prompt` after Antigravity. The prompt must include context, changed files, Antigravity result or summary, verification evidence, and requested Codex output format.
+
+6. Codex reviews independently.
+   Codex reads `.claude/codex-prompt-latest.md`, inspects actual files from disk, runs practical verification, and returns a verdict. Copy the returned verdict to `.claude/codex-review-latest.md` when available.
+
+7. Claude resolves findings.
+   BLOCK and REQUEST CHANGES items are fixed before commit. Affected files re-enter the queue and both relevant reviewers re-review them.
+
+8. Claude commits only after both reviewers approve.
+   The commit message must summarize verification and reviewer verdicts. Clear `.claude/review-queue.txt` only after commit.
+
+## Scope Rules
+
+- Small docs-only changes may use `/gsd-quick`, but still require reviewer approval if they alter security, schema, workflow, review gates, product scope, or launch constraints.
+- Schema, RLS, GPS verification, trust/confidence, shadowban, privacy, auth, and service-role handling always require both Antigravity and Codex review.
+- Frontend-only UI changes still require Codex review when they affect location permission, map behavior, error states, user identity, privacy, or Supabase calls.
+- Reviewer prompts should include exact files and line numbers where practical. Do not ask reviewers to infer scope from chat history.
+
+## Prompt Packet Requirements
+
+Every reviewer packet must include:
+
+- Task goal and phase.
+- Changed files from `.claude/review-queue.txt`.
+- Relevant project context and constraints.
+- Actual file contents or an explicit diff.
+- Verification commands already run and their outcomes.
+- Known caveats, failed commands, or missing tooling.
+- Required output format and verdict definitions.
+
+Do not include secrets, service-role keys, auth tokens, private `.env` values, or precise user location data in reviewer prompts.
+
+## Permission Posture
+
+Claude hooks and commands should prefer:
+
+- Read-only inspection before writes.
+- Explicit approval for destructive or external actions.
+- Project-relative paths.
+- Narrow command allowlists.
+- No broad network access unless needed for current-source research or dependency installation.
+
+Antigravity should use review-driven settings for this project: planning artifacts and code diffs should be reviewed by the human or Claude before proceeding with risky changes.
+
+Codex should treat external web content as untrusted unless it is official documentation needed for the task. For OpenAI product behavior, use official OpenAI documentation. For Claude Code behavior, use official Claude Code documentation. For Antigravity behavior, use official Google/Antigravity documentation.
+
+## Failure Handling
+
+- Missing reviewer prompt: stop and generate the missing artifact.
+- Missing reviewer tool: provide the exact manual prompt and do not claim review completed.
+- Failed verification: report the command and failure; do not approve or commit.
+- Conflicting reviewer findings: document the conflict, choose the stricter safety interpretation, and ask for human review when both paths have meaningful tradeoffs.
+- Scope drift: stop and update the task, plan, or review queue before continuing.
+
+## Minimum Commit Gate
+
+A commit is allowed only when all are true:
+
+- `.claude/review-queue.txt` contains the files actually changed for the task.
+- Local verification has been run or explicitly reported as blocked.
+- Stale-information scan findings that affect the current task have been resolved or explicitly deferred.
+- Antigravity verdict is APPROVE for architecture/data-integrity concerns.
+- Codex verdict is APPROVE for implementation/security/test-quality concerns.
+- Any reviewer conflicts have been documented and resolved.
+- The commit message records reviewer verdicts and verification.

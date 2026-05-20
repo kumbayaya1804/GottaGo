@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gemini *)",
+      "Bash(antigravity *)",
       "Bash(codex *)",
       "Bash(npx *)",
       "Bash(git *)",
@@ -12,13 +12,13 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
             "type": "command",
             "shell": "powershell",
-            "command": "$j = [Console]::In.ReadToEnd() | ConvertFrom-Json; $fp = $j.tool_input.file_path; if ($fp) { Add-Content -Path '.claude\\review-queue.txt' -Value $fp }",
-            "statusMessage": "Queuing file for Gemini + Codex review..."
+            "command": "$j = [Console]::In.ReadToEnd() | ConvertFrom-Json; $fp = $j.tool_input.file_path; if ($fp) { $q = '.claude\\review-queue.txt'; if (!(Test-Path $q)) { New-Item -ItemType File -Path $q -Force | Out-Null }; $existing = Get-Content $q -ErrorAction SilentlyContinue; if ($existing -notcontains $fp) { Add-Content -Path $q -Value $fp } }",
+            "statusMessage": "Queuing file for Antigravity + Codex review..."
           }
         ]
       }
@@ -29,8 +29,14 @@
           {
             "type": "command",
             "shell": "powershell",
-            "command": "@{systemMessage='Reviewers needed: run Gemini + Codex review on changed files before committing. Check .claude/review-queue.txt for the list.'} | ConvertTo-Json -Compress",
+            "command": "@{systemMessage='Reviewers needed before committing: run Antigravity and Codex review on changed files. Check .claude/review-queue.txt, save Antigravity output to .claude/antigravity-review-latest.md, generate .claude/codex-prompt-latest.md, and save Codex output to .claude/codex-review-latest.md when available.'} | ConvertTo-Json -Compress",
             "statusMessage": "Checking review queue..."
+          },
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$p = '.planning\\stale-info-scan-latest.md'; $due = $true; if (Test-Path $p) { $due = ((New-TimeSpan -Start (Get-Item $p).LastWriteTime -End (Get-Date)).TotalDays -ge 30) }; if ($due) { @{systemMessage='Stale-information scan is due or missing: run /stale-info-scan before phase transitions, milestone close, release, or dependency/schema/harness changes.'} | ConvertTo-Json -Compress }",
+            "statusMessage": "Checking stale-information scan cadence..."
           }
         ]
       }

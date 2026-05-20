@@ -21,6 +21,12 @@ Core system concerns:
 - Shadowbanning for users and locations
 - Privacy constraints around precise coordinates, identity, and behavior logs
 
+## Harness Contract
+
+Read `docs/agent-harness.md` before review or implementation work. It defines Claude as orchestrator/default implementer, Antigravity as architectural/data-integrity reviewer, Codex as implementation-quality/security reviewer, and the required review artifacts. Codex review output should be artifact-ready so Claude can save it to `.claude/codex-review-latest.md`.
+
+Also read `docs/stale-info-scan.md` when reviewing workflow, planning, dependency, schema, prompt, launch, or documentation changes. If `.planning/stale-info-scan-latest.md` exists, treat it as evidence of known drift and verify whether the current change resolves, worsens, or ignores relevant findings.
+
 ## Review Priorities
 
 Review in this order:
@@ -37,8 +43,11 @@ Do not let style comments crowd out defects that can lose data, leak identity, e
 
 ## Required Behavior During Review
 
+Before returning any Codex review, Codex must read `.claude/codex-prompt-latest.md`. That file defines the current review scope, files to inspect, required context, and requested output format. If the prompt file is missing for a review request, Codex must say so instead of guessing the scope. Codex must then inspect the actual files from disk before judging; the prompt is review input, not a substitute for evidence.
+
 Codex must:
 - Read the relevant implementation, tests, migrations, and calling code before judging
+- Check for stale project instructions when the change touches docs, prompts, migrations, generated types, dependencies, launch assumptions, or review workflow
 - Look for both direct bugs and missing enforcement at the correct layer
 - Check that client code does not become the security boundary
 - Verify claims with tests, typecheck, lint, build, browser checks, or targeted file inspection when practical
@@ -149,4 +158,3 @@ Verdict rules:
 - BLOCK means the change must not merge because it creates or preserves a security issue, privacy leak, data-integrity risk, migration danger, or production-breaking defect.
 - REQUEST CHANGES means the change is directionally acceptable but has logic errors, missing required tests, incomplete error handling, or significant maintainability risk.
 - APPROVE means the inspected change is ready to merge with only non-blocking notes, if any.
-

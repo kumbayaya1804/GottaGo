@@ -13,15 +13,21 @@ Every agent must read these documents in full before starting a session:
 |------|---------|
 | `AGENTS_ROSTER.md` | This file — agent identities, roles, invocation, workflow |
 | `AGENTS.md` | Agent coordination rules and non-negotiable constraints |
+| `docs/agent-harness.md` | Claude/Antigravity/Codex orchestration, handoffs, review artifacts, permission posture |
 | `SPEC.md` | Product scope, user flows, privacy, GPS, trust, shadowban, gamification |
 | `docs/schema-contract.md` | Supabase/PostGIS schema contract, RLS expectations, migration rules |
 | `docs/review-severity.md` | Shared APPROVE / REQUEST CHANGES / BLOCK verdict definitions |
 | `docs/verification.md` | Required verification commands and reporting format |
-| `GEMINI.md` | Gemini's operating instructions (read by Gemini before any review) |
+| `docs/stale-info-scan.md` | Periodic stale-information scan cadence, severity, and artifact format |
+| `ANTIGRAVITY.md` | Antigravity's operating instructions (read by Antigravity before any review) |
 | `CODEX.md` | Codex's operating instructions (read by Codex before any review) |
+| `.claude/codex-prompt-latest.md` | Current Codex review scope and output contract (required for Codex review) |
 | `.planning/PROJECT.md` | Current roadmap, requirements, constraints, and key decisions |
 
 If any file listed above conflicts with another, flag the conflict for human resolution. Do not silently pick the easier interpretation.
+
+**If you are Antigravity:** also read `ANTIGRAVITY.md` before reviewing anything.
+**If you are Codex:** also read `CODEX.md` and the current `.claude/codex-prompt-latest.md` before reviewing anything. If the prompt file is missing for a review request, say so instead of guessing the scope.
 
 ---
 
@@ -37,9 +43,11 @@ If any file listed above conflicts with another, flag the conflict for human res
 - Execute the full GSD workflow: discuss → plan → implement → verify
 - Enforce TDD for all non-trivial behavior: red → green → refactor
 - Log every file written or edited to `.claude/review-queue.txt` (automated via PostToolUse hook)
-- Invoke Gemini review and generate the Codex prompt after completing each task
+- Invoke Antigravity review and generate the Codex prompt after completing each task
+- Maintain `.claude/antigravity-review-latest.md`, `.claude/codex-prompt-latest.md`, and `.claude/codex-review-latest.md` as review artifacts
+- Run `/stale-info-scan` on the cadence in `docs/stale-info-scan.md` and maintain `.planning/stale-info-scan-latest.md`
 - Resolve all BLOCK and REQUEST CHANGES findings before committing
-- Commit only after both Gemini and Codex have returned APPROVE (or all blocking findings are resolved and re-reviewed)
+- Commit only after both Antigravity and Codex have returned APPROVE (or all blocking findings are resolved and re-reviewed)
 
 ### Entry Points (GSD Workflow)
 
@@ -51,36 +59,37 @@ If any file listed above conflicts with another, flag the conflict for human res
 | `/gsd-execute-phase` | Execute all tasks in a phase's plan |
 | `/gsd-verify-work` | Verify phase goal was achieved |
 | `/gsd-debug` | Systematic bug investigation |
-| `/gemini-review` | Invoke Gemini CLI on queued files |
+| `/antigravity-review` | Invoke Antigravity CLI on queued files |
 | `/codex-prompt` | Generate Codex review prompt for queued files |
+| `/stale-info-scan` | Scan for stale docs, prompts, plans, schema, dependencies, and review artifacts |
 
 ### Constraints
 
-- Claude does NOT self-approve. All non-trivial code is reviewed by both Gemini and Codex before commit.
+- Claude does NOT self-approve. All non-trivial code is reviewed by both Antigravity and Codex before commit.
 - Claude does not make direct repo edits outside a GSD workflow unless the user explicitly says to bypass it.
-- Claude resolves Gemini vs. Codex conflicts explicitly (see AGENTS.md § Conflict Resolution).
+- Claude resolves Antigravity vs. Codex conflicts explicitly (see AGENTS.md § Conflict Resolution).
 
 ---
 
-## Agent 2 — Gemini (Gemini CLI)
+## Agent 2 — Antigravity (Antigravity CLI)
 
 **Role:** Architectural Auditor & Lead Systems Reviewer
-**Tool:** Gemini CLI — invoked via terminal
+**Tool:** Antigravity CLI — invoked via terminal
 **Persona:** Senior architect specializing in PostGIS, distributed trust systems, and database-layer security
 
 ### Invocation
 
 ```bash
-# Run /gemini-review in Claude Code to invoke automatically on queued files.
+# Run /antigravity-review in Claude Code to invoke automatically on queued files.
 # Manual invocation:
-gemini -p "$(cat GEMINI.md AGENTS.md SPEC.md docs/schema-contract.md docs/review-severity.md); Review the following changed files and return your verdict:\n$(cat <file>)"
+antigravity -p "$(cat ANTIGRAVITY.md AGENTS_ROSTER.md AGENTS.md docs/agent-harness.md SPEC.md docs/schema-contract.md docs/review-severity.md docs/verification.md); Review the following changed files and return your verdict:\n$(cat <file>)"
 ```
 
-> Use `/gemini-review` in Claude Code — it builds the full context prompt and calls Gemini automatically.
+> Use `/antigravity-review` in Claude Code — it builds the full context prompt and calls Antigravity automatically.
 
 ### Primary Focus Areas
 
-| Area | What Gemini checks |
+| Area | What Antigravity checks |
 |------|--------------------|
 | PostGIS correctness | `ST_DWithin` / `ST_Distance` meter semantics, SRID consistency, spatial indexes, geography vs geometry |
 | RLS policy placement | Shadowban + soft-delete filters at query/DB layer, not UI layer |
@@ -93,7 +102,7 @@ gemini -p "$(cat GEMINI.md AGENTS.md SPEC.md docs/schema-contract.md docs/review
 ### Output Format
 
 ```md
-## Gemini Review - [filename or change set]
+## Antigravity Review - [filename or change set]
 
 **VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
 
@@ -127,6 +136,8 @@ Open that file, copy the contents, and paste into the Codex app.
 ```
 
 > Codex is the only agent that requires a manual human step (paste). The prompt is always pre-built by Claude.
+> Codex must read `.claude/codex-prompt-latest.md` before returning a verdict, then inspect the actual files from disk. If the prompt file is missing for a review request, Codex must report that instead of guessing the scope. The prompt defines scope; it does not replace evidence-based review.
+> Claude should copy the returned Codex verdict to `.claude/codex-review-latest.md` before commit.
 
 ### Primary Focus Areas
 
@@ -234,11 +245,12 @@ Tests pass (npm test, npm run typecheck, npm run lint)
 Files written auto-logged to .claude/review-queue.txt (PostToolUse hook)
    │
    ▼
-/gemini-review  ──►  Gemini CLI invoked with full context
+/antigravity-review  ──►  Antigravity CLI invoked with full context
    │                 Returns APPROVE / REQUEST CHANGES / BLOCK
    ▼
 /codex-prompt  ──►  Prompt generated → .claude/codex-prompt-latest.md
    │                 Human pastes into Codex app
+   │                 Codex reads .claude/codex-prompt-latest.md and inspects files
    │                 Codex returns APPROVE / REQUEST CHANGES / BLOCK
    ▼
 All BLOCK + REQUEST CHANGES resolved?
@@ -254,13 +266,17 @@ All BLOCK + REQUEST CHANGES resolved?
 
 ## Non-Negotiable Rules (All Agents)
 
+Reviewer artifacts must be preserved through the handoff: Antigravity output is saved to `.claude/antigravity-review-latest.md`, Codex input is saved to `.claude/codex-prompt-latest.md`, and Codex output is saved to `.claude/codex-review-latest.md` when available. These artifacts support traceability but do not replace inspecting the actual files.
+
+The latest stale-information scan is saved to `.planning/stale-info-scan-latest.md`. Any finding that affects the current task must be resolved or explicitly deferred before commit, milestone close, phase transition, or release.
+
 1. Never commit with a BLOCK verdict outstanding.
 2. Never bypass shadowban, trust, GPS verification, or RLS checks for convenience.
 3. Never store coordinates outside PostGIS `geography/geometry` columns.
 4. Never log PII (email, user_id, precise coordinates) in client-visible contexts.
 5. Never skip tests or verification to ship faster.
 6. Never approve code based only on intent — inspect the actual implementation.
-7. Never let a Gemini vs. Codex conflict be silently resolved — document it.
+7. Never let an Antigravity vs. Codex conflict be silently resolved — document it.
 8. Never write a migration that creates a user-owned or public-facing table without RLS enabled.
 9. Never put the Supabase service-role key anywhere the client can access it.
 10. Never trust the client for trust math, GPS authority, shadowban decisions, or RLS enforcement.

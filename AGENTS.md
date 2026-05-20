@@ -7,6 +7,9 @@ All agents should read these documents before major planning, implementation, or
 - `docs/schema-contract.md` - provisional Supabase/PostGIS data model, RLS expectations, and migration review rules
 - `docs/review-severity.md` - shared APPROVE / REQUEST CHANGES / BLOCK definitions and severity examples
 - `docs/verification.md` - expected verification commands and reporting format
+- `docs/agent-harness.md` - Claude/Antigravity/Codex orchestration, handoff artifacts, permission posture, and commit gates
+- `docs/stale-info-scan.md` - periodic stale-information scan cadence, severity, and artifact format
+- `ANTIGRAVITY.md` - detailed Antigravity role guide and architectural review standard
 - `CODEX.md` - detailed Codex role guide and review operating standard
 
 If implementation conflicts with these docs, agents must either update the docs in the same change or explicitly flag the conflict for human review.
@@ -18,17 +21,19 @@ Claude is the default implementation agent. Responsibilities:
 - Executing the GSD workflow: spec -> plan -> implement -> verify
 - Enforcing TDD for non-trivial behavior: red -> green -> refactor
 - Logging changed files to `.claude/review-queue.txt`
-- Committing only after both Gemini and Codex have returned APPROVE or all REQUEST CHANGES/BLOCK feedback has been resolved
+- Maintaining review artifacts defined in `docs/agent-harness.md`
+- Running `/stale-info-scan` on the cadence in `docs/stale-info-scan.md` and keeping `.planning/stale-info-scan-latest.md` current
+- Committing only after both Antigravity and Codex have returned APPROVE or all REQUEST CHANGES/BLOCK feedback has been resolved
 
-Claude does not self-approve. All non-trivial code passes through both reviewers before commit.
+Claude does not self-approve. All non-trivial code passes through both reviewers (Antigravity and Codex) before commit.
 
 ---
 
-## Code Reviewer 1 - Gemini (Gemini CLI)
+## Code Reviewer 1 - Antigravity (Antigravity CLI)
 
 Focus: correctness, logic, architecture, data integrity, PostGIS queries, and RLS policy placement.
 
-Gemini acts as the senior architectural auditor for system-level reasoning:
+Antigravity acts as the senior architectural auditor for system-level reasoning:
 - PostGIS geometry correctness, SRID consistency, and geospatial query performance
 - Trust/reputation math, confidence decay, and respect-signal calculations
 - RLS policy placement and shadowban enforcement at the database/query layer
@@ -37,10 +42,10 @@ Gemini acts as the senior architectural auditor for system-level reasoning:
 
 **Invoke from terminal:**
 ```bash
-gemini -p "$(Get-Content GEMINI.md); Review this file: $(Get-Content <file>)"
+antigravity -p "$(Get-Content ANTIGRAVITY.md; Get-Content docs/agent-harness.md); Review this file: $(Get-Content <file>)"
 ```
 
-Or open Gemini CLI in this project. `GEMINI.md` loads automatically.
+Or open Antigravity CLI in this project. `ANTIGRAVITY.md` loads automatically.
 
 ---
 
@@ -75,6 +80,7 @@ Codex must block or request changes for violations of these rules:
 ### Operating Standard
 
 Codex must be evidence-driven:
+- Read `.claude/codex-prompt-latest.md` before returning any Codex review; if it is missing for a review request, say so instead of guessing the scope
 - Read the relevant files before judging them
 - Run available tests, typechecks, linters, or targeted commands when practical
 - Cite exact files and line numbers for findings
@@ -136,17 +142,19 @@ Open the Codex app in this project. `AGENTS.md` loads automatically as Codex con
 
 1. Claude completes a task and verifies all relevant tests pass
 2. Files written are logged to `.claude/review-queue.txt` automatically
-3. Claude invokes Gemini review on queued files
-4. Claude invokes Codex review on queued files
+3. Claude invokes Antigravity review on queued files and saves the result to `.claude/antigravity-review-latest.md`
+4. Claude generates `.claude/codex-prompt-latest.md`; Codex reads that prompt, then reviews the actual queued files from disk
 5. Claude addresses all BLOCK and REQUEST CHANGES feedback
-6. Gemini and Codex re-review affected files when needed
-7. Claude clears `.claude/review-queue.txt`
-8. Claude commits with a summary of reviewer verdicts and resolutions
-9. Move to the next GSD task
+6. Antigravity and Codex re-review affected files when needed
+7. Claude copies the latest Codex verdict to `.claude/codex-review-latest.md` when available
+8. Claude resolves or explicitly defers any stale-information scan findings that affect the current task
+9. Claude commits with a summary of reviewer verdicts and resolutions
+10. Claude clears `.claude/review-queue.txt` after the commit
+11. Move to the next GSD task
 
 ## Conflict Resolution
 
-If Gemini and Codex give contradictory feedback, Claude must not silently choose the easier path. Claude should document:
+If Antigravity and Codex give contradictory feedback, Claude must not silently choose the easier path. Claude should document:
 - The conflict
 - Which recommendation was followed
 - Why that choice is safer for the project

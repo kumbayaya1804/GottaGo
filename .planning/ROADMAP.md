@@ -33,19 +33,19 @@ Goal: 50+ locations in Eugene with GPS-verified data, parent/accessibility filte
 **Depends on**: Nothing (bootstrap)
 **Requirements**: Tech Stack constraint, Data Integrity constraint, Security constraint
 **Success Criteria** (what must be TRUE):
-  1. `supabase db reset` applies all 8 migrations cleanly with no errors
+  1. `supabase db reset` applies all 9 migrations cleanly with no errors
   2. PostGIS GIST index exists on `bathroom_locations.location`
   3. `app_config` table exists and is seeded with tunable thresholds
   4. RLS is enabled on all 6 core tables (confirmed via `supabase db lint`)
   5. Expo dev client builds with Mapbox + Supabase composing (no crash on launch)
   6. `src/lib/database.types.ts` generated from live schema and committed
-**Plans**: TBD
+**Plans**: 2 plans
 
 Note: Supabase migrations (phases 000001–000008) and Expo scaffold with full dependency stack were bootstrapped outside GSD. Remaining work: app_config table, spatial index verification, RLS lint, TypeScript type generation, and EAS dev client build smoke test.
 
 Plans:
-- [ ] 01-01: app_config table, spatial index verification, RLS lint
-- [ ] 01-02: Supabase client setup (src/lib/supabase.ts), TypeScript types, EAS dev client build verification
+- [ ] 01-01-PLAN.md — seed.sql stub + app_config migration (D-01 thresholds) + supabase link + db push + RLS lint + GIST index verification + TypeScript type generation
+- [ ] 01-02-PLAN.md — jest.config fix + tsconfig paths + app.config.ts conversion + src/app/ scaffold + src/lib/supabase.ts + EAS dev client build smoke test
 
 ---
 
