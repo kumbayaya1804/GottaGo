@@ -1,0 +1,3 @@
+-- Gotta Go seed data
+-- Runtime seeds (e.g. test fixtures) go here.
+-- app_config thresholds are seeded in 20260519000009_app_config.sql migration.
