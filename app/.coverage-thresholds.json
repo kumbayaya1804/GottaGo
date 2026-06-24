@@ -9,6 +9,6 @@
   "scope": "src/**/*.{ts,tsx}",
   "exclusions": [
     "src/**/*.d.ts",
-    "src/app/**/_layout.tsx"
+    "src/app/**"
   ]
 }
