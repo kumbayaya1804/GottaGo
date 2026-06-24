@@ -1,36 +1,55 @@
-## Antigravity Review - Phase 1 Complete Retrospective Review
+## Antigravity Review - Phase 1 Migration 000002 Re-Review (2026-06-24)
 
-**VERDICT: BLOCK**
+**VERDICT: APPROVE**
+
+---
 
 ### Issues
-- **[CRITICAL] [supabase/migrations/20260519010000_remote_schema.sql:87-89](file:///C:/Users/mrsai/Gotta%20Go/supabase/migrations/20260519010000_remote_schema.sql#L87-L89)**: The `locations_insert_auth` policy permits any authenticated user to insert new canonical bathroom entries directly into the `locations` table. This bypasses the mandatory `submissions` table and verification gates entirely, violating the SPEC.md requirement that no location publishes without a 2-verification threshold.
-  *Required Fix*: Drop this policy. Clients must submit locations to the `submissions` table, and only service-role or secure server-side RPC functions should publish to `locations`.
-- **[CRITICAL] [supabase/migrations/20260519010000_remote_schema.sql:218-220](file:///C:/Users/mrsai/Gotta%20Go/supabase/migrations/20260519010000_remote_schema.sql#L218-L220)**: The `submissions_update_own` policy allows users to update any column of their own submissions, including `status`. A malicious user can write directly to their submission and set it to `'published'`, bypassing verification checks.
-  *Required Fix*: Drop this policy entirely, or add a `with check` clause to ensure users cannot modify fields like `status` or `confirmation_count` (which should only be mutable via service-role or database RPCs).
-- **[CRITICAL] [supabase/migrations/20260519010000_remote_schema.sql:393-395](file:///C:/Users/mrsai/Gotta%20Go/supabase/migrations/20260519010000_remote_schema.sql#L393-L395)**: The `ratings_select_public` policy allows direct SELECT on the base `ratings` table, which exposes the `user_id` of the rater. This violates SPEC.md privacy rules preventing public correlation of user IDs to sensitive location history.
-  *Required Fix*: Revoke SELECT on the base `ratings` table from `anon` and `authenticated`. Create a security-definer view `ratings_public` that excludes `user_id` (or maps it to a safe display name) and grant SELECT on that view.
-- **[CRITICAL] [supabase/migrations/](file:///C:/Users/mrsai/Gotta%20Go/supabase/migrations/)**: The database view `respect_signal_90d` and functions `get_locations_in_radius` and `count_locations_within` are defined in the client-side [database.types.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/lib/database.types.ts) but are completely missing from the SQL migration files. 
-  *Required Fix*: Create a new migration file to define these database functions and view so that local databases (e.g. built using `supabase db push`) remain in sync with the production schema.
-- **[MAJOR] [docs/schema-contract.md](file:///C:/Users/mrsai/Gotta%20Go/docs/schema-contract.md)**: Extreme schema/spec mismatches exist between the documentation contract and the actual database column definitions:
-  * `users.trust_score`: expects `numeric` defaulting to `0` (or `0.0 to 1.0` float); SQL uses `integer` defaulting to `9`.
-  * `users.trust_multiplier`: expects default `1`; SQL uses default `0.5`.
-  * `users.shadowban_status` and `locations.shadowban_status`: SQL uses `shadowban_status` but `docs/schema-contract.md` and `SPEC.md` refer to `is_shadowbanned`.
-  * `verification_events`: expects `verified_at`, `weighted_value`, and `result` columns; SQL uses `timestamp`, `weight`, and `event_type`.
-  * `availability_flags`: expects `reported_by` and `flag_type`; SQL uses `reporter_id` and `type`.
-  * `reports`: expects `reported_by`, `status`, and `resolved_at`; SQL uses `user_id` and `report_type` and completely lacks moderation status/resolution tracking.
-  * `trust_events`: expects `event_type`, `score_delta`, `reason`, `created_at`; SQL uses `action_type`, `delta`, `context_ref`, and `timestamp`.
-  *Required Fix*: Align [schema-contract.md](file:///C:/Users/mrsai/Gotta%20Go/docs/schema-contract.md) to match the actual implemented database columns and types to prevent developer confusion.
-- **[MAJOR] [app/src/lib/__tests__/](file:///C:/Users/mrsai/Gotta%20Go/app/src/lib/__tests__/)**: Lack of any database test coverage. There are no tests verifying that RLS policies block unauthorized reads/writes, that shadowbanned entities are filtered correctly, or that PostGIS query boundaries function as expected.
-  *Required Fix*: Introduce database-layer RLS test scripts (either using pgTAP, a database migration test script, or local Jest/MSW client integration tests simulating different authenticated roles).
 
-### Concerns
-- **Trust Score Mismatch**: A new user starting with a `trust_score = 9` (integer) instead of `0` or `1.0` (as a decimal base) will distort the contribution weights if the code expects a decimal between `0` and `1`. This logic needs immediate alignment before Phase 2/3 trust calculations are implemented.
+None. All three prior findings are fully resolved. No new issues introduced.
+
+---
 
 ### Verification
-- Checked directory structure and database migration files: confirmed missing view and function objects.
-- Analyzed RLS policies in `20260519010000_remote_schema.sql` and `20260519030000_fix_rls.sql`: confirmed direct insertion, update, and privacy gaps.
-- Executed Jest tests locally: all 4 current tests pass successfully.
+
+**MAJOR (000000:37) — `revoke select on ratings from authenticated` missing**
+- `000002` line 14: `revoke select on ratings from authenticated;` — present, correct, and placed as the first statement in the migration before any function work. The authentication bypass gap is closed.
+- Authenticated users can no longer reach `user_id` via the base `ratings` table. Own-row access remains intact via `ratings_select_own` (RLS, for service-role paths). Aggregate access remains via `ratings_public` view (no `user_id` column). The full privacy chain is now correct.
+
+**MINOR (000000:99,126) — `get_locations_in_radius` implicit SRID**
+- ST_DWithin call: `000002` line 41 uses `st_setsrid(st_makepoint(user_lng, user_lat), 4326)::geography` — explicit SRID, consistent with `000001` WR-01 documented pattern.
+- KNN ordering operator: `000002` line 67 uses `st_setsrid(st_makepoint(user_lng, user_lat), 4326)::geography` — same explicit-SRID pattern applied to the `<->` ordering expression.
+- Both occurrences that were flagged in `000000` are corrected.
+
+**MINOR (000000:155) — `count_locations_within` implicit SRID**
+- `000002` line 95 uses `st_setsrid(st_makepoint(p_lon, p_lat), 4326)::geography` — explicit SRID applied.
+- Argument order in `ST_MakePoint(p_lon, p_lat)` is correct: PostGIS convention is (x=lon, y=lat).
+
+**Grants re-application**
+- `get_locations_in_radius`: `anon` and `authenticated` re-granted at lines 70–75. Argument type list (10 params: `numeric, numeric, numeric, boolean, boolean, boolean, boolean, boolean, boolean, boolean`) matches the function signature exactly.
+- `count_locations_within`: `anon` and `authenticated` re-granted at lines 100–101. Argument type list (3 params: `numeric, numeric, numeric`) matches the function signature exactly.
+- `create or replace function` does not preserve existing grants. The explicit re-grant is required and correctly present in both cases.
+
+**Security posture check — no regression**
+- `security definer` retained on both functions — intentional server-side execution with no RLS bypass concern here.
+- `set search_path = public` retained on both functions — search-path injection surface unchanged from `000000`.
+- `stable` volatility marker retained on both functions — correct; neither function mutates data.
+- `ratings_select_own` policy (created in `000000`) is not touched — correct; it was not broken and remains available for service-role paths.
+- `ratings_public` view and its grants (from `000000`) are not touched — correct.
+- No new tables, policies, or views introduced. Migration is a clean surgical fix targeting only the three prior findings.
+
+---
 
 ### Approved
-- **Supabase Client Initialization**: [supabase.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/lib/supabase.ts) is fully correct and properly configured with env guards, `AsyncStorage`, `detectSessionInUrl: false`, and automatic refresh/session persistence.
-- **App Layout & Router Structures**: Client application scaffolding conforms to Expo Router expectations.
+
+- **Privacy fix (MAJOR resolved)**: Rater identity (`user_id`) is now fully inaccessible to both `anon` and `authenticated` roles via the base `ratings` table. The `ratings_select_own` RLS policy and the `ratings_public` aggregate view remain intact and correctly scoped.
+- **PostGIS SRID consistency (both MINORs resolved)**: Both `get_locations_in_radius` (ST_DWithin + KNN `<->`) and `count_locations_within` now use `ST_SetSRID(ST_MakePoint(...), 4326)::geography`, consistent with the explicit-SRID pattern documented in migration `000001` WR-01.
+- **Grant hygiene**: All function grants are correctly re-applied after `create or replace`. No role is left without execute permission.
+- **Idempotent-safe**: `create or replace function` makes re-application safe. The `revoke` on `authenticated` is a no-op if already revoked in a prior session.
+
+This migration is approved for commit.
+
+---
+
+*Reviewed by Antigravity — 2026-06-24*
+*Re-review of `20260624000002_ratings_privacy_fix.sql` addressing REQUEST CHANGES from prior review of `20260624000000_block_fixes.sql`*
