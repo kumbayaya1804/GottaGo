@@ -1,5 +1,9 @@
 import '@testing-library/jest-native/extend-expect';
 
+// Required by supabase.ts requireEnv() at module load time
+process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
+process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
+
 jest.mock('@rnmapbox/maps', () => ({
   MapView: 'MapView',
   Camera: 'Camera',
@@ -24,7 +28,3 @@ jest.mock('react-native-mmkv', () => {
     })),
   };
 });
-
-jest.mock('react-native-turbo-mock-location-detector', () => ({
-  isMockingLocation: jest.fn().mockResolvedValue({ isLocationMocked: false }),
-}));

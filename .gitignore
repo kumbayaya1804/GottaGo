@@ -12,3 +12,24 @@ coverage/
 Thumbs.db
 .claude/settings.local.json
 .claude/review-queue.txt
+
+# Expo / React Native
+.expo/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# TypeScript
+*.tsbuildinfo
+
+# Build artifacts
+*.apk
+*.aab

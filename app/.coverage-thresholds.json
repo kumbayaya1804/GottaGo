@@ -1,0 +1,14 @@
+{
+  "thresholds": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100,
+    "statements": 100
+  },
+  "enforcement_command": "cd app && npm run test:coverage",
+  "scope": "src/**/*.{ts,tsx}",
+  "exclusions": [
+    "src/**/*.d.ts",
+    "src/app/**/_layout.tsx"
+  ]
+}
