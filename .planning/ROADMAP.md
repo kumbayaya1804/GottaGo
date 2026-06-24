@@ -44,8 +44,8 @@ Goal: 50+ locations in Eugene with GPS-verified data, parent/accessibility filte
 Note: Supabase migrations (phases 000001–000008) and Expo scaffold with full dependency stack were bootstrapped outside GSD. Remaining work: app_config table, spatial index verification, RLS lint, TypeScript type generation, and EAS dev client build smoke test.
 
 Plans:
-- [ ] 01-01-PLAN.md — seed.sql stub + app_config migration (D-01 thresholds) + supabase link + db push + RLS lint + GIST index verification + TypeScript type generation
-- [ ] 01-02-PLAN.md — jest.config fix + tsconfig paths + app.config.ts conversion + src/app/ scaffold + src/lib/supabase.ts + EAS dev client build smoke test
+- [x] 01-01-PLAN.md — seed.sql stub + app_config migration (D-01 thresholds) + supabase link + db push + RLS lint + GIST index verification + TypeScript type generation
+- [x] 01-02-PLAN.md — jest.config fix + tsconfig paths + app.config.ts conversion + src/app/ scaffold + src/lib/supabase.ts + EAS dev client build smoke test
 
 ---
 
@@ -228,7 +228,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Scaffold | 0/2 | In progress | - |
+| 1. Foundation & Scaffold | 2/2 | Complete | 2026-06-24 |
 | 2. Auth & Profiles | 0/2 | Not started | - |
 | 3. Read Path & Map | 0/3 | Not started | - |
 | 4. GPS Service & Submission | 0/2 | Not started | - |

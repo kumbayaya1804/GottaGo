@@ -11,7 +11,7 @@
 
 | Property | Value |
 |----------|-------|
-| Framework | jest 30.4.2 + jest-expo 55.0.18 |
+| Framework | jest 29.7.0 (PINNED) + jest-expo 55 — do NOT upgrade jest until jest-expo@56 supports jest@30 |
 | Config file | `app/jest.config.js` (BUG: `setupFilesAfterFramework` → must be `setupFilesAfterEnv` — fix in Wave 1) |
 | Quick run command | `npm test` (run from `app/`) |
 | Full suite command | `npm test -- --coverage` (run from `app/`) |

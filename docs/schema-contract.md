@@ -1,6 +1,6 @@
 # Schema Contract
 
-Status: provisional. This is the database contract reviewers should enforce until real Supabase migrations supersede it.
+Status: aligned with live schema as of 2026-06-24. Migrations in `supabase/migrations/` are the authoritative source of truth. This document is a reviewer reference for field names, types, and RLS intent.
 
 ## Database Principles
 
@@ -38,127 +38,178 @@ These are the confirmed live table names in Supabase project `ebmzhjmmtmldhrojkd
 
 Purpose: user profile and trust state.
 
-Expected fields:
-- `id uuid primary key references auth.users(id)`
+Actual fields (as of live schema / migrations):
+- `id uuid primary key references auth.users(id) on delete cascade`
+- `email text`
 - `display_name text`
-- `trust_score numeric not null default 0`
-- `trust_multiplier numeric not null default 1`
-- `gps_verified_contribution_count integer not null default 0`
-- `is_shadowbanned boolean not null default false`
-- `created_at timestamptz not null default now()`
-- `updated_at timestamptz not null default now()`
+- `gps_consent boolean` — GDPR GPS consent flag
+- `gps_consent_at timestamptz`
+- `gamification_points integer default 0`
+- `trust_score integer default 9` — ⚠ integer, not numeric; default 9 (Phase 5 must align trust calc with this scale)
+- `trust_multiplier numeric default 0.5` — ⚠ default 0.5, not 1.0 (Phase 5 must document intended range)
+- `gps_verified_contribution_count integer default 0`
+- `leaderboard_position integer`
+- `shadowban_status boolean default false` — column name is `shadowban_status`, NOT `is_shadowbanned`
+- `admin_override boolean default false`
+- `family_mode boolean default false`
+- `created_at timestamptz default now()`
+- `updated_at timestamptz default now()`
 
 Rules:
-- Public reads must not expose email or sensitive moderation notes.
-- Users may read/update only allowed profile fields for themselves.
-- Trust and shadowban fields should be writable only by service/admin paths.
+- Public reads must not expose email, admin_override, or shadowban_status.
+- Users may read/update only safe profile fields (display_name, family_mode, gps_consent, gps_consent_at) via SECURITY DEFINER RPC — no direct UPDATE policy.
+- trust_score, trust_multiplier, shadowban_status, admin_override are writable only by service/admin paths.
 
 ### `locations`
 
 Purpose: canonical bathroom/place record.
 
-Expected fields:
-- `id uuid primary key`
-- `name text`
-- `coordinates geometry not null` (PostGIS; use `ST_SetSRID(ST_MakePoint(lng, lat), 4326)` for writes)
-- `confidence_score numeric not null default 0`
-- `is_shadowbanned boolean not null default false`
-- `suppressed_at timestamptz`
-- `deleted_at timestamptz`
-- `created_at timestamptz not null default now()`
-- `updated_at timestamptz not null default now()`
+Actual fields (as of live schema / migrations):
+- `id uuid primary key default gen_random_uuid()`
+- `name text not null`
+- `address text`
+- `coordinates geography not null` — PostGIS geography(Point,4326); write with `ST_Point(lng,lat)::geography`
+- `policy_tag text` — "chill_spot", "purchase_required", "code_required", "public_facility"
+- `access_sensitivity text`
+- `hours jsonb`
+- `is_open_now boolean`
+- `data_source text not null default 'community'`
+- `confidence_score text` — ⚠ stored as text tier label ('High'/'Medium'/'Low'), NOT a numeric
+- `confidence_tier text`
+- `verification_count integer default 0`
+- `last_verified_at timestamptz`
+- `decay_tier text`
+- `respect_signal_score numeric default 0`
+- `chill_spot boolean default false`
+- `failure_event_count integer default 0`
+- `access_instructions text`
+- `shadowban_status boolean default false` — column name is `shadowban_status`, NOT `is_shadowbanned`
+- `deleted_at timestamptz` — soft delete flag
+- `timezone text not null default 'America/Los_Angeles'`
+- `created_at timestamptz default now()`
+- `updated_at timestamptz default now()`
 
 Rules:
-- Public searches must exclude `deleted_at is not null`, `suppressed_at is not null`, and `is_shadowbanned = true`.
-- Inserts must validate coordinate shape and SRID.
-- Public result queries must avoid exposing contributor identity unless intentionally approved.
+- Public searches must exclude `deleted_at is not null` and `shadowban_status = true`.
+- Inserts must validate coordinate shape and SRID (use PostGIS geography type, not raw lat/lng).
+- Client code must NOT insert directly to locations — go through `submissions` + verification gate.
+- Public queries must not expose contributor identity.
 
 ### `verification_events`
 
 Purpose: record GPS-verified user checks for a bathroom.
 
-Expected fields:
-- `id uuid primary key`
+Actual fields (as of live schema / migrations):
+- `id uuid primary key default gen_random_uuid()`
 - `location_id uuid not null references locations(id)`
 - `user_id uuid not null references users(id)`
-- `verified_at timestamptz not null default now()`
-- `gps_accuracy_meters numeric`
-- `distance_from_location_meters numeric`
-- `weighted_value numeric not null default 1`
-- `result text not null`
-- `created_at timestamptz not null default now()`
+- `gps_location geography(Point,4326)` — PostGIS point of user GPS at verification time
+- `distance_from_location_meters numeric not null` — distance from user to location at time of event
+- `weight numeric not null` — verification weight (NOT `weighted_value`)
+- `event_type text not null` — type of verification event (NOT `result`)
+- `timestamp timestamptz default now()` — event time (NOT `verified_at`)
+
+Note: `gps_accuracy_meters` column was in early design but is not in the live schema. GPS accuracy
+validation is enforced via app_config thresholds (max_accuracy_m) at the RPC layer.
 
 Rules:
-- Public reads should expose only aggregate effects, not raw user visit history.
-- Writes must reject shadowbanned users from affecting public aggregate state.
-- Writes must validate GPS freshness, accuracy, and distance rules.
+- Public reads must expose only aggregate effects, not raw user GPS history.
+- Writes must reject shadowbanned users' events from affecting public aggregate state (shadowbanned verifications set weight=0).
+- Writes must validate GPS freshness (max_gps_age_s), accuracy (max_accuracy_m), and proximity (verify_radius_m) via server-side RPC.
+- distance_from_location_meters must be computed server-side via PostGIS, not trusted from client.
 
 ### `availability_flags`
 
 Purpose: temporary availability/accessibility state.
 
-Expected fields:
-- `id uuid primary key`
+Actual fields (as of live schema / migrations):
+- `id uuid primary key default gen_random_uuid()`
 - `location_id uuid not null references locations(id)`
-- `reported_by uuid references users(id)`
-- `flag_type text not null`
-- `expires_at timestamptz not null`
-- `created_at timestamptz not null default now()`
+- `reporter_id uuid not null references users(id)` — column is `reporter_id`, NOT `reported_by`
+- `type text not null` — column is `type`, NOT `flag_type`; values: 'currently_closed', 'inaccessible'
+- `created_at timestamptz default now()`
+- `expires_at timestamptz not null default (now() + interval '24 hours')`
+
+Public access: via `availability_flags_public` view (migration 030000). Direct base-table SELECT
+is revoked from anon/authenticated; the view excludes reporter_id and applies expiry + shadowban filters.
 
 Rules:
-- Public reads must filter `expires_at > now()`.
-- Expired flags must not influence active availability.
-- Shadowbanned reporters must not influence public state.
+- Public reads must use the `availability_flags_public` view — base table is not directly readable.
+- Expired flags (expires_at <= now()) must not influence active availability.
+- Shadowbanned reporters must not influence public state (enforced in the security-definer view).
 
 ### `reports`
 
 Purpose: abuse, duplicate, correction, closure, and safety reports.
 
-Expected fields:
-- `id uuid primary key`
-- `location_id uuid references locations(id)`
-- `reported_by uuid references users(id)`
-- `report_type text not null`
-- `status text not null default 'open'`
+Actual fields (as of live schema / migrations):
+- `id uuid primary key default gen_random_uuid()`
+- `location_id uuid not null references locations(id)`
+- `user_id uuid not null references users(id)` — column is `user_id`, NOT `reported_by`
+- `report_type text not null` — values: 'permanently_closed', 'moved_relocated', 'currently_locked', 'now_requires_purchase', 'staff_pushed_back', 'access_tightened', 'dirty_unsafe', 'changing_station_unusable', 'inaccurate_information'
+- `trust_weight numeric not null default 1.0`
+- `geographic_distance_meters numeric`
 - `details text`
-- `created_at timestamptz not null default now()`
-- `resolved_at timestamptz`
+- `created_at timestamptz default now()`
+
+Note: `status` and `resolved_at` columns are NOT in the live schema. Moderation state is handled
+via `suppressed_at` on locations (set by auto-suppress trigger when report thresholds exceeded).
+Phase 7 may add explicit report status tracking if needed.
 
 Rules:
-- Reporter identity is not public.
-- Normal users can create reports and read only permitted status.
-- Moderation status transitions require service/admin authority.
+- Reporter identity (user_id) is not public — `reports_select_own` policy restricts reads to own rows.
+- Users can create reports (reports_insert_auth) and read only their own.
+- Auto-suppress trigger fires when same-type report count exceeds app_config.report_suppress_threshold.
 
 ### `trust_events`
 
 Purpose: audit trail for trust/reputation changes.
 
-Expected fields:
-- `id uuid primary key`
+Actual fields (as of live schema / migrations):
+- `id uuid primary key default gen_random_uuid()`
 - `user_id uuid not null references users(id)`
-- `event_type text not null`
-- `score_delta numeric not null`
-- `reason text`
-- `created_at timestamptz not null default now()`
+- `action_type text not null` — column is `action_type`, NOT `event_type`
+- `delta integer not null` — column is `delta`, NOT `score_delta`; integer not numeric
+- `context_ref text` — column is `context_ref`, NOT `reason`
+- `timestamp timestamptz default now()` — column is `timestamp`, NOT `created_at`
 
 Rules:
-- Not public.
-- Written by service/admin or trusted server logic only.
-- Must be auditable and deterministic enough to explain trust changes.
+- Not public — trust_events_select_own restricts to own rows; writes require service_role.
+- Written by service-role or SECURITY DEFINER RPCs only (trust_events_service_insert policy).
+- Must be auditable: delta sign must match action_type (e.g., negative delta for penalizing action types).
+- TDD rule: all trust_events writes must assert delta sign matches action_type in tests.
+
+### `respect_signal_log`
+
+Purpose: raw log of respect signals per location (user behaviors that signal community respect).
+
+Actual fields:
+- `id uuid primary key default gen_random_uuid()`
+- `location_id uuid not null references locations(id)`
+- `event_type text not null`
+- `weight numeric not null`
+- `timestamp timestamptz default now()`
+
+Rules:
+- Written by service-role/RPC triggers only.
+- Public reads expose only aggregates (via respect_signal_90d view).
 
 ### `respect_signal_90d`
 
-Purpose: recent rolling aggregate for quality/respect signal.
+Purpose: rolling 90-day aggregate of respect signals per location (VIEW).
 
-Expected shape:
+Actual shape (from migration 20260624000000_block_fixes.sql):
 - `location_id uuid`
-- 90-day aggregate counts or weighted scores
-- last refreshed timestamp or documented refresh mechanism
+- `total_weight numeric` — sum of weights over last 90 days
+- `event_count bigint` — count of signal events over last 90 days
+
+Phase 6 upgrades this to a MATERIALIZED VIEW with CONCURRENT refresh (requires unique index).
+Until Phase 6, this is a regular view queried on demand.
 
 Rules:
-- Must exclude deleted, suppressed, shadowbanned, and expired inputs.
-- Refresh strategy must be documented.
-- Public access should expose only aggregate values safe for display.
+- Source data must exclude deleted, suppressed, and shadowbanned contributions (enforced at write time into respect_signal_log).
+- Public access exposes only aggregate values — no individual event identity.
+- Concurrent refresh (Phase 6) must use a unique index on location_id to support CONCURRENTLY.
 
 ## RLS Expectations
 
