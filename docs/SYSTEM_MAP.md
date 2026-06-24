@@ -50,7 +50,7 @@
 - **Implementation Goal**: `WHERE shadowban_status = false` must be implicit in all public-facing API calls.
 
 ### Row Level Security (RLS)
-- **Owner-only**: Users can only update their own profiles.
+- **Owner-only**: Users can only update their own public-safe `users` row fields.
 - **Verified-only**: Certain actions (e.g., adding new locations) may require a minimum `trust_score`.
 
 ## 4. Audit Log (Antigravity)

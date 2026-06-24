@@ -30,11 +30,11 @@ Reviewers should reject:
 - Missing spatial indexes on public search paths
 - Inconsistent SRID handling
 
-## Candidate Tables
+## Live Tables
 
-Actual migrations may choose different names, but must cover these responsibilities.
+These are the confirmed live table names in Supabase project `ebmzhjmmtmldhrojkdqw`. Use these names exactly in all code, queries, and migrations.
 
-### `profiles`
+### `users`
 
 Purpose: user profile and trust state.
 
@@ -53,15 +53,14 @@ Rules:
 - Users may read/update only allowed profile fields for themselves.
 - Trust and shadowban fields should be writable only by service/admin paths.
 
-### `bathroom_locations`
+### `locations`
 
 Purpose: canonical bathroom/place record.
 
 Expected fields:
 - `id uuid primary key`
 - `name text`
-- `location geography(Point, 4326) not null`
-- `created_by uuid references profiles(id)`
+- `coordinates geometry not null` (PostGIS; use `ST_SetSRID(ST_MakePoint(lng, lat), 4326)` for writes)
 - `confidence_score numeric not null default 0`
 - `is_shadowbanned boolean not null default false`
 - `suppressed_at timestamptz`
@@ -80,8 +79,8 @@ Purpose: record GPS-verified user checks for a bathroom.
 
 Expected fields:
 - `id uuid primary key`
-- `location_id uuid not null references bathroom_locations(id)`
-- `user_id uuid not null references profiles(id)`
+- `location_id uuid not null references locations(id)`
+- `user_id uuid not null references users(id)`
 - `verified_at timestamptz not null default now()`
 - `gps_accuracy_meters numeric`
 - `distance_from_location_meters numeric`
@@ -100,8 +99,8 @@ Purpose: temporary availability/accessibility state.
 
 Expected fields:
 - `id uuid primary key`
-- `location_id uuid not null references bathroom_locations(id)`
-- `reported_by uuid references profiles(id)`
+- `location_id uuid not null references locations(id)`
+- `reported_by uuid references users(id)`
 - `flag_type text not null`
 - `expires_at timestamptz not null`
 - `created_at timestamptz not null default now()`
@@ -117,8 +116,8 @@ Purpose: abuse, duplicate, correction, closure, and safety reports.
 
 Expected fields:
 - `id uuid primary key`
-- `location_id uuid references bathroom_locations(id)`
-- `reported_by uuid references profiles(id)`
+- `location_id uuid references locations(id)`
+- `reported_by uuid references users(id)`
 - `report_type text not null`
 - `status text not null default 'open'`
 - `details text`
@@ -136,7 +135,7 @@ Purpose: audit trail for trust/reputation changes.
 
 Expected fields:
 - `id uuid primary key`
-- `user_id uuid not null references profiles(id)`
+- `user_id uuid not null references users(id)`
 - `event_type text not null`
 - `score_delta numeric not null`
 - `reason text`

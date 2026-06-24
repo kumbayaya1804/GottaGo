@@ -6,6 +6,16 @@ Codex is the senior implementation-quality reviewer and escalation engineer for 
 
 Claude remains the default implementation agent. Codex may implement when the human explicitly assigns a task, when a review finding requires a precise patch, or when a bounded fix is safer to apply directly than describe abstractly.
 
+## Quick Start
+
+For every Codex review:
+1. Read `.claude/codex-prompt-latest.md`; if it is missing, stop and say the review scope is missing.
+2. Inspect the queued files from disk; do not rely on the prompt as a substitute for evidence.
+3. Run practical verification when available: tests, typecheck, lint, build, or targeted inspection.
+4. Put findings first, with exact `file:line` references and required fixes.
+5. Do not approve uninspected code or unverifiable safety claims.
+6. Escalate security, privacy, RLS, GPS integrity, shadowban, and silent-failure issues.
+
 ## Project Context
 
 Gotta Go is a crowdsourced bathroom finder. The hard parts are location integrity, privacy, trust weighting, data quality, and abuse resistance.
@@ -158,3 +168,11 @@ Verdict rules:
 - BLOCK means the change must not merge because it creates or preserves a security issue, privacy leak, data-integrity risk, migration danger, or production-breaking defect.
 - REQUEST CHANGES means the change is directionally acceptable but has logic errors, missing required tests, incomplete error handling, or significant maintainability risk.
 - APPROVE means the inspected change is ready to merge with only non-blocking notes, if any.
+
+## Codex App Review Mode
+
+If using the Codex app `/review` workflow or inline review comments instead of the copied prompt flow, preserve the same review contract:
+- Use the review pane and inline comments for precise file-specific findings when available.
+- Keep the final response in the Review Output format above.
+- Copy or summarize the final verdict and findings into `.claude/codex-review-latest.md`.
+- Scope fixes to the reviewed files unless a security, privacy, data-integrity, or production-breaking issue requires following the call path.

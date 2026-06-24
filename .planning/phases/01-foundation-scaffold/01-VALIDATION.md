@@ -23,7 +23,7 @@
 | Req | Behavior | Test Type | Automated Command | File Exists? |
 |-----|----------|-----------|-------------------|-------------|
 | SC-1 | `supabase db reset` applies all migrations cleanly | CLI verification | `supabase db reset` (zero errors exit code) | N/A — CLI |
-| SC-2 | PostGIS GIST index exists on `bathroom_locations.location` | SQL assertion | Query `pg_indexes` (see Code Examples in RESEARCH.md) | N/A — SQL |
+| SC-2 | PostGIS GIST index exists on `locations.coordinates` | SQL assertion | Query `pg_indexes` (see Code Examples in RESEARCH.md) | N/A — SQL |
 | SC-3 | `app_config` table exists and is seeded | SQL assertion | `supabase db lint --linked` + spot-check query | N/A — SQL |
 | SC-4 | RLS enabled on all 6 core tables | SQL assertion | Query `pg_tables.rowsecurity` | N/A — SQL |
 | SC-5 | Expo dev client builds with Mapbox + Supabase composing | Build + manual smoke | `eas build --profile development --platform android` | N/A — EAS |

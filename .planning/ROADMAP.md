@@ -34,7 +34,7 @@ Goal: 50+ locations in Eugene with GPS-verified data, parent/accessibility filte
 **Requirements**: Tech Stack constraint, Data Integrity constraint, Security constraint
 **Success Criteria** (what must be TRUE):
   1. `supabase db reset` applies all 9 migrations cleanly with no errors
-  2. PostGIS GIST index exists on `bathroom_locations.location`
+  2. PostGIS GIST index exists on `locations.coordinates`
   3. `app_config` table exists and is seeded with tunable thresholds
   4. RLS is enabled on all 6 core tables (confirmed via `supabase db lint`)
   5. Expo dev client builds with Mapbox + Supabase composing (no crash on launch)
@@ -56,7 +56,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. User can create an account with email/password and sees a profile screen
   2. User can sign in with Google OAuth via deep link (Android + iOS simulator)
-  3. Profile row is auto-created in `profiles` table on signup (trigger confirmed)
+  3. User row is auto-created in `users` table on signup (trigger confirmed)
   4. Unauthenticated users are redirected to sign-in from any protected tab
   5. Session persists after app restart (AsyncStorage-backed Supabase auth)
   6. Apple Sign-In route exists but shows "coming soon" until Apple Developer enrolled
@@ -116,7 +116,7 @@ Plans:
   2. `weighted_value` computed correctly as `trust_multiplier × proximity_decay × accuracy_decay`
   3. Location status transitions pending → published after 2 distinct non-shadowbanned verifiers
   4. Shadowbanned user's verification is accepted (no hint given) but produces `weighted_value = 0` and does NOT trigger publish
-  5. `profiles.trust_score` increments correctly via `trust_events` append pattern
+  5. `users.trust_score` increments correctly via `trust_events` append pattern
   6. VerifyFlow screen handles accepted/rejected/denied-permission states without leaking rejection reason
   7. 48-hour auto-promote job logic exists (Edge Function or pg_cron stub) even if not yet scheduled
 **Plans**: TBD
@@ -201,6 +201,24 @@ Plans:
 - [ ] 09-01: Sentry integration with PII scrubbing middleware, telemetry events (no raw coords or user IDs)
 - [ ] 09-02: pgTAP RLS test suite, migration smoke tests
 - [ ] 09-03: EAS production build config, App Store + Play Store submission prep
+
+---
+
+## Backlog
+
+### Phase 999.1: Travel Language Phrases (BACKLOG)
+
+**Goal:** When a user is traveling in a foreign country, surface the locally-appropriate phrase(s) for "Where is the bathroom?" and "I need to use the bathroom urgently" in the destination language — so they can communicate their need even without speaking the local language.
+
+**Why this matters:** Travelers face the same urgency the app is built for, but with an added barrier: they can't read signs or ask for help in the local language. This is a lightweight feature (no AI needed — curated phrase database per locale) that meaningfully extends the app's value to an underserved moment.
+
+**Open design question:** Auto-detect from GPS country code vs. manual language select. GPS auto-detect is the lower-friction path; manual select handles cases where GPS country doesn't match the user's needed language (e.g., tourist in a border region).
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)
 
 ---
 

@@ -320,11 +320,11 @@ Serious problems, not always fatal. Address in dedicated phases.
 
 Address in normal course of development. Each one is a 1-2 day fix if caught early, 1-2 weeks if caught after launch.
 
-### MODERATE-1: Email Leakage in Profiles
+### MODERATE-1: Email Leakage in Public User Metadata
 
-**What goes wrong:** Joining `auth.users.email` into client-visible profile queries. SPEC.md explicitly forbids this. Easy mistake — `auth.users` is a system table, you write a public.profiles join, email leaks.
+**What goes wrong:** Joining `auth.users.email` into client-visible queries. SPEC.md explicitly forbids this. Easy mistake — `auth.users` is a system table, you write a public.users join, email leaks.
 
-**Prevention:** Public `profiles` table mirrors only public-safe fields (display name, trust tier). Never `auth.users.email` in API responses to anon/authenticated roles. Add CI test: query public schema for any column named `email` — should be none except in admin-restricted views.
+**Prevention:** Public `users` table mirrors only public-safe fields (display name, trust tier). Never `auth.users.email` in API responses to anon/authenticated roles. Add CI test: query public schema for any column named `email` — should be none except in admin-restricted views.
 
 **Phase:** Authentication (Phase 1-2).
 

@@ -9,9 +9,10 @@ This document defines how Claude, Antigravity, and Codex work together on Gotta 
 
 The harness follows current primary-source guidance from agentic coding platforms:
 
-- OpenAI Codex can read, edit, and run code, and can work on background tasks in isolated cloud environments. Codex review quality depends on clear prompts, constraints, exact file citations, and reviewable outputs. See:
-  - https://developers.openai.com/codex/cloud
-  - https://developers.openai.com/cookbook/examples/codex/build_code_review_with_codex_sdk
+- OpenAI Codex can read project instructions from `AGENTS.md`, review code through the Codex app review pane, and use repository rules to control commands outside the sandbox. Codex review quality depends on clear prompts, constraints, exact file citations, and reviewable outputs. See:
+  - https://developers.openai.com/codex/guides/agents-md
+  - https://developers.openai.com/codex/app/review
+  - https://developers.openai.com/codex/rules
 - OpenAI recommends explicit orchestration decisions for specialist agents, including handoffs, guardrails, human review, and traces/evaluation loops. See:
   - https://developers.openai.com/api/docs/guides/agents
   - https://openai.github.io/openai-agents-python/handoffs/
@@ -24,8 +25,10 @@ The harness follows current primary-source guidance from agentic coding platform
   - https://code.claude.com/docs/en/sub-agents
   - https://code.claude.com/docs/en/slash-commands
   - https://code.claude.com/docs/en/hooks
-- Antigravity is strongest when used with planning mode, review policies, implementation artifacts, walkthroughs, diffs, screenshots, and user feedback loops. Its browser and terminal autonomy should be permissioned deliberately. See:
-  - https://codelabs.developers.google.com/getting-started-google-antigravity
+- Antigravity is strongest when used with planning mode, review policies, implementation artifacts, walkthroughs, diffs, and user feedback loops. Its browser and terminal autonomy should be permissioned deliberately. See:
+  - https://developers.google.com/antigravity/guides/agents-md
+  - https://developers.google.com/antigravity/rules
+  - https://developers.google.com/antigravity/cli/review
 
 ## Harness Principles
 

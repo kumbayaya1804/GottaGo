@@ -248,7 +248,7 @@ npx supabase gen types typescript --project-id <ref> --schema public > src/lib/d
 Commit `database.types.ts`. Regenerate every time the schema changes. This is the single biggest correctness lever for the entire app.
 
 **PostGIS query pattern:**
-- ALWAYS go through `supabase.rpc('nearby_bathrooms', { lat, lng, radius_m })` — never `.from('bathroom_locations').select(...)` with client-side distance math.
+- ALWAYS go through `supabase.rpc('nearby_bathrooms', { lat, lng, radius_m })` — never `.from('locations').select(...)` with client-side distance math.
 - Why: PostGIS distance functions need `geography` operators with spatial indexes; doing this on the client requires shipping every row to the device. With even 500 locations in Eugene, that's wasteful and gives bad UX on slow networks.
 - The RPC should be `SECURITY DEFINER` with `SET search_path = public, extensions` and explicit filtering of `deleted_at`, `suppressed_at`, `is_shadowbanned` (per schema-contract.md).
 
@@ -378,7 +378,7 @@ async function verifyAtLocation(targetId: string) {
 - Distance from canonical PostGIS point `<= 100m` (or whatever business threshold).
 - `verified_at` is server-now, not client-supplied.
 - One verification per user per location per 24h (dedupe).
-- Per `bathroom_locations` schema rules: reject shadowbanned users from affecting public aggregates.
+- Per `locations` schema rules: reject shadowbanned users from affecting public aggregates.
 
 **Background location — when (and when not) to enable:**
 - v1 launch: foreground-only verification (user opens app, taps "I'm here", we verify).

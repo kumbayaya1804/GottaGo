@@ -88,8 +88,8 @@ Moderation decisions must be enforced below the UI layer.
 ## Core Data Concepts
 
 Expected entities:
-- `profiles`: public-safe user profile metadata and trust state
-- `bathroom_locations`: canonical bathroom records with PostGIS location column
+- `users`: public-safe user profile metadata and trust state (live table name — not `profiles`)
+- `locations`: canonical bathroom records with PostGIS coordinates column (live table name — not `bathroom_locations`)
 - `location_attributes`: amenities, access type, hours, cleanliness/accessibility facts, or equivalent normalized structure
 - `verification_events`: GPS-verified checks by users
 - `availability_flags`: temporary or expiring availability/access signals

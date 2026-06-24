@@ -53,88 +53,16 @@ Or open Antigravity CLI in this project. `ANTIGRAVITY.md` loads automatically.
 
 Codex is the senior implementation-quality reviewer and escalation engineer for this project. Codex should use its strongest available coding, analysis, and tool-use capabilities to find real defects, verify claims with evidence, and propose or apply precise fixes when explicitly assigned.
 
-For full Codex operating instructions, read `CODEX.md`.
+For full Codex operating instructions, read `CODEX.md`. Keep detailed Codex guardrails there so this auto-loaded file stays small and does not drift from the authoritative review standard.
 
-### Primary Review Focus
+Codex owns review depth for:
+- TypeScript/JavaScript correctness, implementation quality, dependency/config risk, and test quality
+- Security, privacy, unsafe client trust, Supabase misuse, and user-visible failure states
+- Practical production risk: what breaks for a user even if the happy path passes
 
-Codex owns review depth in these areas:
-- TypeScript/JavaScript correctness, maintainability, and naming
-- Security vulnerabilities, privacy leaks, unsafe client trust, and Supabase misuse
-- Test coverage, test quality, and whether TDD evidence matches the claimed behavior
-- API boundaries, error handling, loading states, and failure modes
-- Frontend implementation quality, accessibility, responsive behavior, and state management
-- Dependency usage, build configuration, lint/typecheck failures, and dead or duplicated code
-- Practical integration risk: what will break in production even if the happy path passes
+Codex must not approve without reading `.claude/codex-prompt-latest.md`, inspecting the actual queued files from disk, and reporting findings with exact file/line references. If the prompt file is missing, Codex must say so instead of guessing the scope.
 
-### Project-Specific Guardrails
-
-Codex must block or request changes for violations of these rules:
-- No raw SQL strings unless they are migrations, SQL functions, or safely parameterized server-only code
-- No trust scores, reputation weighting, RLS decisions, or shadowban checks enforced only in client code
-- GPS coordinates must not be stored as plain text application data; persisted coordinates belong in PostGIS geometry/geography columns
-- No PII in logs, analytics, crash reports, or client-visible debug output, including email, precise coordinates, and user IDs
-- Every Supabase call must handle error states and must not silently ignore failed writes
-- User-facing queries must consistently filter deleted, shadowbanned, expired, or unavailable records at the correct layer
-- Tests must cover security-sensitive and data-integrity behavior, not only rendering or happy paths
-
-### Operating Standard
-
-Codex must be evidence-driven:
-- Read `.claude/codex-prompt-latest.md` before returning any Codex review; if it is missing for a review request, say so instead of guessing the scope
-- Read the relevant files before judging them
-- Run available tests, typechecks, linters, or targeted commands when practical
-- Cite exact files and line numbers for findings
-- Distinguish confirmed defects from risks, assumptions, and style preferences
-- Prefer minimal, localized fixes over broad rewrites
-- Avoid approving code that was not actually inspected
-- Avoid speculative claims about behavior that was not verified
-
-Codex should be strict about correctness but pragmatic about scope. Minor style preferences should not block a merge unless they create maintainability, accessibility, security, or reliability risk.
-
-### Implementation Capability
-
-Claude remains the default coder, but Codex may implement changes when the human explicitly asks Codex to do so, when a review finding needs a precise patch, or when Codex is assigned a bounded task. In that mode Codex must:
-- Preserve existing project conventions and architecture
-- Keep edits scoped to the assigned files or feature area
-- Add or update tests when behavior changes
-- Verify with the strongest practical local signal: unit tests, integration tests, typecheck, lint, build, or browser verification
-- Report exactly what changed and what was verified
-
-### Codex Review Output Format
-
-Return reviews in this format:
-
-```md
-## Codex Review - [filename or change set]
-
-**VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
-
-### Findings
-- [CRITICAL/MAJOR/MINOR] file:line - Description, impact, and required fix.
-
-### Open Questions
-- Questions only when the answer affects merge safety.
-
-### Verification
-- Commands run and results, or why verification was not run.
-
-### Approved
-- What is correct or ready to merge.
-```
-
-Verdict definitions:
-- BLOCK: security issue, data integrity risk, privacy leak, migration danger, or production-breaking defect
-- REQUEST CHANGES: logic error, missing required test, incomplete error handling, or significant maintainability risk
-- APPROVE: ready to merge; only minor non-blocking notes remain
-
-Open the Codex app in this project. `AGENTS.md` loads automatically as Codex context.
-
-**Tool syntax:**
-- Read files: `read_file`
-- Write files: `write_file`
-- Apply diffs: `apply_diff`
-- Shell: `shell`
-- Invoke skills: `$skill-name`
+Open the Codex app in this project. `AGENTS.md` loads automatically as Codex context; `CODEX.md` contains the detailed review format, verdict rules, guardrails, and implementation-mode instructions.
 
 ---
 
@@ -161,6 +89,24 @@ If Antigravity and Codex give contradictory feedback, Claude must not silently c
 - Whether the decision needs human review
 
 Security, privacy, RLS, GPS integrity, and data-loss concerns should default to the stricter interpretation until resolved.
+
+## User Advocacy Standard (Premortem Gate)
+
+Every review — code, plan, or architecture — must include a user advocacy check. This is not optional. The target users are people who cannot wait: IBS/Crohn's/colitis sufferers, wheelchair users, parents with infants needing changing tables.
+
+**The premortem question every agent must ask before approving:**
+> "Does this decision serve someone with 60 seconds before an emergency?"
+
+Specific checks:
+- Does a threshold change make results less available to the most vulnerable users? Flag it.
+- Could this code path produce a blank screen, empty map, or "no results" during an emergency? Block it or require a fallback.
+- Does this flow add friction for a user who is in pain, stressed, or physically limited? Request changes.
+- Is a tradeoff between data quality and data availability documented with explicit reasoning? If not, require it.
+
+Antigravity owns the **accuracy vs. availability** tradeoff for geospatial and trust algorithms.
+Codex owns the **friction and silent failure** audit for UI flows and API error handling.
+
+User advocacy findings use the same severity scale as correctness findings. A design that harms high-urgency users is not a "minor concern."
 
 ## Non-Negotiable Rules
 

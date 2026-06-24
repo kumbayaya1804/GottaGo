@@ -98,12 +98,12 @@ These map onto the recovered schema:
 
 | Component | Responsibility | Reads From | Writes To |
 |---|---|---|---|
-| `bathroom_locations` (a.k.a. `locations`) | Canonical place row, geography(Point, 4326) | n/a (root) | Updated by trust engine: `confidence_score`, `suppressed_at`, `is_shadowbanned` |
+| `locations` | Canonical place row, coordinates (PostGIS geometry) | n/a (root) | Updated by trust engine: `confidence_score`, `suppressed_at`, `is_shadowbanned` |
 | `verification_events` | Append-only GPS verification log | n/a (root append) | Trigger fires `recalc_confidence(location_id)` and `recalc_trust(user_id)` |
 | `trust_events` | Append-only trust-score delta log | n/a | Written by SECURITY DEFINER functions only |
 | `availability_flags` | Short-lived "code wrong", "closed now" signals | n/a | Filtered by `expires_at > now()` in every public read |
 | `reports` | Abuse, duplicate, closure | n/a | Drives moderation pipeline; reporter identity never public |
-| `profiles` | Public-safe user state + trust score | n/a | `trust_score` writable only by SECURITY DEFINER |
+| `users` | Public-safe user state + trust score | n/a | `trust_score` writable only by SECURITY DEFINER |
 | `respect_signal_log` | Raw 90-day input feed | verification_events, ratings, flags | Source of materialized view |
 | `respect_signal_90d` (matview) | Rolling 90-day quality aggregate | respect_signal_log | Refreshed CONCURRENTLY on schedule |
 | `confidence_scores` (or column on locations) | Per-location decayed score | verification_events freshness | Touched by decay job + verify triggers |
@@ -150,11 +150,11 @@ MapScreen viewport change
    -> useLocations(bbox)
    -> supabase.rpc('search_locations_bbox', {min_lng, min_lat, max_lng, max_lat})
    -> PostgREST -> SQL function (SECURITY INVOKER)
-        SELECT id, name, ST_Y(location::geometry) AS lat, ST_X(...) AS lng,
+        SELECT id, name, ST_Y(coordinates::geometry) AS lat, ST_X(coordinates::geometry) AS lng,
                confidence_score, respect_90d, has_changing_table
-          FROM bathroom_locations l
+          FROM locations l
           LEFT JOIN respect_signal_90d r ON r.location_id = l.id
-         WHERE l.location && ST_MakeEnvelope($1,$2,$3,$4, 4326)
+         WHERE l.coordinates && ST_MakeEnvelope($1,$2,$3,$4, 4326)
            AND l.deleted_at IS NULL
            AND l.suppressed_at IS NULL
            AND l.is_shadowbanned = false
@@ -176,7 +176,7 @@ SubmitFlow form complete
    -> SQL function (SECURITY DEFINER):
         1. require auth.uid()
         2. validate gps: !mocked, acc <= 50m, ts within 60s
-        3. insert bathroom_locations with status='pending'
+        3. insert into locations with status='pending'
         4. insert verification_events (creator-initial verification)
         5. confidence trigger fires (publish check is FALSE: only 1 verification)
         6. trust_events: small positive delta to submitter
@@ -209,7 +209,7 @@ Edge case: the client *must* be told accepted/rejected without leaking *why* in 
 
 ```
 pg_cron (or Supabase scheduled Edge Function) every 6h:
-   UPDATE bathroom_locations
+   UPDATE locations
       SET confidence_score = confidence_score
                            * exp(-ln(2) * elapsed_days / half_life_days)
     WHERE status = 'published';
@@ -221,7 +221,7 @@ Half-life model is the standard exponential-decay pattern with a tunable `half_l
 
 ### 3.5 Trust Score Recompute
 
-Cheapest correct model: incremental on each `verification_events` insert, plus a nightly full recompute job that rebuilds `profiles.trust_score` from `trust_events` history. The full recompute is the audit trail per `docs/schema-contract.md` ("auditable and deterministic enough to explain trust changes").
+Cheapest correct model: incremental on each `verification_events` insert, plus a nightly full recompute job that rebuilds `users.trust_score` from `trust_events` history. The full recompute is the audit trail per `docs/schema-contract.md` ("auditable and deterministic enough to explain trust changes").
 
 ---
 
@@ -235,7 +235,7 @@ Cheapest correct model: incremental on each `verification_events` insert, plus a
 **Index:** `CREATE INDEX ... USING GIST (location);` on the geography column.
 
 ```sql
-SELECT id FROM bathroom_locations
+SELECT id FROM locations
  WHERE ST_DWithin(location, ST_MakePoint($lon, $lat)::geography, $radius_m)
    AND deleted_at IS NULL AND suppressed_at IS NULL
    AND is_shadowbanned = false;
@@ -304,7 +304,7 @@ deleted_at IS NULL
 ### Anti-Pattern 4: Synchronous Trust Recompute in Mutation Path
 **What:** On every verification_events insert, walk all of `verification_events` for that user and recompute global trust score inline.
 **Why bad:** O(history) on every write. Lock contention. Trust score should be incremental + nightly full recompute.
-**Instead:** Append `trust_events` row with `score_delta`; update `profiles.trust_score` by `+= score_delta`; nightly job fully re-derives from `trust_events` for drift detection.
+**Instead:** Append `trust_events` row with `score_delta`; update `users.trust_score` by `+= score_delta`; nightly job fully re-derives from `trust_events` for drift detection.
 
 ### Anti-Pattern 5: Treating Materialized View as Real-Time
 **What:** UI shows `respect_90d` and assumes it's current to the second.
@@ -336,7 +336,7 @@ This is the architecturally-derived order. Each level has hard dependencies on e
 
 1. **Supabase project + migrations applied** (the existing schema)
 2. **PostGIS + pgcrypto extensions verified enabled**
-3. **GIST index on `bathroom_locations.location`**
+3. **GIST index on `locations.coordinates`**
 4. **`app_config` table seeded with tunables**: `max_accuracy_m`, `max_gps_age_s`, `verify_radius_m`, `decay_half_life_days`, `confidence_floor`
 5. **RLS enabled on every table; default-deny policies**
 
@@ -358,7 +358,7 @@ This is the architecturally-derived order. Each level has hard dependencies on e
 13. **`verify_location` RPC** — fires the AFTER INSERT trigger chain
 14. **`recalc_confidence(location_id)` trigger function**
 15. **Publish-on-N-verifications trigger** (N = 2 distinct non-shadowbanned)
-16. **`trust_events` append + `profiles.trust_score` incremental update**
+16. **`trust_events` append + `users.trust_score` incremental update**
 17. **`compute_weighted_value()` function** (trust × proximity × accuracy)
 
 > Trust engine is independently testable: insert synthetic verification rows, assert publish state transitions, assert weighted_value matches formula, assert shadowbanned-user inserts don't affect aggregates.
@@ -425,7 +425,7 @@ The cost cliff is `respect_signal_90d`. Vanilla PG materialized views rebuild th
 
 These are invariants the whole system depends on; breaking any one is a security or integrity bug.
 
-1. **`bathroom_locations.location` is the *only* canonical coordinate.** No code path writes lat/lon as authoritative.
+1. **`locations.coordinates` is the *only* canonical coordinate.** No code path writes lat/lon as authoritative.
 2. **Every public-read RPC ends in a four-clause filter:** `deleted_at IS NULL AND suppressed_at IS NULL AND is_shadowbanned = false AND status = 'published'`.
 3. **Every mutation RPC requires `auth.uid()`** (no anonymous writes in v1).
 4. **GPS triple `{lat, lon, accuracy, fix_timestamp, mocked}` is validated server-side on every submit + verify.**
