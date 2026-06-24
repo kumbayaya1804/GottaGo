@@ -17,12 +17,14 @@ Goal: 50+ locations in Eugene with GPS-verified data, parent/accessibility filte
 - Decimal phases: Urgent insertions if needed
 
 - [x] **Phase 1: Foundation & Scaffold** — DB config + extensions verified, Expo app runs, Supabase connection established, TypeScript types generated
-- [ ] **Phase 2: Auth & Profiles** — Email/password + Google OAuth, SessionProvider, profile auto-creation, protected routes
+- [ ] **Phase 1.5: UX Foundation & Design System** — Design contract (flow maps, wireframes, design system, nav model, emergency UX rules, error-state matrix, component checklist) that all client-facing phases implement against
+- [ ] **Phase 2: Auth & Profiles** — Email/password + Google OAuth (Android-only until Apple Developer enrolled), SessionProvider, profile auto-creation, protected routes, account deletion, privacy/TOS links, GPS consent UX
 - [ ] **Phase 3: Read Path & Map** — search_locations_bbox + search_locations_nearby RPCs, MapScreen renders real locations, emergency mode reads
 - [ ] **Phase 4: GPS Service & Submission** — GpsService hook, submit_location SECURITY DEFINER RPC, SubmitFlow screen, pending-state lifecycle
 - [ ] **Phase 5: Trust Engine & Verification** — verify_location RPC, trigger chain, confidence recalc, publish-on-N-verifications gate, VerifyFlow screen
 - [ ] **Phase 6: Decay, Aggregates & Flags** — confidence decay scheduled job (floor enforced), respect_signal_log triggers, respect_signal_90d concurrent refresh, availability_flags RPC
-- [ ] **Phase 7: Reports & Moderation Inputs** — report_location RPC, auto-suppress trigger, admin SECURITY DEFINER functions for shadowban/suppress
+- [ ] **Phase 7: Reports & Moderation Inputs** — report_location RPC (all 5 report types), auto-suppress trigger (sets locations.suppressed_at), admin SECURITY DEFINER functions for shadowban/suppress
+- [ ] **Phase 7.5: Eugene Seed Operations** — Candidate list, admin import tooling, field verification checklist, ≥50 published locations meeting coverage targets before launch
 - [ ] **Phase 8: Client UX & Emergency Modes** — Emergency Mode one-tap, "Changing Table NOW" mode, rating UI, LocationDetail polish, all error/empty/offline states
 - [ ] **Phase 9: Operations & Hardening** — Sentry with PII scrubbing, RLS pgTAP tests, migration test suite, EAS production build config, App Store / Play Store submission prep
 
@@ -49,36 +51,65 @@ Plans:
 
 ---
 
-### Phase 2: Auth & Profiles
-**Goal**: Users can sign up, sign in, and have a profile created automatically. Auth session persists across app restarts. Protected routes redirect unauthenticated users to sign-in.
+### Phase 1.5: UX Foundation & Design System
+**Goal**: Produce a design contract (markdown spec + annotated wireframes) that all client-facing phases implement against. No Phase 2+ screen ships without matching this contract. Figma is not required — markdown spec + annotated wireframes is the source of truth.
 **Depends on**: Phase 1
-**Requirements**: User can sign up with email/password; User can sign up/log in with Google OAuth; User can sign up/log in with Apple Sign-In (stub until Apple Developer enrolled); User session persists across app restarts
+**Requirements**: Design contract covers all 13 critical flows; all v1 screens have wireframes; emergency mode reachable in ≤2 taps; all 11 named error states have defined copy and UI treatment; component acceptance checklist cited by Phase 2+ PLAN.md files
+**Success Criteria** (what must be TRUE):
+  1. Flow maps cover all 13 named flows (first launch, GPS consent, sign-in/sign-up, map discovery, emergency mode ×3, submit, verify, report, rating, offline, no-location, no-results) — no critical path ends without a defined next state
+  2. All v1 screens have a named wireframe or annotated sketch (portrait-first)
+  3. Design system doc exists: colors, typography, spacing, button hierarchy, icon rules, status states, form controls, map marker states, confidence/status badges, accessibility minimums
+  4. Navigation model documented: unauthenticated routes, protected tabs, emergency access from every screen, modal back/escape behavior
+  5. Emergency-use UX rules documented: one-handed reach targets, large primary actions, no dead-end states, denied-location fallback, ≤2 taps to nearest usable bathroom from any top-level route
+  6. All 11 error states have defined copy and UI treatment (denied GPS, low accuracy, stale GPS, offline, slow network, no results, suppressed location, failed submit, failed verification, auth required, code-gated content)
+  7. Accessibility rules documented: dynamic type tolerance, screen-reader labels for map/list controls, non-color-only status, touch target minimums, reduced-motion behavior
+  8. Component acceptance checklist exists and is cited in Phase 2+ PLAN.md files before review
+**Plans**: 2 plans
+
+Plans:
+- [ ] 1.5-01: Critical flow maps + low-fi wireframes for all v1 screens and modal states
+- [ ] 1.5-02: Design system + navigation model + emergency-use UX rules + accessibility rules + error-state copy matrix + component acceptance checklist
+
+---
+
+### Phase 2: Auth & Profiles
+**Goal**: Users can sign up, sign in, and have a profile created automatically. Auth session persists across app restarts. Protected routes redirect unauthenticated users to sign-in. Compliance requirements (account deletion, privacy/TOS links, GPS consent UX) land in this phase, not Phase 9.
+**Depends on**: Phase 1.5
+**Requirements**: User can sign up with email/password; User can sign up/log in with Google OAuth (Android-only until Apple Developer enrolled); Apple Sign-In stub shown on iOS in place of Google OAuth; User session persists across app restarts; User can delete their account; Privacy policy and ToS linked in onboarding; GPS consent captured before first GPS read
 **Success Criteria** (what must be TRUE):
   1. User can create an account with email/password and sees a profile screen
-  2. User can sign in with Google OAuth via deep link (Android + iOS simulator)
+  2. User can sign in with Google OAuth via deep link on Android — Google OAuth is limited to Android builds; iOS shows "Sign in with Apple — coming soon" placeholder that does NOT offer Google (Apple App Review guideline 4.8 compliance)
   3. User row is auto-created in `users` table on signup (trigger confirmed)
   4. Unauthenticated users are redirected to sign-in from any protected tab
   5. Session persists after app restart (AsyncStorage-backed Supabase auth)
   6. Apple Sign-In route exists but shows "coming soon" until Apple Developer enrolled
+  7. User can delete their account from within the app — triggers profile removal and session revocation (required by Apple guideline 5.1.1)
+  8. Onboarding screen links to Termly privacy policy URL and Terms of Service URL
+  9. GPS consent prompt captures `users.gps_consent = true` and `users.gps_consent_at = now()` before any GPS read
+  10. Settings screen stub exists with: sign out, privacy policy link, ToS link, account deletion entry point, location permission explanation with OS settings deep link
+  11. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
-- [ ] 02-01: Supabase auth wiring (SessionProvider, onAuthStateChange), sign-in/sign-up screens, protected route layout
-- [ ] 02-02: Google OAuth deep link flow, profile auto-create trigger verification, Apple Sign-In stub
+- [ ] 02-01: Supabase auth wiring (SessionProvider, onAuthStateChange), sign-in/sign-up screens, protected route layout, GPS consent prompt
+- [ ] 02-02: Google OAuth deep link flow (Android-only gate), profile auto-create trigger verification, Apple Sign-In stub, account deletion RPC, Settings screen stub, onboarding privacy/ToS links
 
 ---
 
 ### Phase 3: Read Path & Map
 **Goal**: The map renders real bathroom locations fetched from Supabase via PostGIS RPCs. Public search excludes deleted/shadowbanned/suppressed records. Emergency mode reads nearest location.
 **Depends on**: Phase 2 (auth required for location details and future mutations)
-**Requirements**: User can view a map of bathrooms near their current GPS location; User can search for bathrooms in any city/area; User can filter by Chill Spot/wheelchair accessible/changing table/cleanliness/currently open; "Emergency Mode" one-tap nearest available bathroom; User can tap a listing to see full details
+**Requirements**: User can view a map of bathrooms near their current GPS location; User can search for bathrooms in any city/area (manual search fallback for denied GPS); User can filter by Chill Spot/wheelchair accessible/changing table/cleanliness/currently open; "Emergency Mode" one-tap nearest available bathroom; User can tap a listing to see full details
 **Success Criteria** (what must be TRUE):
   1. MapScreen renders Mapbox map with bathroom location pins from `search_locations_bbox` RPC
-  2. RPC returns only published, non-deleted, non-shadowbanned, non-suppressed locations
+  2. RPC returns only published, non-deleted, non-shadowbanned, non-suppressed locations — filters: `shadowban_status = false AND deleted_at IS NULL AND suppressed_at IS NULL`
   3. `search_locations_nearby` returns nearest location ordered by distance (meters, not degrees)
   4. LocationDetail modal shows name, policy tag, confidence score, last verified
-  5. Denied-location and no-results states handled gracefully in the UI
-  6. Shadowbanned/deleted test fixtures confirmed absent from search results
+  5. Denied location permission: map shows manual city/address search input instead of GPS-centered view (no dead-end state)
+  6. No-results state: named "No bathrooms found nearby" UI with "Search this area" button
+  7. Shadowbanned/deleted/suppressed test fixtures confirmed absent from search results
+  8. Plan 03-01 includes a migration adding `locations.suppressed_at TIMESTAMPTZ` if the column does not already exist in the live schema, before RPCs reference it
+  9. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
@@ -89,16 +120,19 @@ Plans:
 ---
 
 ### Phase 4: GPS Service & Submission
-**Goal**: Users physically present at a bathroom can submit it. GPS sample is validated server-side. Submitted locations enter pending state awaiting verification.
+**Goal**: Users physically present at a bathroom can submit it. GPS sample is validated server-side. Submitted locations enter pending state awaiting verification. Access codes and timing tips are writable in this phase — before Phase 8 attempts to display them.
 **Depends on**: Phase 3
-**Requirements**: User can submit a new bathroom location with name, address, policy tag, access type, hours; Submitted locations enter a pending state until 2 independent GPS verifications; GPS accuracy, freshness, and mock detection enforced
+**Requirements**: User can submit a new bathroom location with name, address, policy tag, access type, hours; User can submit/update the access code (PIN) for a location; User can add timing tips; Submitted locations enter a pending state until 2 independent GPS verifications; GPS accuracy, freshness, and mock detection enforced
 **Success Criteria** (what must be TRUE):
   1. GpsService hook returns `{coord, accuracy, mocked, timestamp}` with high-accuracy mode
   2. Mocked locations are rejected at the RPC layer (not just client-side)
   3. `submit_location` RPC inserts a pending row and fires creator-initial verification event
-  4. GPS accuracy > 50m and stale fixes (>60s) are rejected server-side with a generic error
-  5. SubmitFlow form validates with Zod, handles all error states (denied permission, low accuracy, failed write)
-  6. Newly submitted location appears on map in pending state visible only to submitter
+  4. `submit_location` RPC accepts optional `access_code` and `timing_tips` fields and stores them correctly
+  5. Access code write path requires auth; stored value is NOT returned in public search results (only in authenticated LocationDetail reads)
+  6. GPS accuracy > 50m and stale fixes (>60s) are rejected server-side with a generic error
+  7. SubmitFlow form validates with Zod, handles all error states (denied permission, low accuracy, failed write)
+  8. Newly submitted location appears on map in pending state visible only to submitter
+  9. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
@@ -110,71 +144,109 @@ Plans:
 ### Phase 5: Trust Engine & Verification
 **Goal**: A second independent user can GPS-verify a location, triggering the trust engine. Two non-shadowbanned verifications publish the location. Trust score and confidence score update incrementally.
 **Depends on**: Phase 4
-**Requirements**: User can GPS-verify a location by being physically within range; Verification weight scaled by user trust score + proximity; Location publishes after 2 independent GPS verifications OR 1 + 48-hour no-flag window; Location confidence degrades over time (decay system set up here, job in Phase 6)
+**Requirements**: User can GPS-verify a location by being physically within range; Verification weight (`verification_events.weight`) scaled by user trust score + proximity; Location publishes after 2 independent GPS verifications OR 1 + 48-hour no-flag window; Location confidence degrades over time (decay system set up here, job in Phase 6)
+
+**Trust scale (from live schema — Phase 5 must align to these):**
+- `users.trust_score`: integer, default 9 (document intended range and what constitutes high/low trust before implementing weight formulas)
+- `users.trust_multiplier`: numeric, default 0.5 (document intended range before Phase 5 weight calculations)
+- `verification_events.weight`: numeric (NOT `weighted_value` — that field does not exist in live schema)
+
 **Success Criteria** (what must be TRUE):
   1. `verify_location` RPC validates GPS triple server-side and inserts a verification event
-  2. `weighted_value` computed correctly as `trust_multiplier × proximity_decay × accuracy_decay`
+  2. `verification_events.weight` computed correctly as `trust_multiplier × proximity_decay × accuracy_decay` — field name is `weight`, not `weighted_value`
   3. Location status transitions pending → published after 2 distinct non-shadowbanned verifiers
-  4. Shadowbanned user's verification is accepted (no hint given) but produces `weighted_value = 0` and does NOT trigger publish
-  5. `users.trust_score` increments correctly via `trust_events` append pattern
-  6. VerifyFlow screen handles accepted/rejected/denied-permission states without leaking rejection reason
-  7. 48-hour auto-promote job logic exists (Edge Function or pg_cron stub) even if not yet scheduled
+  4. Shadowbanned user's verification is accepted (no hint given) but produces `weight = 0` and does NOT trigger publish
+  5. Tests assert that a shadowbanned user's verification produces `weight = 0` and does NOT trigger the publish gate
+  6. `users.trust_score` increments correctly via `trust_events` append pattern (`delta` sign must match `action_type`)
+  7. VerifyFlow screen handles accepted/rejected/denied-permission states without leaking rejection reason
+  8. 48-hour auto-promote job logic exists (Edge Function or pg_cron stub) even if not yet scheduled
+  9. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: verify_location RPC + AFTER INSERT trigger chain (recalc_confidence, trust_events, publish gate), compute_weighted_value function
+- [ ] 05-01: verify_location RPC + AFTER INSERT trigger chain (recalc_confidence, trust_events, publish gate), compute_verification_weight function (produces `verification_events.weight`)
 - [ ] 05-02: VerifyFlow screen, "I'm here" button, accepted/rejected/loading states
 
 ---
 
 ### Phase 6: Decay, Aggregates & Availability Flags
-**Goal**: Published locations decay in confidence over time (with a floor). The 90-day respect signal is refreshed on schedule. Users can post expiring availability flags.
+**Goal**: Published locations decay in confidence over time (with a floor). The 90-day respect signal is refreshed on schedule. Users can post expiring temporary availability flags ("currently closed", "inaccessible"). Durable correctness reports (code wrong, permanently closed, etc.) are in Phase 7 — not here.
 **Depends on**: Phase 5
-**Requirements**: Location confidence degrades over time without fresh verifications; respect_signal_90d materialized view maintained; User can submit a specific report (code wrong, closed); Locations with multiple inaccuracy reports suppressed pending re-verification
+**Requirements**: Location confidence degrades over time without fresh verifications; respect_signal_90d materialized view maintained; User can post a temporary expiring availability flag (currently_closed, inaccessible) — these expire automatically and do NOT trigger suppression; Durable problem reports (code wrong, closed permanently, unsafe) are Phase 7 scope
 **Success Criteria** (what must be TRUE):
   1. Confidence decay function applies `score × exp(-ln(2) × days / half_life)` with floor at `app_config.confidence_floor`
-  2. No location reaches confidence 0 — floor is enforced, hiding requires `suppressed_at`
+  2. No location reaches confidence 0 — floor is enforced; permanent hiding requires `suppressed_at` (set in Phase 7)
   3. `respect_signal_90d` refreshes CONCURRENTLY without blocking reads (unique index present)
-  4. `flag_location` RPC inserts availability_flags with `expires_at` enforced in public reads
+  4. `flag_location` RPC inserts `availability_flags` rows with `type` in ('currently_closed', 'inaccessible') and `expires_at` enforced in public reads
   5. Expired flags do not appear in search results or location detail
   6. Decay job is scheduled (pg_cron or Edge Function) and documented in app_config
+  7. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
 - [ ] 06-01: Confidence decay PL/pgSQL function + scheduled job, confidence floor, respect_signal_log triggers, respect_signal_90d concurrent refresh job
-- [ ] 06-02: flag_location + availability_flags RPC, expiry enforcement in read RPCs
+- [ ] 06-02: flag_location RPC (types: currently_closed, inaccessible only), expiry enforcement in read RPCs, availability flags UI in LocationDetail
 
 ---
 
 ### Phase 7: Reports & Moderation Inputs
-**Goal**: Users can report problems. High-volume reports auto-suppress locations. Admins (via Supabase Studio in v1) can shadowban users/locations and resolve reports.
+**Goal**: Users can report durable problems (wrong code, permanently closed, inaccessible, unsafe, duplicate). High-volume same-type reports auto-suppress locations (sets `locations.suppressed_at`). Admins (via Supabase Studio in v1) can shadowban users/locations and unsuppress locations.
+
+**Boundary with Phase 6:** Phase 6 owns temporary expiring availability flags (`availability_flags`). Phase 7 owns all durable reports (`reports` table). These are separate concepts with separate tables — do not mix.
+
 **Depends on**: Phase 6
-**Requirements**: User can report bathroom no longer exists/access denied/incorrect hours/unsafe content/duplicate; Locations with multiple inaccuracy reports suppressed; Moderation decisions enforced below UI layer
+**Requirements**: User can file a durable report for any of the 5 named types: code wrong, permanently closed, currently locked/inaccessible, unsafe/dirty, duplicate; Locations with multiple same-type reports are suppressed (sets `locations.suppressed_at IS NOT NULL`); Moderation decisions enforced below UI layer
 **Success Criteria** (what must be TRUE):
-  1. `report_location` RPC inserts a report with reporter identity never returned in public reads
-  2. Auto-suppress trigger fires when same-type reports exceed `app_config.report_suppress_threshold`
-  3. Admin SECURITY DEFINER functions exist for shadowban_user, shadowban_location, unsuppress_location
-  4. Shadowbanned user's existing contributions are excluded from public aggregates immediately
-  5. Report UI in app handles all report types with confirmation and error states
+  1. `report_location` RPC accepts all 5 `report_type` values: 'permanently_closed', 'currently_locked', 'inaccurate_information' (covers code wrong/hours), 'dirty_unsafe', 'moved_relocated' — and inserts with reporter identity never returned in public reads
+  2. Auto-suppress trigger fires when same-type reports exceed `app_config.report_suppress_threshold` and sets `locations.suppressed_at = now()`
+  3. Once `locations.suppressed_at IS NOT NULL`, location is excluded from all public search RPCs (consistent with Phase 3 filters)
+  4. Admin SECURITY DEFINER functions exist for shadowban_user, shadowban_location, unsuppress_location (clears suppressed_at)
+  5. Shadowbanned user's existing contributions are excluded from public aggregates immediately
+  6. Report UI in LocationDetail handles all 5 report types with confirmation and error states
+  7. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
-- [ ] 07-01: report_location RPC, auto-suppress trigger, admin SECURITY DEFINER moderation functions
-- [ ] 07-02: Report UI in LocationDetail, all report type flows, confirmation states
+- [ ] 07-01: report_location RPC (all 5 types), auto-suppress trigger (sets locations.suppressed_at), admin SECURITY DEFINER moderation functions (shadowban_user, shadowban_location, unsuppress_location)
+- [ ] 07-02: Report UI in LocationDetail, all 5 report type flows, confirmation states
+
+---
+
+### Phase 7.5: Eugene Seed Operations
+**Goal**: Seed the Eugene, OR launch market with ≥50 GPS-verified locations meeting coverage targets before public launch. This phase produces admin tooling and a verified dataset, not user-facing features.
+**Depends on**: Phase 7 (suppression and moderation in place before seeding)
+**Requirements**: Candidate location list sourced; admin import tooling tested; field verification checklist created; coverage targets met; import is idempotent; launch-readiness acceptance query passes
+**Success Criteria** (what must be TRUE):
+  1. ≥50 published locations in Eugene visible on the map
+  2. ≥3 confirmed changing-table locations
+  3. ≥3 confirmed wheelchair-accessible locations
+  4. ≥5 Chill Spot policy-tagged locations (hotel lobbies, UO buildings, bars, libraries)
+  5. Admin import script is idempotent — re-run does not create duplicates (duplicate detection via coordinates proximity query)
+  6. All seed locations have `verification_count ≥ 2` OR are within the 48-hour auto-promote window at launch time
+  7. Launch-readiness acceptance query (published, non-suppressed, non-deleted, ≥2 verifications, in Eugene bbox) returns ≥50 rows
+**Plans**: TBD
+
+Plans:
+- [ ] 7.5-01: Candidate sourcing list, field verification checklist, duplicate detection query, launch-readiness acceptance query
+- [ ] 7.5-02: Admin import tooling (CSV/JSON → locations, sets data_source='seed'), seed data QA run
 
 ---
 
 ### Phase 8: Client UX & Emergency Modes
-**Goal**: The app feels fast, intuitive, and purpose-built for urgency. Emergency modes work with one tap. Ratings are collectable. All error, empty, and offline states are handled.
-**Depends on**: Phase 5 (trust engine live), Phase 6 (flags/decay live)
+**Goal**: The app feels fast, intuitive, and purpose-built for urgency. Emergency modes work with one tap. Ratings are collectable. All error, empty, and offline states are handled — against the Phase 1.5 component acceptance checklist.
+**Depends on**: Phase 5 (trust engine live), Phase 6 (flags/decay live), Phase 7.5 (seed data live)
 **Requirements**: "Emergency Mode" one-tap; "Changing Table NOW" emergency mode; "Accessible NOW" emergency mode; User can rate cleanliness/accessibility/convenience; Separate changing surface cleanliness dimension; Access codes (PINs) visible only to signed-in users; Filter by policy tag/wheelchair/changing table/cleanliness/currently open
 **Success Criteria** (what must be TRUE):
-  1. Emergency Mode routes user to nearest published location within 2 taps from any screen
+  1. Emergency Mode routes user to nearest published location in ≤2 taps from any top-level route (verified against Phase 1.5 nav model)
   2. "Changing Table NOW" filter returns nearest confirmed changing-table location
-  3. Rating submission persists to DB and updates location detail without full reload
-  4. Access codes only visible in LocationDetail when user is signed in AND location has code policy tag
-  5. All filter combinations return correct results (spot-tested for empty states)
-  6. Denied-location, offline, slow-network, and no-results states all show appropriate non-generic UI
+  3. "Accessible NOW" filter returns nearest confirmed wheelchair-accessible location
+  4. Rating submission persists to DB and updates location detail without full reload
+  5. Access codes only visible in LocationDetail when user is signed in AND location has code policy tag
+  6. All filter combinations return correct results (spot-tested for empty states)
+  7. Denied location permission: map shows manual city/address search input instead of GPS-centered view (no dead-end state)
+  8. Offline: cached pins remain visible; new fetch shows "No connection" banner with retry button
+  9. No results: named "No bathrooms found nearby" state with "Search this area" button
+  10. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
@@ -224,16 +296,18 @@ Plans:
 
 ## Progress
 
-**Execution Order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
+**Execution Order:** 1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 7 → 7.5 → 8 → 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Scaffold | 2/2 | Complete | 2026-06-24 |
+| 1.5. UX Foundation & Design System | 0/2 | Not started | - |
 | 2. Auth & Profiles | 0/2 | Not started | - |
 | 3. Read Path & Map | 0/3 | Not started | - |
 | 4. GPS Service & Submission | 0/2 | Not started | - |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
 | 7. Reports & Moderation Inputs | 0/2 | Not started | - |
+| 7.5. Eugene Seed Operations | 0/2 | Not started | - |
 | 8. Client UX & Emergency Modes | 0/3 | Not started | - |
 | 9. Operations & Hardening | 0/3 | Not started | - |

@@ -85,12 +85,13 @@ Actual fields (as of live schema / migrations):
 - `access_instructions text`
 - `shadowban_status boolean default false` — column name is `shadowban_status`, NOT `is_shadowbanned`
 - `deleted_at timestamptz` — soft delete flag
+- `suppressed_at timestamptz` — set by auto-suppress trigger (Phase 7) when same-type report count exceeds threshold, or by admin moderation. NULL means not suppressed. Public search RPCs must filter `suppressed_at IS NULL`. Cleared by `unsuppress_location` admin function. ⚠ Column may not exist in live schema yet — Phase 3 plan (03-01) must add a migration if absent before RPCs reference it.
 - `timezone text not null default 'America/Los_Angeles'`
 - `created_at timestamptz default now()`
 - `updated_at timestamptz default now()`
 
 Rules:
-- Public searches must exclude `deleted_at is not null` and `shadowban_status = true`.
+- Public searches must exclude: `deleted_at IS NOT NULL`, `shadowban_status = true`, and `suppressed_at IS NOT NULL`.
 - Inserts must validate coordinate shape and SRID (use PostGIS geography type, not raw lat/lng).
 - Client code must NOT insert directly to locations — go through `submissions` + verification gate.
 - Public queries must not expose contributor identity.

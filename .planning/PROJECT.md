@@ -28,7 +28,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 **Map & Discovery**
 - [ ] User can view a map of bathrooms near their current GPS location
-- [ ] User can search for bathrooms in any city/area
+- [ ] User can search for bathrooms in any city/area (manual city/address search available when GPS permission is denied — no dead-end state)
 - [ ] User can filter by: Chill Spot, wheelchair accessible, changing table, cleanliness rating, currently open
 - [ ] User can tap a listing to see full details (hours, ratings, policy tag, accessibility features, timing tips)
 - [ ] "Emergency Mode" — one-tap nearest available bathroom with current GPS
@@ -56,9 +56,17 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 **Authentication**
 - [ ] User can sign up with email/password
-- [ ] User can sign up / log in with Google OAuth
-- [ ] User can sign up / log in with Apple Sign-In (required by App Store when Google OAuth is offered)
+- [ ] User can sign up / log in with Google OAuth (Android-only until Apple Developer enrolled; iOS shows Apple Sign-In stub)
+- [ ] User can sign up / log in with Apple Sign-In (required by App Store guideline 4.8 when Google OAuth is offered on iOS)
 - [ ] User session persists across app restarts
+- [ ] User can delete their account and revoke any linked social credentials from within the app (required by Apple guideline 5.1.1)
+
+**Settings**
+- [ ] Privacy policy link (Termly URL)
+- [ ] Terms of Service link (Termly URL)
+- [ ] Account deletion flow
+- [ ] Sign out
+- [ ] Location permission explanation with OS settings deep link
 
 **Policy Tags & Accessibility**
 - [ ] Each location has a policy tag: Chill Spot, Purchase Required, Code Required, Public Facility
