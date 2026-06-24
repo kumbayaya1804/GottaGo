@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -166,7 +166,7 @@ export type Database = {
           name: string
           policy_tag: string | null
           respect_signal_score: number | null
-          shadowban_status: boolean | null
+          shadowban_status: boolean
           timezone: string
           updated_at: string | null
           verification_count: number | null
@@ -191,7 +191,7 @@ export type Database = {
           name: string
           policy_tag?: string | null
           respect_signal_score?: number | null
-          shadowban_status?: boolean | null
+          shadowban_status?: boolean
           timezone?: string
           updated_at?: string | null
           verification_count?: number | null
@@ -216,7 +216,7 @@ export type Database = {
           name?: string
           policy_tag?: string | null
           respect_signal_score?: number | null
-          shadowban_status?: boolean | null
+          shadowban_status?: boolean
           timezone?: string
           updated_at?: string | null
           verification_count?: number | null
@@ -506,7 +506,7 @@ export type Database = {
           gps_verified_contribution_count: number | null
           id: string
           leaderboard_position: number | null
-          shadowban_status: boolean | null
+          shadowban_status: boolean
           trust_multiplier: number | null
           trust_score: number | null
           updated_at: string | null
@@ -523,7 +523,7 @@ export type Database = {
           gps_verified_contribution_count?: number | null
           id: string
           leaderboard_position?: number | null
-          shadowban_status?: boolean | null
+          shadowban_status?: boolean
           trust_multiplier?: number | null
           trust_score?: number | null
           updated_at?: string | null
@@ -540,7 +540,7 @@ export type Database = {
           gps_verified_contribution_count?: number | null
           id?: string
           leaderboard_position?: number | null
-          shadowban_status?: boolean | null
+          shadowban_status?: boolean
           trust_multiplier?: number | null
           trust_score?: number | null
           updated_at?: string | null
@@ -597,6 +597,38 @@ export type Database = {
       }
     }
     Views: {
+      availability_flags_public: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          id: string | null
+          location_id: string | null
+          type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          location_id?: string | null
+          type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          location_id?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_flags_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       geography_columns: {
         Row: {
           coord_dimension: number | null
@@ -638,6 +670,47 @@ export type Database = {
           type?: string | null
         }
         Relationships: []
+      }
+      ratings_public: {
+        Row: {
+          accessibility: number | null
+          cleanliness: number | null
+          convenience: number | null
+          created_at: string | null
+          id: string | null
+          location_id: string | null
+          review_text: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          accessibility?: number | null
+          cleanliness?: number | null
+          convenience?: number | null
+          created_at?: string | null
+          id?: string | null
+          location_id?: string | null
+          review_text?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          accessibility?: number | null
+          cleanliness?: number | null
+          convenience?: number | null
+          created_at?: string | null
+          id?: string | null
+          location_id?: string | null
+          review_text?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       respect_signal_90d: {
         Row: {
@@ -784,10 +857,15 @@ export type Database = {
             }
             Returns: string
           }
-      count_locations_within: {
-        Args: { p_lat: number; p_lon: number; p_radius_m?: number }
-        Returns: number
-      }
+      count_locations_within:
+        | {
+            Args: { p_lat: number; p_lon: number; p_radius_m?: number }
+            Returns: number
+          }
+        | {
+            Args: { p_lat: number; p_lon: number; p_radius_m?: number }
+            Returns: number
+          }
       disablelongtransactions: { Args: never; Returns: string }
       dropgeometrycolumn:
         | {
@@ -919,51 +997,97 @@ export type Database = {
         Returns: boolean
       }
       geomfromewkt: { Args: { "": string }; Returns: unknown }
-      get_locations_in_radius: {
-        Args: {
-          filter_changing?: boolean
-          filter_chill_spot?: boolean
-          filter_gender_neutral?: boolean
-          filter_high_conf?: boolean
-          filter_no_purchase?: boolean
-          filter_open_now?: boolean
-          filter_wheelchair?: boolean
-          radius_m?: number
-          user_lat: number
-          user_lng: number
-        }
-        Returns: {
-          access_instructions: string | null
-          access_sensitivity: string | null
-          address: string | null
-          chill_spot: boolean | null
-          confidence_score: string | null
-          confidence_tier: string | null
-          coordinates: unknown
-          created_at: string | null
-          data_source: string
-          decay_tier: string | null
-          deleted_at: string | null
-          failure_event_count: number | null
-          hours: Json | null
-          id: string
-          is_open_now: boolean | null
-          last_verified_at: string | null
-          name: string
-          policy_tag: string | null
-          respect_signal_score: number | null
-          shadowban_status: boolean | null
-          timezone: string
-          updated_at: string | null
-          verification_count: number | null
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "locations"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
+      get_locations_in_radius:
+        | {
+            Args: {
+              filter_changing?: boolean
+              filter_chill_spot?: boolean
+              filter_gender_neutral?: boolean
+              filter_high_conf?: boolean
+              filter_no_purchase?: boolean
+              filter_open_now?: boolean
+              filter_wheelchair?: boolean
+              radius_m?: number
+              user_lat: number
+              user_lng: number
+            }
+            Returns: {
+              access_instructions: string | null
+              access_sensitivity: string | null
+              address: string | null
+              chill_spot: boolean | null
+              confidence_score: string | null
+              confidence_tier: string | null
+              coordinates: unknown
+              created_at: string | null
+              data_source: string
+              decay_tier: string | null
+              deleted_at: string | null
+              failure_event_count: number | null
+              hours: Json | null
+              id: string
+              is_open_now: boolean | null
+              last_verified_at: string | null
+              name: string
+              policy_tag: string | null
+              respect_signal_score: number | null
+              shadowban_status: boolean
+              timezone: string
+              updated_at: string | null
+              verification_count: number | null
+            }[]
+            SetofOptions: {
+              from: "*"
+              to: "locations"
+              isOneToOne: false
+              isSetofReturn: true
+            }
+          }
+        | {
+            Args: {
+              filter_changing?: boolean
+              filter_chill_spot?: boolean
+              filter_gender_neutral?: boolean
+              filter_high_conf?: boolean
+              filter_no_purchase?: boolean
+              filter_open_now?: boolean
+              filter_wheelchair?: boolean
+              radius_m?: number
+              user_lat: number
+              user_lng: number
+            }
+            Returns: {
+              access_instructions: string | null
+              access_sensitivity: string | null
+              address: string | null
+              chill_spot: boolean | null
+              confidence_score: string | null
+              confidence_tier: string | null
+              coordinates: unknown
+              created_at: string | null
+              data_source: string
+              decay_tier: string | null
+              deleted_at: string | null
+              failure_event_count: number | null
+              hours: Json | null
+              id: string
+              is_open_now: boolean | null
+              last_verified_at: string | null
+              name: string
+              policy_tag: string | null
+              respect_signal_score: number | null
+              shadowban_status: boolean
+              timezone: string
+              updated_at: string | null
+              verification_count: number | null
+            }[]
+            SetofOptions: {
+              from: "*"
+              to: "locations"
+              isOneToOne: false
+              isSetofReturn: true
+            }
+          }
       gettransactionid: { Args: never; Returns: unknown }
       longtransactionsenabled: { Args: never; Returns: boolean }
       populate_geometry_columns:
