@@ -1,0 +1,37 @@
+{
+  "metaswarm_version": "0.7.0",
+  "installed_at": "2026-06-22T00:00:00Z",
+  "updated_at": "2026-06-22T00:00:00Z",
+  "detection": {
+    "language": "typescript",
+    "framework": "expo-react-native",
+    "test_runner": "jest",
+    "linter": "eslint",
+    "formatter": "prettier",
+    "package_manager": "npm",
+    "type_checker": "tsc",
+    "ci": null,
+    "git_hooks": "tdd-guard"
+  },
+  "choices": {
+    "coverage_threshold": 100,
+    "external_tools": true,
+    "visual_review": false,
+    "ci_pipeline": false,
+    "git_hooks": false,
+    "beads": false
+  },
+  "commands": {
+    "test": "cd app && npm test",
+    "coverage": "cd app && npm run test:coverage",
+    "lint": "cd app && npx eslint .",
+    "typecheck": "cd app && npx tsc --noEmit",
+    "format_check": "cd app && npx prettier --check ."
+  },
+  "project": {
+    "name": "Gotta Go",
+    "root": "C:\\Users\\mrsai\\Gotta Go",
+    "app_dir": "app",
+    "github_remote": "https://github.com/kumbayaya1804/GottaGo"
+  }
+}

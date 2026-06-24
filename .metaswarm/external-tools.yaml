@@ -1,0 +1,15 @@
+external_tools:
+  antigravity:
+    enabled: true
+    role: postgis-security-reviewer
+    review_artifacts:
+      review: .claude/antigravity-review-latest.md
+  codex:
+    enabled: true
+    role: security-privacy-reviewer
+    review_artifacts:
+      prompt: .claude/codex-prompt-latest.md
+      review: .claude/codex-review-latest.md
+
+review_queue: .claude/review-queue.txt
+gate_policy: both-must-approve
