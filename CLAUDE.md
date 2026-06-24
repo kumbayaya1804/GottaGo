@@ -19,7 +19,7 @@ Every session, every task. No exceptions. Invoke the Skill tool BEFORE taking ac
 | Implementing any feature, fix, or config change | `superpowers:test-driven-development` — invoke BEFORE writing code |
 | Before finishing any task or declaring it done | `superpowers:verification-before-completion` |
 | After each task in a plan, before moving to the next | `superpowers:requesting-code-review` |
-| Running Antigravity + Codex review gate (Task 5 and all future gates) | `superpowers:requesting-code-review` — use git SHAs + description from the plan |
+| Running any code review gate | `superpowers:requesting-code-review` — then immediately run `/review-gate` (chains GSD → Antigravity → Codex automatically) |
 | Working on parallel tasks with subagents | `superpowers:dispatching-parallel-agents` |
 | Following or executing a written plan | `superpowers:executing-plans` |
 
@@ -230,7 +230,7 @@ Gotta Go is a crowdsourced mobile app that helps people find usable bathrooms wh
 - Placeholder/scaffold screens created via Bash (TDD Guard blocks Write on non-behavioral files)
 - `app.config.ts` kept alongside `app.json` until EAS build confirms; `app.config.ts` takes precedence
 - Root layout uses plain `<View>` in Phase 1 — `react-native-gesture-handler` added in Phase 2
-- Review gate: log files to `.claude/review-queue.txt` → `/antigravity-review` → `/codex-prompt` → resolve BLOCKs → commit
+- Review gate: log files to `.claude/review-queue.txt` → `/review-gate` (chains GSD review → `/antigravity-review` → `/codex-prompt` automatically) → resolve BLOCKs → commit
 - **User advocacy premortem** is a required review dimension — see AGENTS.md and ANTIGRAVITY.md
 <!-- GSD:conventions-end -->
 
