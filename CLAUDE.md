@@ -206,7 +206,7 @@ Gotta Go is a crowdsourced mobile app that helps people find usable bathrooms wh
 - **Security**: No raw SQL strings unless migrations or safely parameterized server-only code. GPS coordinates in PostGIS geometry/geography columns only. No PII in logs.
 - **Review gate**: No commit without APPROVE from both Antigravity and Codex (or all BLOCK/REQUEST CHANGES resolved).
 - **Multi-agent review (Claude + Antigravity + Codex)**: No self-approval; PostGIS correctness audited by Antigravity; security/privacy audited by Codex. Review workflow: Claude implements → logs files to `.claude/review-queue.txt` → Antigravity + Codex review → address all BLOCK/REQUEST CHANGES → commit with reviewer verdicts.
-- **Harness contract**: Follow `docs/agent-harness.md`. Reviewer artifacts are `.claude/antigravity-review-latest.md`, `.claude/codex-prompt-latest.md`, and `.claude/codex-review-latest.md`.
+- **Harness contract**: Follow `docs/agent-harness.md`. Reviewer artifacts are `.claude/antigravity-prompt-latest.md`, `.claude/antigravity-review-latest.md`, `.claude/codex-prompt-latest.md`, and `.claude/codex-review-latest.md`.
 - **Stale-info scan**: Follow `docs/stale-info-scan.md`. The latest scan artifact is `.planning/stale-info-scan-latest.md`; unresolved findings that affect the current task must be fixed or explicitly deferred before commit.
 <!-- GSD:project-end -->
 

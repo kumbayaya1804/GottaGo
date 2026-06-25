@@ -1,118 +1,110 @@
-# Codex Review Request — Gotta Go / Phase 1.5 Plans (Round 2)
+# Codex Review Request — Phase 1.5 Plans Round 2
 
-## Your Role
+<context>
+Project: Gotta Go — crowdsourced bathroom finder (React Native / Expo / Supabase / PostGIS)
+Review scope: Documentation only — two PLAN.md execution plan files. No TypeScript, no migrations.
+Model: You are Codex (GPT-5.5). You are the senior implementation-quality reviewer.
+</context>
 
-Read `CODEX.md` from the project root before reviewing. Summary:
-- You are the senior implementation-quality reviewer for Gotta Go.
-- Review actual files from disk — do not approve based on intent.
-- Priorities: security → data integrity → GPS correctness → abuse resistance → RLS → user-visible correctness → test coverage → maintainability.
-- BLOCK: security/privacy/data-integrity/production-breaking defects.
-- REQUEST CHANGES: logic errors, missing tests, incomplete error handling, significant maintainability risk.
-- APPROVE: inspected and ready, only non-blocking notes remain.
+<role>
+You are the senior implementation-quality reviewer for Gotta Go. Your priorities, in order:
 
-Read `docs/review-severity.md` for verdict definitions and project-specific BLOCK/REQUEST CHANGES examples.
+1. Security and privacy correctness
+2. Data integrity
+3. User-visible failure states
+4. Schema and RLS alignment
+5. Practical production risk
 
----
+Verdict definitions (read `docs/review-severity.md` for full criteria):
+- BLOCK: security/privacy/data-integrity defect that must not ship
+- REQUEST CHANGES: logic error, incomplete spec, significant production risk
+- APPROVE: inspected and ready; only non-blocking notes remain
 
-## What You Are Reviewing
+Do not approve based on intent. Read actual files from disk.
+</role>
 
-**Phase 1.5: UX Foundation & Design System** — documentation only, no code.
+<instructions>
+Step 1 — Read your operating file:
+  Read `CODEX.md` from the project root.
 
-These are execution plan files (PLAN.md). They define the design contract that all Phase 2–8 client-facing implementation phases will implement against. No TypeScript, no migrations, no RLS. The output when executed will be three markdown docs in `docs/design/`.
+Step 2 — Read context files (in this order):
+  1. `docs/review-severity.md`
+  2. `SPEC.md`
+  3. `docs/schema-contract.md`
+  4. `supabase/migrations/20260519010000_remote_schema.sql`
+  5. `.planning/phases/01.5-ux-foundation-design-system/01-5-CONTEXT.md`
+  6. `.planning/phases/01.5-ux-foundation-design-system/01.5-REVIEW.md`
 
-**Files in scope (from `.claude/review-queue.txt`):**
-- `.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md` — Flows + Wireframes plan
-- `.planning/phases/01.5-ux-foundation-design-system/01.5-02-PLAN.md` — Design System plan
+Step 3 — Read the files under review:
+  - `.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md`
+  - `.planning/phases/01.5-ux-foundation-design-system/01.5-02-PLAN.md`
 
-**Context files to read from disk:**
-- `CODEX.md` — your operating instructions
-- `docs/review-severity.md` — verdict definitions
-- `SPEC.md` — product scope and user flows
-- `docs/schema-contract.md` — DB field names, RLS rules (read for schema alignment)
-- `supabase/migrations/20260519010000_remote_schema.sql` — live schema (ratings and reports tables especially)
-- `.planning/phases/01.5-ux-foundation-design-system/01-5-CONTEXT.md` — locked UX decisions these plans must honor
-- `.planning/phases/01.5-ux-foundation-design-system/01.5-REVIEW.md` — GSD review findings already resolved
+Step 4 — Verify each of the three Round 1 fixes listed below. For each fix, confirm it is present and correct on disk before marking it resolved.
 
----
+Step 5 — Check for any new issues introduced by the fixes or any remaining issues not addressed in Round 1.
 
-## Prior Review Results
+Step 6 — Return your verdict in the output format below.
+</instructions>
 
-### GSD Review — REQUEST CHANGES (resolved, committed 7ed06ba)
+<prior_reviews>
+## GSD Review — REQUEST CHANGES → resolved (committed 7ed06ba)
+- RC-01: wave: 2 in Plan 02 frontmatter ✓
+- RC-02: duplicate_location report type mapping + Phase 7 migration note ✓
+- RC-03: has_changing_table tag derivation note ✓
 
-Three findings, all fixed:
-- **RC-01**: `wave: 1` → `wave: 2` in Plan 02 frontmatter (dependency conflict)
-- **RC-02**: "Duplicate Location" report type not in live `reports.report_type` CHECK constraint — mapping table + Phase 7 migration note added to Plan 01
-- **RC-03**: `has_changing_table` stored in `tags` table (not a `locations` column) — derivation note added to Plan 01 Wireframe 21 and Plan 02 Section 13
+## Antigravity Round 1 — APPROVE
+No issues. Non-blocking concerns: duplicate_location migration (Phase 7), changing_surface_cleanliness column (Phase 8), ERR-02 GPS guidance test (Phase 5).
 
-### Antigravity Review — APPROVE
+## Codex Round 1 — REQUEST CHANGES → resolved (committed bf507d3)
+Three MAJOR findings fixed:
 
-No issues. Concerns (non-blocking):
-- Duplicate Location schema migration noted for Phase 7
-- `changing_surface_cleanliness` column needed for Phase 8 ratings table
-- Phase 5 must test ERR-02 GPS accuracy guidance + button disabled state
+MAJOR-1 (01.5-02-PLAN.md §20): Checklist missing Security & Server Enforcement group
+Fix applied: 13th checklist group added with 5 items — access-code gating, family_mode/access_sensitivity RPC enforcement, no client-side suppression gates, no PII logging, public-result server filtering.
 
-All locked CONTEXT.md decisions verified correct:
-- Emergency FAB single-tap (no expand), mode chips inside sheet ✓
-- GPS consent gated to OS dialog `granted` resolution ✓
-- Pending pin: server-side JOIN on `submissions.submitter_id` only ✓
-- Family mode: RPC layer only, client-side JS filter forbidden ✓
-- ERR-09 copy: intentionally generic, no rejection reason revealed ✓
-- WCAG 2.1 AA contrast verified, textPrimary on yellow/orange ✓
+MAJOR-2 (01.5-01-PLAN.md wireframes 16/19/21): Inconsistent modal routes
+Fix applied: Canonicalized to /modals/verify, /modals/report, /modals/rating across both plans.
 
-### Codex Review Round 1 — REQUEST CHANGES (resolved, committed bf507d3)
+MAJOR-3 (01.5-01-PLAN.md Flow 10): submit_location called twice with ambiguous insert behavior
+Fix applied: First call is check-only (returns {status, duplicate_candidate?}, no insert). Continue branch calls with confirm_duplicate: true to perform insert. Server contract note appended below Flow 10.
+</prior_reviews>
 
-Three MAJOR findings, all fixed:
+<verification_focus>
+For each fix, answer these specific questions:
 
-- **MAJOR-1** (`01.5-02-PLAN.md` §20 checklist): Missing Security & Server Enforcement checklist group — **Fixed:** Added 13th checklist group at §20 with 5 items covering access-code absence for unauthenticated users (T-1.5-05), `access_sensitivity`/`family_mode` RPC-only enforcement (T-1.5-04), no client-side suppression/shadowban gates, no PII/precise-coordinate logging, and public-result filtering expectations.
+MAJOR-1 verification:
+- Is the Security & Server Enforcement group present in Plan 02 §20?
+- Does it include all 5 items (access-code absence, family_mode RPC-only, no client-side suppression, no PII logging, public-result server filtering)?
+- Do the items correctly carry forward threat model entries T-1.5-04 and T-1.5-05?
+- Is anything missing that would let a security or privacy defect pass the checklist?
 
-- **MAJOR-2** (`01.5-01-PLAN.md` wireframes): Inconsistent modal route names between the two plans — **Fixed:** Canonicalized Plan 01 wireframe routes to `/modals/verify`, `/modals/report`, `/modals/rating` matching Plan 02's navigation model and protected-route table.
+MAJOR-2 verification:
+- Do wireframes 16, 19, and 21 in Plan 01 use /modals/verify, /modals/report, /modals/rating?
+- Does Plan 02's navigation model and protected-route table use the same paths?
+- Are there any remaining /verify, /report, or /rate route references in either plan?
 
-- **MAJOR-3** (`01.5-01-PLAN.md` Flow 10): `submit_location` RPC called twice with ambiguous insert behavior — **Fixed:** Flow 10 now explicitly states the first call is check-only (no insert; returns `{status, duplicate_candidate?}`); the Continue branch calls with `confirm_duplicate: true` to perform the insert. A server contract note is appended below the flow.
+MAJOR-3 verification:
+- Does Flow 10 in Plan 01 clearly show the first call returns a duplicate candidate without inserting?
+- Does the Continue branch explicitly call submit_location with confirm_duplicate: true?
+- Is the server contract note present and unambiguous about idempotency?
+- Could this flow still produce duplicate submissions through any path?
+</verification_focus>
 
----
+<output_format>
+Return your verdict in exactly this structure:
 
-## Your Review Focus
-
-**Primary:** Verify the three Round 1 fixes are correctly resolved. Read the actual file content on disk — do not assume the fixes are correct based on the descriptions above.
-
-1. **Security & Server Enforcement checklist (Plan 02 §20)** — Is the new 13th checklist group present? Are all 5 items correct, complete, and non-redundant with other groups? Do they actually carry forward mitigations T-1.5-04 and T-1.5-05 from the threat model at the bottom of the plan?
-
-2. **Modal route canonicalization (Plan 01 wireframes 16, 19, 21)** — Do the wireframe routes now match `/modals/verify`, `/modals/report`, `/modals/rating`? Does Plan 02's navigation model and protected-route table use the same canonical paths? Are there any remaining references to the old `/verify`, `/report`, `/rate` routes in either plan?
-
-3. **submit_location server contract (Plan 01 Flow 10)** — Is the flow now unambiguous? Does the server contract note correctly specify the two-call protocol (`confirm_duplicate: true` for the second call)? Is the "Continue" branch idempotent (no double-insert risk)?
-
-**Secondary:** Any new issues introduced by the fixes, or any remaining issues not addressed in Round 1.
-
----
-
-## Verification Available
-
-Phase 1.5 produces documentation only. No code to typecheck, lint, or test. Verification is:
-- Read plan files and context files from disk
-- Cross-reference plans against `docs/schema-contract.md` and live migrations
-- Cross-reference plans against `01-5-CONTEXT.md` locked decisions
-- Cross-reference plans against `SPEC.md` user flows
-
----
-
-## Output Format
-
-```md
 ## Codex Review - Phase 1.5 Execution Plans Round 2 (01.5-01 + 01.5-02)
 
 **VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
 
 ### Findings
-- [CRITICAL/MAJOR/MINOR] file:line — Description, impact, required fix.
+- [CRITICAL/MAJOR/MINOR] file:line — Description. Impact. Required fix.
 
 ### Open Questions
-- Questions only when the answer affects merge safety.
+(Only include if the answer affects merge safety.)
 
 ### Verification
-- Commands run and results, or why verification was not run.
+List every file you read and any targeted searches you ran. State which verification steps were not possible and why.
 
 ### Approved
-- What is correct or ready to proceed.
-```
-
-After returning your verdict, paste it into this Claude session and it will be saved to `.claude/codex-review-latest.md`.
+List what is correct and ready to proceed.
+</output_format>
