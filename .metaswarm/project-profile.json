@@ -1,7 +1,7 @@
 {
-  "metaswarm_version": "0.7.0",
+  "metaswarm_version": "0.12.0",
   "installed_at": "2026-06-22T00:00:00Z",
-  "updated_at": "2026-06-22T00:00:00Z",
+  "updated_at": "2026-06-25T00:00:00Z",
   "detection": {
     "language": "typescript",
     "framework": "expo-react-native",
@@ -10,22 +10,22 @@
     "formatter": "prettier",
     "package_manager": "npm",
     "type_checker": "tsc",
-    "ci": null,
+    "ci": "github-actions",
     "git_hooks": "tdd-guard"
   },
   "choices": {
     "coverage_threshold": 100,
     "external_tools": true,
     "visual_review": false,
-    "ci_pipeline": false,
+    "ci_pipeline": true,
     "git_hooks": false,
-    "beads": false
+    "beads": true
   },
   "commands": {
     "test": "cd app && npm test",
     "coverage": "cd app && npm run test:coverage",
-    "lint": "cd app && npx eslint .",
-    "typecheck": "cd app && npx tsc --noEmit",
+    "lint": "cd app && npm run lint",
+    "typecheck": "cd app && npm run typecheck",
     "format_check": "cd app && npx prettier --check ."
   },
   "project": {
