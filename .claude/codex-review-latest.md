@@ -1,27 +1,21 @@
-## Codex Review - Phase 1.5 Execution Plans Round 2 (01.5-01 + 01.5-02)
+## Codex Review - Phase 1.5 Round 3 (01.5-01 Flow 10 targeted)
 
-**VERDICT: APPROVE**
+**VERDICT: REQUEST CHANGES**
 
 ### Findings
 
-- None.
-
-### Open Questions
-
-- None.
+- [MAJOR] `.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md:130` - The rewritten server contract says `confirm_duplicate: true` "bypasses the duplicate check and inserts unconditionally" while also claiming "the duplicate-confirm path is idempotent." Those two requirements conflict unless the RPC contract includes an idempotency key, deterministic submission identity, unique constraint, or retry-safe upsert behavior for the duplicate-confirm call. Impact: a double tap, client retry, or network replay after the user chooses Continue can create multiple pending submissions for one user action, which is exactly the data-integrity risk Flow 10 is supposed to avoid. Required fix: make the duplicate-confirm contract explicitly idempotent, for example by requiring a client-generated `submission_id`/idempotency key reused across retries or by defining a server-side unique constraint/upsert that returns the existing `{ status: 'success', location_id }` for repeat confirm attempts.
 
 ### Verification
 
 - Read `.claude/codex-prompt-latest.md`.
-- Read operating/context files: `CODEX.md`, `docs/review-severity.md`, `SPEC.md`, `docs/schema-contract.md`, `supabase/migrations/20260519010000_remote_schema.sql`, `.planning/phases/01.5-ux-foundation-design-system/01-5-CONTEXT.md`, and `.planning/phases/01.5-ux-foundation-design-system/01.5-REVIEW.md`.
-- Read reviewed plan files: `.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md` and `.planning/phases/01.5-ux-foundation-design-system/01.5-02-PLAN.md`.
-- Ran targeted `rg`/PowerShell inspections for the Round 2 fix areas: `Security & Server Enforcement`, access-code gating, `family_mode`, `access_sensitivity`, deleted/shadowbanned/suppressed server filtering, PII/precise-coordinate logging, `/modals/verify`, `/modals/report`, `/modals/rating`, legacy `/verify`/`/report`/`/rate` route references, `submit_location`, `confirm_duplicate`, `duplicate_candidate`, no-insert duplicate checking, and idempotency.
-- No code tests, typecheck, lint, or Supabase live checks were run because this review scope is documentation-only execution plans. Local migration/schema files were inspected instead.
+- Read `docs/review-severity.md`.
+- Read `.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md`, focused on Flow 10 and the server contract note around lines 127-130.
+- Ran targeted `rg` inspections for `Flow 10`, `submit_location`, `confirm_duplicate`, `duplicate_candidate`, `unconditionally`, and `idempotent`.
+- No code tests, typecheck, lint, or Supabase live checks were run because this review scope is documentation-only and targets a planned RPC contract.
 
 ### Approved
 
-- Plan 02 Section 20 includes the `Security & Server Enforcement` checklist group with all five required controls: access-code field absence for unauthenticated users, `family_mode`/`access_sensitivity` RPC enforcement, server-side public-result filtering, no PII or precise GPS logging, and no client-side trust/shadowban/suppression logic.
-- The security checklist correctly carries forward threat model entries T-1.5-04 and T-1.5-05.
-- Plan 01 wireframes 16, 19, and 21 use `/modals/verify`, `/modals/report`, and `/modals/rating`; Plan 02 uses the same paths in the protected-route table.
-- Plan 01 Flow 10 makes the first `submit_location` call a check-only/no-insert duplicate check, makes the Continue branch call `submit_location` with `confirm_duplicate: true`, and documents idempotency in the server contract note.
-- No new blocking issues found.
+- The original Antigravity Round 2 happy-path issue is resolved: the default `submit_location` call now inserts and returns `{ status: 'success', location_id }` when no duplicate is found.
+- The duplicate-candidate branch is clear that the default call does not insert when a duplicate is found and returns `{ status: 'duplicate_candidate', candidate: { id, name, address } }`.
+- The Continue branch is clear that it calls `submit_location` with `confirm_duplicate: true`.
