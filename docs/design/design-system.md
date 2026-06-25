@@ -498,3 +498,301 @@ GPS consent capture sequence (non-negotiable — GDPR requirement):
 3. IF OS dialog resolves to `granted`: write `users.gps_consent = true` and `users.gps_consent_at = now()` to Supabase (via SECURITY DEFINER RPC)
 4. IF OS dialog resolves to `denied`: `gps_consent` remains false/unset; map opens to ERR-01 state
 DO NOT write consent before the OS dialog resolves. The pre-prompt button triggers the OS dialog only — it is not itself consent. Writing consent before OS resolution would record false consent.
+
+---
+
+## 17. Emergency-Use UX Rules
+
+These rules apply to every screen and element reachable while emergency mode is active. Emergency mode is defined as: the period after the user taps the FAB and before they tap 'Dismiss'. During this window, the user is in motion, one-handed, and urgency is high.
+
+### 17.1 One-Handed Reach Targets
+
+Thumb zone analysis (right-hand portrait hold, 375pt baseline screen width): the lower-right quadrant is comfortable reach; upper half is stretch territory. Emergency elements must be in the lower 60% of screen.
+
+| Element | Minimum Size | Position | Rationale |
+|---------|-------------|---------|-----------|
+| FAB | 64×64pt | bottom: 24pt + safe area, right: 16pt | Lower-right thumb zone; 64pt exceeds AAA target for emergency |
+| Emergency sheet 'Navigate' CTA | Full-width, 56pt height | Below fold at 55% snap, above action row | Primary emergency action; full-width maximizes tap surface while moving |
+| Emergency 'Dismiss' button | 44pt height minimum | Bottom of emergency sheet | Ghost/text style; must not be accidentally tapped during navigation |
+| Mode chips [Any / Changing Table / Accessible] | 36pt height minimum, 12pt horizontal padding | Top of emergency sheet, below header strip | Secondary action — mode switching; not the most urgent action |
+| 'Navigate' icon button in sheet header | 44×44pt | Top-right of sheet | Redundant quick access for screen-reader users |
+
+**The ≤2 Tap Rule:**
+
+From ANY top-level tab, emergency mode must be reachable in at most 2 taps. This is enforced by design: the Map tab FAB is always visible on the Map tab, and all other tabs are one tap from the Map tab. Implementation MUST NOT add any intermediate screen or confirmation between the FAB tap and the emergency bottom sheet appearing.
+
+Diagram:
+```
+[Any Tab]
+    ↓ Tap 1: switch to Map tab (or already on Map)
+[Map Tab — FAB visible]
+    ↓ Tap 2: tap FAB
+[Emergency Mode Active — sheet at 55% snap immediately]
+```
+
+Violation: Adding an 'Are you sure?' dialog between FAB tap and emergency sheet = dead tap, forbidden.
+
+### 17.2 No Dead-End States
+
+A dead-end state is any screen or error where the user cannot take a meaningful next action. Every dead-end is a product defect for all users, and a safety hazard for emergency-mode users.
+
+| Scenario | Forbidden Dead End | Required Recovery |
+|----------|--------------------|------------------|
+| GPS denied | Empty map, no UI | Search bar active (ERR-01); map at city view |
+| No results for Changing Table chip | Empty sheet | Show nearest ANY bathroom as fallback with clear disclaimer (per CONTEXT.md) |
+| No results for Accessible chip | Empty sheet | Show nearest ANY bathroom with disclaimer |
+| No results in viewport | Empty map | 'Search this area' button + adjust filters prompt (ERR-06) |
+| Network failure during emergency | Blocking spinner | Cached pins remain visible; ERR-04 banner shows |
+| Verification failure | Lock-out | Generic retry message (ERR-09); user can attempt again |
+| Auth modal dismissed | Auth wall | Returns to original screen with content still visible |
+
+When a mode chip is selected (Changing Table or Accessible) and no confirmed matching location exists nearby, the emergency sheet MUST:
+1. Show nearest ANY bathroom result
+2. Display: 'No confirmed [changing table / accessible] bathroom found nearby — showing nearest available.'
+3. Display: 'This location has not been confirmed for [wheelchair access / changing table].'
+4. Show alternate action button: 'Search more' (expands search radius) or 'View [accessible / changing table] list' (switches to Nearby tab with mode filter active)
+5. NEVER navigate silently to a non-qualifying location — always label the fallback explicitly
+
+### 17.3 Large Primary Actions
+
+Emergency context requires oversized, unambiguous primary actions. General UI sizing rules do not apply during emergency mode.
+
+| Element | Standard Size | Emergency Minimum | Token |
+|---------|-------------|-----------------|-------|
+| Primary CTA button | 48pt height | 56pt height, full-width | — |
+| FAB | Standard 56pt | 64×64pt | spacing.giant |
+| Mode chip height | 32pt | 36pt | — |
+| Text in emergency sheet | Body (17pt) | H1 (28pt) for location name, H3 (17pt) for distance | Typography scale |
+| 'Navigate' CTA label | Body | BodyMedium, 17pt | — |
+
+Emergency elements use `colors.emergency` and `colors.emergencyOrange` tokens EXCLUSIVELY. Using `colors.primary` (blue) for emergency-mode elements is a design defect — blue is reserved for standard navigation and non-urgent actions.
+
+---
+
+## 18. Accessibility Rules
+
+Baseline: WCAG 2.1 AA for all elements. Target: WCAG 2.1 AAA for emergency-mode elements. These rules are enforced by the component acceptance checklist (Section 20).
+
+### 18.1 Contrast Requirements
+
+See Section 1.3 for the full contrast verification table. Summary:
+- Body text (< 18pt or < 14pt bold): 4.5:1 minimum (AA)
+- Large text (≥ 18pt or ≥ 14pt bold): 3:1 minimum (AA)
+- Emergency mode primary elements (H1 location name, Navigate CTA): target 7:1 (AAA)
+- Non-text UI elements (icons, borders): 3:1 minimum (WCAG 1.4.11)
+- Disabled elements: exempt from contrast requirements
+- CRITICAL: `confidenceMedium` (#FBBC04) fails on white — always render `textPrimary` (#202124) text inside medium-tier badges (see Section 1.3)
+
+### 18.2 Touch Targets
+
+Minimum touch targets per Apple HIG and WCAG 2.5.8:
+
+| Element Type | Minimum Size | Implementation |
+|-------------|-------------|---------------|
+| Standard interactive element | 44×44pt | Set explicitly via `style={{ minWidth: 44, minHeight: 44 }}` or `hitSlop` |
+| Emergency mode elements | 56×56pt | Explicit dimensions; `hitSlop` fallback |
+| FAB | 64×64pt | Explicit container size |
+| Rating emoji buttons | 48×48pt each | Row width = 5 × 48pt = 240pt minimum |
+| Tab bar buttons | Full tab width × 49pt | Provided by Expo Router tab bar |
+| Bottom sheet drag handle | Full sheet width × 44pt | `hitSlop: { top: 20, bottom: 20 }` on visible handle |
+
+Use `hitSlop` to extend tap area beyond visual bounds when the visual element is smaller than the minimum. Do not resize visual elements to meet touch target minimums — extend the tap area instead.
+
+### 18.3 Required Accessibility Props
+
+Every interactive element must declare all applicable props:
+
+| Element | accessibilityRole |
+|---------|------------------|
+| Tab bar button | tab |
+| FAB button | button |
+| Map pin | button (announces location name) |
+| Rating emoji | button with accessibilityValue |
+| Filter chip | togglebutton with accessibilityState.checked |
+| Bottom sheet drag handle | adjustable with accessibilityValue |
+| Search field | search |
+| Auth form field | none (label from associated Text) |
+| Confidence badge | text (non-interactive) |
+| Policy tag badge | text (non-interactive) |
+| Modal close button | button |
+| Mode chip in emergency sheet | togglebutton |
+
+In addition to `accessibilityRole`, every interactive element also requires:
+- `accessibilityLabel` — string description of what the element IS (announced first by screen reader)
+- `accessibilityHint` — string description of what happens on tap (use when outcome is not obvious from label alone)
+- `accessibilityState` — object with `{ disabled, selected, checked, expanded }` as applicable
+
+Rating inputs additionally require:
+```
+accessibilityValue={{ min: 1, max: 5, now: selectedRating, text: 'N out of 5 — Label' }}
+```
+
+Bottom sheet drag handle additionally requires:
+```
+accessibilityValue={{ text: 'Peek' | 'Half' | 'Full' }}
+```
+
+### 18.4 Non-Color-Only Status (WCAG 1.4.1)
+
+Color must never be the ONLY indicator of status. Every status must include a secondary indicator (icon, text, or pattern).
+
+| Status | Color | Required Secondary Indicator |
+|--------|-------|------------------------------|
+| Confidence: High | Green pill | Text: "High" + checkmark-circle icon |
+| Confidence: Medium | Yellow pill | Text: "Medium" + time-outline icon |
+| Confidence: Low | Red pill | Text: "Low" + warning-outline icon |
+| GPS Accuracy: Good | Green text | "✓" checkmark-circle prefix |
+| GPS Accuracy: Poor | Orange/red text | "⚠" warning-outline prefix |
+| Filter chip: Active | Filled/primary bg | Bold label text + checkmark icon |
+| Emergency mode | Red/orange strip | "NEAREST RESULT" text badge |
+| Pending pin | Gray dashed | "Pending" text label in bottom sheet detail |
+| Policy tag: Chill Spot | Green pill | "Chill Spot" text label |
+| Policy tag: Code Required | Orange pill | "Code Required" text label |
+| Policy tag: Public Facility | Blue pill | "Public Facility" text label |
+| Policy tag: Purchase Required | Gray pill | "Purchase Required" text label |
+| Offline state | Amber banner | "⚠ No connection" text in banner |
+| Error state (inline) | Red text/icon | alert-circle icon + error message text |
+
+### 18.5 Dynamic Type Tolerance
+
+All layouts must not break at ±5 accessibility text size steps (iOS: Settings → Accessibility → Display & Text Size → Larger Text; Android: Font Size accessibility setting).
+
+Rules:
+- Use flex-based sizing — no hardcoded row heights (e.g., `height: 60` is forbidden on content rows; `minHeight: 56` is permitted for buttons where a minimum size is required)
+- `numberOfLines` prop is forbidden on: location name, distance text, CTA labels, error copy, badge labels
+- `numberOfLines` is permitted on: timing tips list items, report history entries (truncation expected with 'read more')
+- Bottom sheet content must scroll (ScrollView), not clip, at maximum text size
+- Test at iOS Larger Text step 5 (approximately 1.6× base size) before signing off on any screen
+
+### 18.6 Reduced Motion
+
+All transitions that animate position, scale, or opacity must check `AccessibilityInfo.isReduceMotionEnabled()` at render time and substitute an instant show/hide for the animation.
+
+Elements requiring reduced-motion alternatives:
+
+| Element | Default Animation | Reduced-Motion Substitute |
+|---------|------------------|--------------------------|
+| Bottom sheet snap | Spring/easing animation | Instant snap to position |
+| Skeleton loader shimmer | Animated.loop opacity | Static skeleton (no shimmer) |
+| FAB pulse/glow (if added) | Scale pulse animation | Static FAB, no pulse |
+| Emergency sheet slide-up | Spring slide from bottom | Instant appear at 55% snap |
+| Success checkmark animation | Scale + opacity sequence | Static checkmark, instant show |
+| Mode chip transition | Crossfade | Instant swap |
+
+Implementation pattern:
+```typescript
+import { AccessibilityInfo } from 'react-native';
+
+const [reduceMotion, setReduceMotion] = useState(false);
+useEffect(() => {
+  AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+  AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+}, []);
+
+// In animation: if reduceMotion, skip Animated.timing — directly set value
+```
+
+---
+
+## 19. Skeleton Loading Pattern
+
+Use skeleton placeholders (not spinners) for content areas. Spinners are forbidden for full-content areas — use spinners only for point-in-time actions (submitting a form, GPS verification in progress).
+
+Skeleton uses `colors.skeletonBase` as the base color and `colors.skeletonHighlight` as the shimmer peak. Animated via `Animated.loop` with `useNativeDriver: true` (opacity oscillation). See Section 18.6 for reduced-motion substitute.
+
+| Context | Skeleton Elements |
+|---------|-----------------|
+| Bottom sheet Peek (pin tap) | Gray bar 60% width (name), gray bar 30% width (distance), two small gray pills (badges) |
+| Bottom sheet Half (loading) | All Peek elements + 3 gray bars full-width (hours/detail lines) + gray action row placeholder |
+| Nearby list item | Left gray square 48×48pt (pin icon), right: two gray bars 70% and 40% width |
+| Profile stats (not yet loaded) | Three gray number placeholders 32×24pt each |
+
+---
+
+## 20. Component Acceptance Checklist
+
+**This checklist is mandatory for every Phase 2+ screen before Codex review is requested.** Phase 2+ PLAN.md files must cite this section verbatim as the pre-review gate. A screen that fails any item is not review-ready.
+
+Copy this checklist into each PLAN.md that creates or modifies a screen component. All items must be checked before running `/review-gate`.
+
+```markdown
+## Component Acceptance Checklist (from docs/design/design-system.md §20)
+
+### Visual Tokens
+- [ ] All color values reference `Colors[colorScheme].tokenName` — no raw hex strings in component StyleSheet
+- [ ] All text sizes reference the typography scale (`typography.ts` constants) — no inline `fontSize` raw numbers
+- [ ] All spacing values reference the spacing scale (`spacing.ts` constants) — no magic numbers
+- [ ] Dark mode tested: toggle OS dark mode setting, verify no color inversion artifacts or invisible elements
+- [ ] Policy tag badge colors match Section 8 token table — `code_required` uses `textPrimary` text (not white)
+- [ ] Confidence badge colors match Section 9 — `confidenceMedium` uses `textPrimary` text (not white)
+
+### Accessibility
+- [ ] All tappable elements have `accessibilityLabel` (non-empty string)
+- [ ] All tappable elements have `accessibilityRole` (see Section 18.3 role table)
+- [ ] `accessibilityHint` added on any element whose action outcome is not obvious from the label
+- [ ] `accessibilityState` reflects current state: `{ disabled, selected, checked, expanded }` as applicable
+- [ ] Rating inputs have `accessibilityValue={{ min: 1, max: 5, now: N, text: 'N out of 5 — Label' }}`
+- [ ] No status uses color as its only indicator — every status has icon + text alongside color (Section 18.4)
+- [ ] All touch targets ≥44pt; emergency-mode elements ≥56pt; FAB 64×64pt (Section 18.2)
+- [ ] No `numberOfLines` on critical labels (location name, CTA text, error copy, distance)
+- [ ] Tested at iOS maximum Larger Text size (+5 steps) — no content clipping, no layout breakage
+
+### Error States
+- [ ] All error conditions applicable to this screen are handled (reference Section 15 Error-State Copy Matrix)
+- [ ] No screen state is a dead end — every error has a recovery action with a tappable affordance
+- [ ] Auth-required state (ERR-10) triggers inline slide-up modal, not a full navigation redirect
+- [ ] Failed verification copy (ERR-09) is generic — does not reveal detection method or rejection reason
+
+### Emergency Mode
+- [ ] Emergency-mode elements use `colors.emergency` / `colors.emergencyOrange` tokens — not `colors.primary`
+- [ ] Any screen reachable during emergency mode has ≥56pt primary action height
+- [ ] Emergency mode dismiss is explicit (Dismiss button or FAB re-tap) — no auto-dismiss
+- [ ] Emergency mode is reachable from this tab in ≤2 taps (verify against Section 16 reachability matrix)
+
+### Loading States
+- [ ] Skeleton placeholders (not spinners) used for content area loading (Section 19 skeleton spec)
+- [ ] Skeleton uses `colors.skeletonBase` / `colors.skeletonHighlight` tokens
+- [ ] Reduced-motion: skeleton renders without animation when `AccessibilityInfo.isReduceMotionEnabled()` is true
+
+### Map Pins (Map-screen components only)
+- [ ] Pin colors driven by Mapbox `match` expression on `policy_tag` — not React state or client-side conditional
+- [ ] Pending pin visible only when `submissions JOIN` returns submitter match — not a client-side filter
+- [ ] Overlay icons (wheelchair, changing table) use separate SymbolLayer with `iconOffset: [8, -8]` starting point
+
+### Bottom Sheet (components using bottom sheet)
+- [ ] Snap points configured as exactly 30% / 55% / 90% — no intermediate or computed snap states
+- [ ] Drag handle has `accessibilityRole='adjustable'` and `accessibilityValue={{ text: 'Peek'|'Half'|'Full' }}`
+- [ ] Emergency mode sheet opens directly to 55% — no Peek state in emergency context
+
+### GPS Consent (sign-up / first-launch components only)
+- [ ] `gps_consent = true` and `gps_consent_at = now()` written ONLY after OS dialog resolves to `granted`
+- [ ] Pre-prompt button triggers OS dialog only — does not itself write consent
+
+### Security & Server Enforcement
+- [ ] Access code field is ABSENT (not masked) for unauthenticated users — no client-side masking as the sole gate (T-1.5-05)
+- [ ] `access_sensitivity` and `family_mode` filtering enforced at the RPC layer — client code must not apply these as a client-side filter (T-1.5-04)
+- [ ] Public search results exclude deleted, shadowbanned, and suppressed locations at the server RPC — client-side filtering of these properties is forbidden
+- [ ] No PII (email, display name) and no precise GPS coordinates written to `console.log`, analytics events, or crash/error reports
+- [ ] No client-side trust score, shadowban status, or suppression logic — client receives pre-filtered results only; enforcement is server-side
+```
+
+---
+
+## 21. App Icon Concept
+
+The app icon concept is a text/ASCII description only. The actual asset is out of Phase 1.5 scope and will be produced as a separate design asset before App Store submission.
+
+Concept: Bold, single-color icon on a solid background. Two viable directions:
+
+**Direction A — Running Figure:**
+A simplified silhouette of a person in a running posture (forward lean, one foot up, arms mid-swing). The figure conveys urgency without specifying the reason. Single flat color (emergency red, `#D93025`) on white background. No text, no bathroom iconography — the action speaks. Association: 'moving fast' — abstract enough for broad audiences, specific enough to suggest urgency.
+
+**Direction B — Open Door with Arrow:**
+A simplified door silhouette with a bold right-pointing arrow through the threshold. Conveys 'access' and 'entry' — metaphor for finding a way in. Single color (primary blue, `#1A73E8`) on white background. Association: 'finding access' — clear metaphor without embarrassment.
+
+**Recommendation for Phase 1.5 review:** Direction A (running figure) aligns better with the 'urgency' brand pillar. Direction B risks being read as generic navigation. Codex/Antigravity review should confirm direction before commissioning the asset.
+
+Asset format requirements (for when asset is produced):
+- iOS: 1024×1024pt @1x PNG, no alpha channel, no rounded corners (iOS adds rounding automatically)
+- Android: 512×512pt @1x PNG for Play Store; `android/app/src/main/res/` mipmap-* variants generated via `expo-build-properties`
+- Expo: configured via `app.config.ts` `ios.icon` and `android.adaptiveIcon.foregroundImage` fields
