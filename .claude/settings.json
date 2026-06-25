@@ -1,4 +1,59 @@
 {
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "$j = [Console]::In.ReadToEnd() | ConvertFrom-Json; $fp = $j.tool_input.file_path; if ($fp) { $q = '.claude\\review-queue.txt'; if (!(Test-Path $q)) { New-Item -ItemType File -Path $q -Force | Out-Null }; $existing = Get-Content $q -ErrorAction SilentlyContinue; if ($existing -notcontains $fp) { Add-Content -Path $q -Value $fp } }",
+            "shell": "powershell",
+            "statusMessage": "Queuing file for Antigravity + Codex review...",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit|MultiEdit"
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "@{systemMessage='Reviewers needed before committing: run Antigravity and Codex review on changed files. Check .claude/review-queue.txt, save Antigravity output to .claude/antigravity-review-latest.md, generate .claude/codex-prompt-latest.md, and save Codex output to .claude/codex-review-latest.md when available.'} | ConvertTo-Json -Compress",
+            "shell": "powershell",
+            "statusMessage": "Checking review queue...",
+            "type": "command"
+          },
+          {
+            "command": "$p = '.planning\\stale-info-scan-latest.md'; $due = $true; if (Test-Path $p) { $due = ((New-TimeSpan -Start (Get-Item $p).LastWriteTime -End (Get-Date)).TotalDays -ge 30) }; if ($due) { @{systemMessage='Stale-information scan is due or missing: run /stale-info-scan before phase transitions, milestone close, release, or dependency/schema/harness changes.'} | ConvertTo-Json -Compress }",
+            "shell": "powershell",
+            "statusMessage": "Checking stale-information scan cadence...",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(antigravity *)",
@@ -7,39 +62,6 @@
       "Bash(git *)",
       "Bash(npm *)",
       "Bash(node *)"
-    ]
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "shell": "powershell",
-            "command": "$j = [Console]::In.ReadToEnd() | ConvertFrom-Json; $fp = $j.tool_input.file_path; if ($fp) { $q = '.claude\\review-queue.txt'; if (!(Test-Path $q)) { New-Item -ItemType File -Path $q -Force | Out-Null }; $existing = Get-Content $q -ErrorAction SilentlyContinue; if ($existing -notcontains $fp) { Add-Content -Path $q -Value $fp } }",
-            "statusMessage": "Queuing file for Antigravity + Codex review..."
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "shell": "powershell",
-            "command": "@{systemMessage='Reviewers needed before committing: run Antigravity and Codex review on changed files. Check .claude/review-queue.txt, save Antigravity output to .claude/antigravity-review-latest.md, generate .claude/codex-prompt-latest.md, and save Codex output to .claude/codex-review-latest.md when available.'} | ConvertTo-Json -Compress",
-            "statusMessage": "Checking review queue..."
-          },
-          {
-            "type": "command",
-            "shell": "powershell",
-            "command": "$p = '.planning\\stale-info-scan-latest.md'; $due = $true; if (Test-Path $p) { $due = ((New-TimeSpan -Start (Get-Item $p).LastWriteTime -End (Get-Date)).TotalDays -ge 30) }; if ($due) { @{systemMessage='Stale-information scan is due or missing: run /stale-info-scan before phase transitions, milestone close, release, or dependency/schema/harness changes.'} | ConvertTo-Json -Compress }",
-            "statusMessage": "Checking stale-information scan cadence..."
-          }
-        ]
-      }
     ]
   }
 }
