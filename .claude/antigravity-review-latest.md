@@ -1,4 +1,4 @@
-## Antigravity Review - Phase 1.5 Context Review
+## Antigravity Review - Phase 1.5 Execution Plans Review
 
 **VERDICT: APPROVE**
 
@@ -6,20 +6,25 @@
 *None.*
 
 ### Concerns
-- **Pending Pin and Family Mode Constraints**: While we approve documenting these as RPC-layer constraints in [01-5-CONTEXT.md](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01-5-CONTEXT.md#L306-L310), downstream implementation phases (especially Phase 3 and Phase 4) must strictly implement the JOIN and server-side filtering inside Postgres RPCs rather than client-side filters to enforce data security.
-- **Apple Credential Revocation Timeline**: Deferring Apple token revocation to Phase 9 is approved due to Apple Developer enrollment requirements. However, this must be tracked as a blocking requirement for final App Store submission to avoid guideline rejection.
+- **Duplicate Location Schema Shift**: As noted in [01.5-01-PLAN.md:136-146](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md#L136-L146), implementing the "Duplicate Location" report type requires a database migration in Phase 7 to update the `reports.report_type` CHECK constraint to include `'duplicate_location'`. Implementors must not bypass this check on the server side.
+- **Changing Surface Cleanliness Column**: Tying the conditional fourth rating dimension to `changing_surface_cleanliness` requires a database migration in Phase 8 to append the column to `ratings` ([01.5-01-PLAN.md:265-266](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md#L265-L266)).
+- **Verify Target Accuracy Bounds**: Standard verification requires GPS accuracy ≤50m and distance ≤100m. While appropriate, Phase 5 tests must confirm that users with lower GPS accuracy receive clear guidance (ERR-02) and that the verification button is disabled.
 
 ### Verification
-- Read and audited [.planning/phases/01.5-ux-foundation-design-system/01-5-CONTEXT.md](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01-5-CONTEXT.md) in full.
-- Checked issues resolved by Claude in this context update, including:
-  - GPS Consent Compliance sequence (now gated to native OS permission resolving to granted at Lines 113-114).
-  - Emergency FAB single-tap logic and sheet-contained chips (Lines 59-64).
-  - Clear fallback labeling and actions for unconfirmed accessibility locations (Lines 72-78).
-  - Social credential revocation routing (Lines 299-300).
-  - Submit flow duplicate location UI error state (Lines 197-199).
-  - RPC-layer enforcement rules for pending pins and family mode (Lines 306-310).
+- Read and audited [.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md) and [.planning/phases/01.5-ux-foundation-design-system/01.5-02-PLAN.md](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01.5-02-PLAN.md) in full.
+- Checked GSD-resolved issues:
+  - RC-01: Plan 02 wave set to `2` depending on Plan 01.
+  - RC-02: Duplicate location report mapping and Phase 7 migration dependency documented.
+  - RC-03: `has_changing_table` tag table derivation and accessibility tag storage documented.
+- Verified all security-sensitive constraints:
+  - GPS consent gated to OS dialog permission resolution.
+  - Submitter-only pending pin visibility restricted to SQL `JOIN` on `submissions.submitter_id` inside RPCs.
+  - `family_mode` filter restricted to RPC-layer execution (client-side JS filter forbidden).
+  - ERR-09 location verification error copy locked to a generic string protecting system detection logic.
+- Checked WCAG 2.1 compliance details (contrast overrides for yellow-on-white/white-on-orange, 44pt/56pt/64pt touch targets, Dynamic Type, and Reduced Motion hooks).
 
 ### Approved
-- **GPS Consent Gate**: Explicitly delaying database recording of `gps_consent` until the native OS permission promise resolves to `granted` prevents false/invalid consent records.
-- **Urgent Emergency UX Fallbacks**: Showing fallback nearest results with clear accessibility notices and search expansion paths ensures zero-dead-end urgent navigation.
-- **UI State Duplication Alerting**: Giving users direct, copyable/actionable feedback on potential duplicate submissions prevents duplicate database noise.
+- **Urgent Emergency Path Sizing**: Sizing the emergency FAB to 64×64pt and the primary sheet CTA to 56pt height ensures highly accessible interactions for physically stressed or active users.
+- **Accessibility Color Defenses**: Overriding contrast combinations to use `textPrimary` (#202124) over yellow (`confidenceMedium` #FBBC04) and orange (`emergencyOrange` #EA8600) prevents WCAG AA contrast failure.
+- **Copy Security Locking**: Using generic wording for ERR-09 prevents malicious actors from detecting verification enforcement limits.
+- **Gate Enforcement**: The Section 20 Component Acceptance Checklist is complete and correctly set as a mandatory pre-review gate for all future UI implementation phases.
