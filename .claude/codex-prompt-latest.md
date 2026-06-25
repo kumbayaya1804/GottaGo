@@ -1,4 +1,4 @@
-# Codex Review Request — Gotta Go / Phase 1.5 Plans
+# Codex Review Request — Gotta Go / Phase 1.5 Plans (Round 2)
 
 ## Your Role
 
@@ -59,23 +59,29 @@ All locked CONTEXT.md decisions verified correct:
 - ERR-09 copy: intentionally generic, no rejection reason revealed ✓
 - WCAG 2.1 AA contrast verified, textPrimary on yellow/orange ✓
 
+### Codex Review Round 1 — REQUEST CHANGES (resolved, committed bf507d3)
+
+Three MAJOR findings, all fixed:
+
+- **MAJOR-1** (`01.5-02-PLAN.md` §20 checklist): Missing Security & Server Enforcement checklist group — **Fixed:** Added 13th checklist group at §20 with 5 items covering access-code absence for unauthenticated users (T-1.5-05), `access_sensitivity`/`family_mode` RPC-only enforcement (T-1.5-04), no client-side suppression/shadowban gates, no PII/precise-coordinate logging, and public-result filtering expectations.
+
+- **MAJOR-2** (`01.5-01-PLAN.md` wireframes): Inconsistent modal route names between the two plans — **Fixed:** Canonicalized Plan 01 wireframe routes to `/modals/verify`, `/modals/report`, `/modals/rating` matching Plan 02's navigation model and protected-route table.
+
+- **MAJOR-3** (`01.5-01-PLAN.md` Flow 10): `submit_location` RPC called twice with ambiguous insert behavior — **Fixed:** Flow 10 now explicitly states the first call is check-only (no insert; returns `{status, duplicate_candidate?}`); the Continue branch calls with `confirm_duplicate: true` to perform the insert. A server contract note is appended below the flow.
+
 ---
 
 ## Your Review Focus
 
-These are planning documents, so focus on:
+**Primary:** Verify the three Round 1 fixes are correctly resolved. Read the actual file content on disk — do not assume the fixes are correct based on the descriptions above.
 
-1. **Security and privacy specification correctness** — Are any of the planned UX flows or design rules incorrectly specified in a way that would lead to security/privacy defects when implemented? Examples: access code visible to unauthenticated users, GPS consent written before OS dialog, family mode checked client-side.
+1. **Security & Server Enforcement checklist (Plan 02 §20)** — Is the new 13th checklist group present? Are all 5 items correct, complete, and non-redundant with other groups? Do they actually carry forward mitigations T-1.5-04 and T-1.5-05 from the threat model at the bottom of the plan?
 
-2. **Schema alignment** — Does the design spec reference schema fields or behaviors inconsistent with the live DB? (Cross-reference `docs/schema-contract.md` and the live migrations)
+2. **Modal route canonicalization (Plan 01 wireframes 16, 19, 21)** — Do the wireframe routes now match `/modals/verify`, `/modals/report`, `/modals/rating`? Does Plan 02's navigation model and protected-route table use the same canonical paths? Are there any remaining references to the old `/verify`, `/report`, `/rate` routes in either plan?
 
-3. **Component Acceptance Checklist (Plan 02 Section 20)** — Is the checklist complete and correct as a pre-review gate for all Phase 2+ UI screens? Any missing items that would let a security or accessibility defect through?
+3. **submit_location server contract (Plan 01 Flow 10)** — Is the flow now unambiguous? Does the server contract note correctly specify the two-call protocol (`confirm_duplicate: true` for the second call)? Is the "Continue" branch idempotent (no double-insert risk)?
 
-4. **Error-state copy matrix (Plan 02 Section 15, ERR-01 through ERR-11)** — Are all 11 error states correctly specified? Any that reveal security-sensitive info, or leave users in a dead-end state?
-
-5. **Navigation model (Plan 02 Section 16)** — Are protected routes correctly identified? Is the auth behavior safe (inline modal returning to action — not a hard redirect losing state)?
-
-6. **Any other defects** in the planned UX flows or design system that would cause production issues when implemented.
+**Secondary:** Any new issues introduced by the fixes, or any remaining issues not addressed in Round 1.
 
 ---
 
@@ -92,7 +98,7 @@ Phase 1.5 produces documentation only. No code to typecheck, lint, or test. Veri
 ## Output Format
 
 ```md
-## Codex Review - Phase 1.5 Execution Plans (01.5-01 + 01.5-02)
+## Codex Review - Phase 1.5 Execution Plans Round 2 (01.5-01 + 01.5-02)
 
 **VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
 
