@@ -1,30 +1,21 @@
-## Antigravity Review - Phase 1.5 Execution Plans Review
+## Antigravity Review - Phase 1.5 Execution Plans Round 2 (01.5-01 + 01.5-02)
 
-**VERDICT: APPROVE**
+**VERDICT: REQUEST CHANGES**
 
 ### Issues
-*None.*
+- [MAJOR] [.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md:128-130](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md#L128-L130) — Logical Contradiction in `submit_location` Flow 10. The flow diagram states that the first call to `submit_location` is check-only (no insert) and returns `{status, duplicate_candidate?}`. On the `|No|` branch (no duplicate candidate), the user goes straight to the "Submit Success Screen" without any further RPC call. If implemented literally, this means a location that does not trigger duplicate warnings will never actually be inserted into the database.
+  *Required Fix*: Clarify the RPC contract such that:
+    1. A default call to `submit_location` (without `confirm_duplicate: true`) automatically performs the database insert if no duplicate is found and returns `{ status: 'success', location_id }`. If a duplicate is found, it does *not* insert and returns `{ status: 'duplicate_candidate', candidate: ... }`.
+    2. A call with `confirm_duplicate: true` bypasses the duplicate check, performs the insert, and returns `{ status: 'success', location_id }`.
 
 ### Concerns
-- **Duplicate Location Schema Shift**: As noted in [01.5-01-PLAN.md:136-146](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md#L136-L146), implementing the "Duplicate Location" report type requires a database migration in Phase 7 to update the `reports.report_type` CHECK constraint to include `'duplicate_location'`. Implementors must not bypass this check on the server side.
-- **Changing Surface Cleanliness Column**: Tying the conditional fourth rating dimension to `changing_surface_cleanliness` requires a database migration in Phase 8 to append the column to `ratings` ([01.5-01-PLAN.md:265-266](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md#L265-L266)).
-- **Verify Target Accuracy Bounds**: Standard verification requires GPS accuracy ≤50m and distance ≤100m. While appropriate, Phase 5 tests must confirm that users with lower GPS accuracy receive clear guidance (ERR-02) and that the verification button is disabled.
+- **Phase 7 and 8 Database Schema Dependencies**: The plan correctly references the need to add `duplicate_location` to `reports.report_type` CHECK constraints in Phase 7 and `changing_surface_cleanliness` to `ratings` in Phase 8. Implementing teams must ensure migrations are run before these fields/types are used in RPCs or queries.
 
 ### Verification
-- Read and audited [.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md) and [.planning/phases/01.5-ux-foundation-design-system/01.5-02-PLAN.md](file:///C:/Users/mrsai/Gotta%20Go/.planning/phases/01.5-ux-foundation-design-system/01.5-02-PLAN.md) in full.
-- Checked GSD-resolved issues:
-  - RC-01: Plan 02 wave set to `2` depending on Plan 01.
-  - RC-02: Duplicate location report mapping and Phase 7 migration dependency documented.
-  - RC-03: `has_changing_table` tag table derivation and accessibility tag storage documented.
-- Verified all security-sensitive constraints:
-  - GPS consent gated to OS dialog permission resolution.
-  - Submitter-only pending pin visibility restricted to SQL `JOIN` on `submissions.submitter_id` inside RPCs.
-  - `family_mode` filter restricted to RPC-layer execution (client-side JS filter forbidden).
-  - ERR-09 location verification error copy locked to a generic string protecting system detection logic.
-- Checked WCAG 2.1 compliance details (contrast overrides for yellow-on-white/white-on-orange, 44pt/56pt/64pt touch targets, Dynamic Type, and Reduced Motion hooks).
+- Checked GSD-resolved issues: wave 2 sequencing verified in `01.5-02-PLAN.md` frontmatter, duplicate location mappings, and changing table tag derivation.
+- Audited the newly added `Security & Server Enforcement` group in the checklist (Plan 02 §20), verifying coverage for access code gating (T-1.5-05), server-side family mode (T-1.5-04), shadowban/suppression RPC filters, and PII/GPS logging safety.
+- Verified route canonicalization for modals (now consistently `/modals/verify`, `/modals/report`, and `/modals/rating` across wireframes and index).
 
 ### Approved
-- **Urgent Emergency Path Sizing**: Sizing the emergency FAB to 64×64pt and the primary sheet CTA to 56pt height ensures highly accessible interactions for physically stressed or active users.
-- **Accessibility Color Defenses**: Overriding contrast combinations to use `textPrimary` (#202124) over yellow (`confidenceMedium` #FBBC04) and orange (`emergencyOrange` #EA8600) prevents WCAG AA contrast failure.
-- **Copy Security Locking**: Using generic wording for ERR-09 prevents malicious actors from detecting verification enforcement limits.
-- **Gate Enforcement**: The Section 20 Component Acceptance Checklist is complete and correctly set as a mandatory pre-review gate for all future UI implementation phases.
+- **Checklist Security Reinforcements**: The addition of the "Security & Server Enforcement" group to the pre-review Component Acceptance Checklist provides a strong defensive boundary against client-side safety bypasses in future phases.
+- **Modal Path Standardization**: Route canonicalization eliminates navigational ambiguity for modal dialog triggers.
