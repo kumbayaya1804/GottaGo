@@ -265,3 +265,236 @@ Use `@expo/vector-icons` with the `Ionicons` set (already available in Expo SDK 
 | Navigate (CTA) | navigate | textInverse | 20 | Emergency sheet primary CTA |
 
 Every icon used as a status indicator MUST appear alongside text. Color alone is never the sole status signal (WCAG 1.4.1).
+
+---
+
+## 8. Policy Tag Badge Spec
+
+Every location carries exactly one `policy_tag` from the DB. The badge renders as a colored pill with text label. Color alone is never sufficient — always render text + color together (WCAG 1.4.1).
+
+| policy_tag | Display Label | Pill bg (light) | Pill bg (dark) | Text | Icon | Notes |
+|-----------|--------------|----------------|----------------|------|------|-------|
+| chill_spot | Chill Spot | pinChillSpot #34A853 | pinChillSpot #81C995 | textInverse #FFFFFF | None | Community-reported framing in tooltip: "Users report this as a no-purchase-required space" |
+| code_required | Code Required | emergencyOrange #EA8600 | pinCodeRequired #FDD663 | textPrimary #202124 on dark/light amber | None | Note: white on #EA8600 fails contrast — use textPrimary |
+| public_facility | Public Facility | pinPublicFacility #4285F4 | pinPublicFacility #8AB4F8 | textInverse #FFFFFF | None | |
+| purchase_required | Purchase Required | pinPurchaseRequired #767676 | pinPurchaseRequired #9AA0A6 | textInverse #FFFFFF | None | |
+| (pending) | Pending | surface #F8F9FA | surface #1E1E1E | textSecondary | clock-outline | Dashed border, gray — visible to submitter only via submissions JOIN |
+
+ARCHITECTURE NOTE: Pending pin visibility is submitter-only. The `locations` table has no `submitter_id` column. Visibility requires a JOIN against `submissions.submitter_id` inside `search_locations_bbox` RPC. The client-side filter is FORBIDDEN — it is a server-side concern only. Phase 3/4 plans must include this JOIN in the RPC, not a client-side conditional render.
+
+Pin color in Mapbox must be driven by a `match` expression on the `policy_tag` GeoJSON property:
+```
+iconColor: ['match', ['get', 'policy_tag'],
+  'chill_spot',        '#34A853',
+  'code_required',     '#EA8600',
+  'public_facility',   '#4285F4',
+  'purchase_required', '#767676',
+  '#767676'  // fallback
+]
+```
+Dark mode map tiles: use shifted dark-mode hex values for the same match expression.
+
+Wheelchair and Changing Table overlays use a separate SymbolLayer stacked above the base pin layer, filtered by `['==', ['get', 'has_wheelchair'], true]` and `['==', ['get', 'has_changing_table'], true]` respectively. Use `iconOffset: [8, -8]` as the starting point for corner positioning — calibrate in Phase 3 against live map tiles. Do NOT use Option B (composite images) — it creates combinatorial asset explosion.
+
+Cluster circle color = dominant policy tag color determined by `clusterProperties` count aggregation. Cluster circle radius: 20pt, white 2pt stroke. Count label: 14pt white. Tap cluster → zoom in to expand. Implementation pattern in RESEARCH.md Section 6.
+
+---
+
+## 9. Confidence Badge Spec
+
+`locations.confidence_score` is stored as a text tier label: 'High' | 'Medium' | 'Low' (not a numeric). The badge renders at Peek snap of the bottom sheet.
+
+| Tier | Pill bg (light) | Pill bg (dark) | Icon | Icon color | Label | Sub-label | Screen Reader |
+|------|----------------|----------------|------|-----------|-------|-----------|--------------|
+| High | confidenceHigh #34A853 | #81C995 | checkmark-circle | textInverse | High | "14 GPS verifications" | "Confidence: High — 14 GPS verifications" |
+| Medium | confidenceMedium #FBBC04 | #FDD663 | time-outline | textPrimary #202124 | Medium | "3 GPS verifications" | "Confidence: Medium — 3 GPS verifications" |
+| Low | confidenceLow #EA4335 | #F28B82 | warning-outline | textInverse | Low | "1 GPS verification" | "Confidence: Low — 1 GPS verification" |
+
+Text in badge: `textInverse` (#FFFFFF) for High and Low tiers. `textPrimary` (#202124) for Medium tier (yellow pill fails contrast with white — see Section 1.3). The `accessibilityRole` of the badge is `text` (non-interactive). Pair icon + label + sub-label — never render color only.
+
+---
+
+## 10. Map Marker States
+
+| State | Color Token | Visual Treatment | Visibility Rule |
+|-------|-------------|-----------------|----------------|
+| Chill Spot | pinChillSpot | Filled pin, policy color | Authenticated + unauthenticated |
+| Code Required | pinCodeRequired/emergencyOrange | Filled pin, amber | Authenticated + unauthenticated |
+| Public Facility | pinPublicFacility | Filled pin, blue | Authenticated + unauthenticated |
+| Purchase Required | pinPurchaseRequired | Filled pin, gray | Authenticated + unauthenticated |
+| Pending | pinPending (#9AA0A6 light) | Dashed-outline pin, gray | Submitter only — requires submissions JOIN in RPC |
+| Cluster | Dominant policy tag color | Circle badge with count, white stroke | All users |
+
+Selected (tapped) pin: scale up 1.2×, add white halo ring. Sheet opens to Peek snap immediately.
+
+---
+
+## 11. Bottom Sheet Snap Point Spec
+
+Snap points: exactly 30% / 55% / 90% of screen height. No intermediate states. Implementation: `@gorhom/bottom-sheet` or equivalent; snap points configured in the component, not computed at runtime.
+
+| Snap | % | Content Visible | Map Visible | Mode |
+|------|---|----------------|-------------|------|
+| Peek | 30% | Name, distance, policy badge, confidence badge | Yes (70% of screen) | Map pannable — sheet non-modal |
+| Half | 55% | Full detail: hours, flags, ratings summary, access code (auth), action row [GPS Verify / Rate / Report] | Yes (45%) | Primary use case — primary CTA above fold |
+| Full | 90% | Timing tips, full ratings breakdown, report history, directions | Barely (10%) | Effectively modal |
+
+Emergency mode: sheet opens DIRECTLY to Half (55%) — no Peek state. Sheet header: red/orange strip (`colors.emergency`) with 'NEAREST RESULT' text badge. Mode chips [Any Bathroom] [Changing Table] [Accessible] below header. Location name in H1 style. Bold distance. 'Navigate' as full-width Primary button above the fold. Switching chips re-centers map and updates sheet content in-place — no dismiss/re-open.
+
+On subsequent pin taps while sheet is open: content animates in-place to new location data. Sheet stays at current snap point. Map re-centers on new pin. No dismiss/re-open animation flash.
+
+`accessibilityRole='adjustable'` on drag handle. `accessibilityValue={{ text: 'Peek' | 'Half' | 'Full' }}` reflects current snap. VoiceOver/TalkBack users must be able to cycle snap points via increment/decrement actions without dragging.
+
+On pin tap, sheet opens immediately to Peek. Skeleton bars (`skeletonBase` background, animated to `skeletonHighlight`) render for name, address, tags while data fetches. Target resolution: <300ms. Skeleton uses `Animated.loop` with `useNativeDriver: true`. Reduced motion: show skeleton without animation (instant reveal).
+
+---
+
+## 12. FAB Speed Dial Spec
+
+Position: `bottom: 24pt` + safe area bottom inset, `right: 16pt`. React Native: `position: 'absolute', bottom: insets.bottom + 24, right: 16`. Map tab only — not visible on Nearby, Submit, or Profile tabs.
+
+FAB size: 64×64pt (larger than Material Design standard 56pt — emergency context warrants extra target area). Background: `colors.emergency` (#D93025 light / #F28B82 dark). Icon: `flash` or `alert` from Ionicons, `colors.textInverse`, 28pt. Border radius: `radius.xl` (24). Shadow: FAB elevation spec from Section 5.
+
+Single tap activates emergency mode immediately — finds nearest any bathroom and opens emergency bottom sheet at Half snap. There is NO expand menu. This ensures the ≤2 tap rule: switch to Map tab (1 tap) + FAB tap (2 taps). Mode switching (Changing Table NOW / Accessible NOW) happens via chips INSIDE the emergency bottom sheet, not via a pre-tap expand menu.
+
+User taps 'Dismiss' button on the bottom sheet OR taps the FAB again. Sheet collapses to baseline. No auto-dismiss based on GPS proximity.
+
+`accessibilityRole='button'`, `accessibilityLabel='Emergency bathroom finder'`, `accessibilityHint='Finds nearest bathroom immediately'`.
+
+Speed dial expands instantly (no stagger animation) when `AccessibilityInfo.isReduceMotionEnabled()` is true.
+
+---
+
+## 13. Emoji Rating Scale
+
+Selected mapping: Option A — face progression. Rationale: cross-cultural, universally understood negative-to-positive arc, renders consistently on iOS/Android, avoids poop emoji (inappropriate for medical/disability-adjacent context). Used for all four rating dimensions.
+
+| Rating | Emoji | Label | accessibilityValue.text |
+|--------|-------|-------|------------------------|
+| 1 | 😣 | Awful | "1 out of 5 — Awful" |
+| 2 | 😕 | Poor | "2 out of 5 — Poor" |
+| 3 | 😐 | Okay | "3 out of 5 — Okay" |
+| 4 | 😊 | Good | "4 out of 5 — Good" |
+| 5 | 😍 | Excellent | "5 out of 5 — Excellent" |
+
+**Rating dimensions (from CONTEXT.md):**
+1. Cleanliness
+2. Accessibility (physical ease of use)
+3. Convenience (location / hours)
+4. Changing Surface Cleanliness — CONDITIONAL: shown only when `has_changing_table === true`
+
+> **Schema notes (RC-03):**
+> - `has_changing_table` is NOT a `locations` column. It is derived from the `tags` table: `tags.find(t => t.key === 'has_changing_table')?.value === 'true'`. Phase 3 search RPC must include tags in the location payload, or Phase 8 must perform a separate tags lookup.
+> - The `changing_surface_cleanliness` dimension requires adding `changing_surface_cleanliness integer null check (changing_surface_cleanliness >= 1 and changing_surface_cleanliness <= 5)` to the `ratings` table via Phase 8 migration. The live schema has no such column.
+
+Each emoji button: `accessibilityRole='button'`, `accessibilityValue={{ min: 1, max: 5, now: N, text: 'N out of 5 — Label' }}`. Touch target: 48×48pt per button. Rating row width = 5 × 48pt = 240pt — fits within 375pt baseline screen width with spacing.
+
+Unrated (default) state: emoji buttons rendered at 70% opacity. Selected emoji: 100% opacity, scale 1.1×, with a subtle underline or selection indicator (not color-only). Screen reader announces selection immediately via `accessibilityValue`.
+
+Tapping an emoji selects that rating for that dimension — does not auto-submit. A 'Submit Rating' Primary button at the bottom of the Rating screen is the single submit action. This prevents accidental submission from a single tap.
+
+---
+
+## 14. Tab Bar Spec
+
+| Tab | Inactive Icon | Active Icon | Label | Route | Auth | Unauth Behavior |
+|-----|--------------|------------|-------|-------|------|----------------|
+| Map | map-outline | map | Map | /(tabs)/index | No | Fully accessible |
+| Nearby | list-outline | list | Nearby | /(tabs)/nearby | No | Fully accessible |
+| Submit | add-circle-outline | add-circle | Submit | /(tabs)/submit | Yes | Inline slide-up "Sign in to contribute" modal on tap, returns to submit after auth |
+| Profile | person-outline | person | Profile | /(tabs)/profile | No | Shows sign-in/sign-up CTA + value prop + muted stats preview |
+
+Icon + label always visible below icon. Active tab: icon switches to filled variant, label color changes to `tabIconSelected`. Inactive: `tabIconDefault`. Tab bar background: `tabBackground`.
+
+Tab bar height: 49pt + safe area bottom inset. Icon: 24pt. Label: 11pt (Label scale from typography). Tap target for each tab: full tab width × 49pt.
+
+---
+
+## 15. Error-State Copy Matrix
+
+All 11 named error states. Every Phase 2+ component must handle all applicable states. Exact copy strings are LOCKED — do not paraphrase. UI treatment is the implementation contract.
+
+| State ID | Name | Trigger | Exact Copy | UI Treatment | Recovery |
+|----------|------|---------|-----------|-------------|---------|
+| ERR-01 | GPS Denied | OS location permission resolves to denied | "We can't find your location. Use search to browse bathrooms near an address." | Map opens at city-level (Eugene, OR default). Search bar active and focused. Filter chips hidden. No blocking modal — inline empty state only. | User types in search bar; result re-centers map |
+| ERR-02 | GPS Low Accuracy | GPS accuracy > 50m on Verify or Submit Step 3 screen | "GPS accuracy too low — move to an open area and try again." | Inline below GPS readout on Verify screen. Icon: warning-outline, warningAmber. 'I'm Here' button disabled. Updated in real-time as accuracy improves. | Accuracy improves → button re-enables automatically |
+| ERR-03 | GPS Stale Fix | GPS fix timestamp stale (implementation-defined threshold) | "GPS fix is stale — wait a moment and retry." | Inline below GPS readout. Icon: time-outline. 'I'm Here' button disabled. | Tap 'Retry' button → requests fresh GPS read |
+| ERR-04 | Offline | Network unreachable | "No connection — showing cached results. Tap to retry." | Top-edge banner (non-blocking): background `offlineBanner`, text `offlineBannerText`, icon wifi-outline, 16pt. Banner persists until network restored. Cached pins remain visible on map. New fetch attempts fail silently with this banner visible. | User taps banner → retry network request |
+| ERR-05 | Slow Network | Data fetch exceeds 2 seconds | (No copy — non-blocking) | Subtle top-edge banner: "Loading..." in `textSecondary`. No modal, no spinner overlay. Map/sheet content shows skeleton until data arrives. | Automatic — resolves when data arrives |
+| ERR-06 | No Results in Viewport | `search_locations_bbox` RPC returns 0 results for current viewport | "No bathrooms found nearby. Try 'Search this area' or adjust filters." | Inline empty state on map (centered card) with 'Search this area' button below. No full-screen block. Filter chips still accessible. | 'Search this area' → expands search radius; filter chip → removes filter |
+| ERR-07 | Suppressed Location | Location has `access_sensitivity` filtered by RPC / shadowban RPC exclusion | (No copy — transparent to user) | Location simply absent from results. No tombstone, no "this was removed" message. Implementation: Supabase RPC filters suppressed locations server-side — client sees nothing. | None — user does not know suppression occurred |
+| ERR-08 | Failed Submit | `submit_location` RPC returns error | "Couldn't submit your location. Check your connection and try again." | Inline below the 'Submit' button on Step 3. Icon: alert-circle, errorRed. 'Retry' secondary button appears. Progress not lost (form data preserved). | Tap 'Retry' → re-attempts RPC call |
+| ERR-09 | Failed Verification | `submit_verification_event` RPC returns error (includes mocked GPS, shadowban, distance failure, generic network error) | "Unable to verify your location. Please try again." | Inline below 'I'm Here' button. Generic — never reveals detection reason (security requirement: do not reveal shadowban detection or GPS spoofing detection). Icon: alert-circle, errorRed. | Tap 'Try Again' → re-attempts GPS read + verification |
+| ERR-10 | Auth Required | Unauthenticated user attempts protected action (Submit, Verify, Rate, Report, access code reveal) | "Sign in to [action]" (action = specific verb: "Sign in to contribute", "Sign in to verify", "Sign in to rate", "Sign in to report", "Sign in to see access code") | Slide-up modal (not full navigation). Buttons: Primary 'Sign In', Secondary 'Create Account', Ghost 'Cancel'. After auth completes, returns user to same action flow — no navigation loss. | Tap 'Sign In' → /(auth)/sign-in with returnTo param |
+| ERR-11 | Code-Gated Content | Unauthenticated user on location detail with access code | "Sign in to view the access code" | Access code field not rendered for unauthenticated users — field is absent, not masked. Shows inline link "Sign in to view the access code" in place of the code field. For authenticated users: field renders as "Access Code: ****" with 'Tap to reveal' affordance; after tap: plain code + copy button. | Tap link → ERR-10 flow |
+
+Every error state must have a defined recovery action. 'No internet' is not a dead end — cached data remains. 'No results' is not a dead end — search/filter options remain. An error screen with no actionable next step is a product defect.
+
+ERR-09 copy is intentionally generic. It must NOT change to reveal information such as 'GPS spoofing detected', 'You are too far away', 'Your account is restricted', or any other signal. The generic message applies for ALL rejection reasons including mocked GPS, shadowban, genuine network failure, and distance failure.
+
+---
+
+## 16. Navigation Model
+
+Route structure (matches `app/src/app/` file layout — Expo Router v4, auto-discovered):
+
+```
+app/src/app/
+├── (tabs)/
+│   ├── index.tsx         → Map tab  [/(tabs)/index]
+│   ├── nearby.tsx        → Nearby tab  [/(tabs)/nearby]  (Phase 2)
+│   ├── submit.tsx        → Submit tab  [/(tabs)/submit]  (Phase 2)
+│   └── profile.tsx       → Profile tab  [/(tabs)/profile]
+├── (auth)/
+│   ├── sign-in.tsx       → Sign-in  [/(auth)/sign-in]
+│   └── sign-up.tsx       → Sign-up  [/(auth)/sign-up]
+├── location/
+│   └── [id].tsx          → Location detail (deep link / share target)  [/location/[id]]
+└── modals/ (via router.push — full-screen)
+    ├── verify.tsx         → Verify flow modal
+    ├── report.tsx         → Report flow modal
+    └── rating.tsx         → Rating flow modal
+```
+
+Protected routes require an authenticated Supabase session. Unauthenticated access triggers ERR-10 (Auth Required) inline modal — never a hard redirect that loses navigation state.
+
+| Route | Protected | Auth Behavior |
+|-------|----------|--------------|
+| /(tabs)/index | No | Fully accessible |
+| /(tabs)/nearby | No | Fully accessible |
+| /(tabs)/submit | Yes | Inline modal ERR-10 on tab tap; returns to submit after auth |
+| /(tabs)/profile | No | Shows sign-in CTA; stats/settings only visible when authenticated |
+| /(auth)/sign-in | No | Unauthenticated only; if already signed in, redirect to /(tabs)/index |
+| /(auth)/sign-up | No | Unauthenticated only |
+| /location/[id] | No (basic detail) | Access code field: protected (ERR-11) |
+| /modals/verify | Yes | ERR-10 if unauthenticated when opened |
+| /modals/report | Yes | ERR-10 if unauthenticated when opened |
+| /modals/rating | Yes | ERR-10 if unauthenticated when opened |
+
+All modals must have an explicit close affordance. Swipe-to-dismiss-only is FORBIDDEN — it is inaccessible for users who cannot swipe.
+
+| Modal | Close Affordance | Back Button | Swipe Dismiss | State on Dismiss |
+|-------|-----------------|-------------|--------------|-----------------|
+| Auth Required (ERR-10) | 'Cancel' ghost button | Dismisses | No | Returns to originating screen |
+| Verify flow | 'X' icon top-right | Dismisses | No | Returns to location detail |
+| Report flow | 'Cancel' button (Step 2) | Dismisses | No | Returns to location detail |
+| Rating flow | 'X' icon top-right | Dismisses | No | Returns to location detail |
+| Sign-in/sign-up | 'X' or back (Android) | Dismisses | No | Returns to originating action |
+
+≤2 taps from ANY top-level route to emergency mode (per ROADMAP Phase 1.5 success criterion 5).
+
+| Starting Tab | Tap 1 | Tap 2 | Emergency Active |
+|-------------|-------|-------|-----------------|
+| Map (already on Map) | FAB tap | — | Yes (1 tap) |
+| Nearby | Map tab | FAB tap | Yes (2 taps) |
+| Submit | Map tab | FAB tap | Yes (2 taps) |
+| Profile | Map tab | FAB tap | Yes (2 taps) |
+
+ARCHITECTURE NOTE: `users.family_mode` filtering of `access_sensitivity` locations is enforced at the Supabase RPC layer (server-side). The client MUST NOT filter `access_sensitivity` in JavaScript. Phase 3 `search_locations_bbox` RPC implementation must include `WHERE access_sensitivity IS NULL OR users.family_mode = false` or equivalent server-side filter. Any client-side implementation is a security defect.
+
+GPS consent capture sequence (non-negotiable — GDPR requirement):
+1. User taps 'Enable Location' on GPS Consent Pre-prompt screen
+2. OS permission dialog fires (`Location.requestForegroundPermissionsAsync()`)
+3. IF OS dialog resolves to `granted`: write `users.gps_consent = true` and `users.gps_consent_at = now()` to Supabase (via SECURITY DEFINER RPC)
+4. IF OS dialog resolves to `denied`: `gps_consent` remains false/unset; map opens to ERR-01 state
+DO NOT write consent before the OS dialog resolves. The pre-prompt button triggers the OS dialog only — it is not itself consent. Writing consent before OS resolution would record false consent.
