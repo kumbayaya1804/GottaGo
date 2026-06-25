@@ -17,7 +17,7 @@ Goal: 50+ locations in Eugene with GPS-verified data, parent/accessibility filte
 - Decimal phases: Urgent insertions if needed
 
 - [x] **Phase 1: Foundation & Scaffold** — DB config + extensions verified, Expo app runs, Supabase connection established, TypeScript types generated
-- [ ] **Phase 1.5: UX Foundation & Design System** — Design contract (flow maps, wireframes, design system, nav model, emergency UX rules, error-state matrix, component checklist) that all client-facing phases implement against
+- [x] **Phase 1.5: UX Foundation & Design System** — Design contract (flow maps, wireframes, design system, nav model, emergency UX rules, error-state matrix, component checklist) that all client-facing phases implement against
 - [ ] **Phase 2: Auth & Profiles** — Email/password + Google OAuth (Android-only until Apple Developer enrolled), SessionProvider, profile auto-creation, protected routes, account deletion, privacy/TOS links, GPS consent UX
 - [ ] **Phase 3: Read Path & Map** — search_locations_bbox + search_locations_nearby RPCs, MapScreen renders real locations, emergency mode reads
 - [ ] **Phase 4: GPS Service & Submission** — GpsService hook, submit_location SECURITY DEFINER RPC, SubmitFlow screen, pending-state lifecycle
@@ -67,8 +67,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 1.5-01: Critical flow maps + low-fi wireframes for all v1 screens and modal states
-- [ ] 1.5-02: Design system + navigation model + emergency-use UX rules + accessibility rules + error-state copy matrix + component acceptance checklist
+- [x] 1.5-01: Critical flow maps + low-fi wireframes for all v1 screens and modal states
+- [x] 1.5-02: Design system + navigation model + emergency-use UX rules + accessibility rules + error-state copy matrix + component acceptance checklist
 
 ---
 
@@ -301,7 +301,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Scaffold | 2/2 | Complete | 2026-06-24 |
-| 1.5. UX Foundation & Design System | 0/2 | Not started | - |
+| 1.5. UX Foundation & Design System | 2/2 | Plans Complete | 2026-06-25 |
 | 2. Auth & Profiles | 0/2 | Not started | - |
 | 3. Read Path & Map | 0/3 | Not started | - |
 | 4. GPS Service & Submission | 0/2 | Not started | - |
