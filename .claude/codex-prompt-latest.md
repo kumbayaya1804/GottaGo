@@ -1,81 +1,112 @@
-# Codex Review Prompt — Roadmap & Phase Audit (2026-06-24)
+# Codex Review Request — Gotta Go / Phase 1.5 Plans
 
-## Scope
+## Your Role
 
-This is a roadmap and phase-plan audit, not a code review. Review the Gotta Go project roadmap and phase definitions for:
-- Completeness — does the build order cover everything needed for v1.0 launch?
-- Correctness — are the success criteria testable and meaningful?
-- Gaps — what is missing or under-specified?
-- UI/UX — the product owner flagged that there is no dedicated UI/UX design phase. Assess this and recommend where/how design work should be incorporated.
+Read `CODEX.md` from the project root before reviewing. Summary:
+- You are the senior implementation-quality reviewer for Gotta Go.
+- Review actual files from disk — do not approve based on intent.
+- Priorities: security → data integrity → GPS correctness → abuse resistance → RLS → user-visible correctness → test coverage → maintainability.
+- BLOCK: security/privacy/data-integrity/production-breaking defects.
+- REQUEST CHANGES: logic errors, missing tests, incomplete error handling, significant maintainability risk.
+- APPROVE: inspected and ready, only non-blocking notes remain.
 
-## Files to Read
+Read `docs/review-severity.md` for verdict definitions and project-specific BLOCK/REQUEST CHANGES examples.
 
-Read all of these from disk:
+---
 
-- `.planning/ROADMAP.md` — the full 9-phase roadmap
-- `.planning/PROJECT.md` — requirements, constraints, key decisions, out-of-scope list
-- `SPEC.md` — product spec (user flows, GPS, privacy, trust, shadowban, gamification)
-- `docs/schema-contract.md` — database contract and RLS rules
+## What You Are Reviewing
 
-## The UI/UX Gap
+**Phase 1.5: UX Foundation & Design System** — documentation only, no code.
 
-The product owner specifically raised: **there is no dedicated UI/UX design phase in the roadmap.**
+These are execution plan files (PLAN.md). They define the design contract that all Phase 2–8 client-facing implementation phases will implement against. No TypeScript, no migrations, no RLS. The output when executed will be three markdown docs in `docs/design/`.
 
-Currently, UI is distributed across phases:
-- Phase 2: sign-in / sign-up screens
-- Phase 3: MapScreen + LocationDetail modal
-- Phase 4: SubmitFlow screen
-- Phase 5: VerifyFlow screen
-- Phase 6: flag UI
-- Phase 7: report UI
-- Phase 8: Emergency Mode, ratings, UX polish, all error/empty/offline states
+**Files in scope (from `.claude/review-queue.txt`):**
+- `.planning/phases/01.5-ux-foundation-design-system/01.5-01-PLAN.md` — Flows + Wireframes plan
+- `.planning/phases/01.5-ux-foundation-design-system/01.5-02-PLAN.md` — Design System plan
 
-There is no upfront design phase that establishes: visual identity, design system, component library, navigation patterns, accessibility standards, or screen flows before implementation begins.
+**Context files to read from disk:**
+- `CODEX.md` — your operating instructions
+- `docs/review-severity.md` — verdict definitions
+- `SPEC.md` — product scope and user flows
+- `docs/schema-contract.md` — DB field names, RLS rules (read for schema alignment)
+- `supabase/migrations/20260519010000_remote_schema.sql` — live schema (ratings and reports tables especially)
+- `.planning/phases/01.5-ux-foundation-design-system/01-5-CONTEXT.md` — locked UX decisions these plans must honor
+- `.planning/phases/01.5-ux-foundation-design-system/01.5-REVIEW.md` — GSD review findings already resolved
 
-Assess:
-1. Is the current "distribute UI across phases" approach appropriate for this app and team, or does it risk inconsistent UX and rework?
-2. Should a dedicated UI/UX design phase be added — and if so, where in the sequence (before Phase 2, between phases, as a parallel track)?
-3. What specifically should a UI/UX phase deliver? (wireframes, design tokens, component library, Figma file, etc.)
-4. Are there UI/UX concerns specific to this app's emergency-use context (urgency UX, one-handed use, stress states, accessibility) that need upfront design decisions rather than phase-by-phase bolt-on?
+---
 
-## Roadmap Review Questions
+## Prior Review Results
 
-Beyond UI/UX, assess:
+### GSD Review — REQUEST CHANGES (resolved, committed 7ed06ba)
 
-1. **Build order**: Is the dependency chain correct? Any phase that needs something from a later phase?
-2. **Missing phases or plans**: Any significant feature in PROJECT.md requirements that has no corresponding phase plan?
-3. **Success criteria quality**: Are the listed success criteria for each phase actually verifiable, or are any vague/untestable?
-4. **Phase sizing**: Any phases that are too large (risk of stalling) or too small (could be merged)?
-5. **v1.0 completeness**: Does completing Phases 1–9 actually deliver the Eugene seed launch? Is anything missing?
-6. **Apple Developer blocker**: Phase 9 includes iOS App Store submission. Apple Sign-In is required by App Store rules when Google OAuth is offered. Does the current roadmap handle this dependency correctly?
-7. **Data seeding**: The Eugene launch requires 50+ verified locations. There is no phase for seeding/importing initial location data. Is this a gap?
+Three findings, all fixed:
+- **RC-01**: `wave: 1` → `wave: 2` in Plan 02 frontmatter (dependency conflict)
+- **RC-02**: "Duplicate Location" report type not in live `reports.report_type` CHECK constraint — mapping table + Phase 7 migration note added to Plan 01
+- **RC-03**: `has_changing_table` stored in `tags` table (not a `locations` column) — derivation note added to Plan 01 Wireframe 21 and Plan 02 Section 13
 
-## Context
+### Antigravity Review — APPROVE
 
-- App is for people with acute urgency needs (IBS/Crohn's, wheelchair users, parents with infants) — UX failures during emergency mode are a BLOCK-level concern, not a polish concern
-- Android-first for now; iOS blocked pending Apple Developer enrollment
-- Tech stack: Expo SDK 55, Supabase + PostGIS, Mapbox, React Native
-- Multi-agent review: Claude (implementation), Antigravity (PostGIS/RLS/architecture), Codex (quality/security/UX)
-- No designers on team — all UI work done in-house
+No issues. Concerns (non-blocking):
+- Duplicate Location schema migration noted for Phase 7
+- `changing_surface_cleanliness` column needed for Phase 8 ratings table
+- Phase 5 must test ERR-02 GPS accuracy guidance + button disabled state
+
+All locked CONTEXT.md decisions verified correct:
+- Emergency FAB single-tap (no expand), mode chips inside sheet ✓
+- GPS consent gated to OS dialog `granted` resolution ✓
+- Pending pin: server-side JOIN on `submissions.submitter_id` only ✓
+- Family mode: RPC layer only, client-side JS filter forbidden ✓
+- ERR-09 copy: intentionally generic, no rejection reason revealed ✓
+- WCAG 2.1 AA contrast verified, textPrimary on yellow/orange ✓
+
+---
+
+## Your Review Focus
+
+These are planning documents, so focus on:
+
+1. **Security and privacy specification correctness** — Are any of the planned UX flows or design rules incorrectly specified in a way that would lead to security/privacy defects when implemented? Examples: access code visible to unauthenticated users, GPS consent written before OS dialog, family mode checked client-side.
+
+2. **Schema alignment** — Does the design spec reference schema fields or behaviors inconsistent with the live DB? (Cross-reference `docs/schema-contract.md` and the live migrations)
+
+3. **Component Acceptance Checklist (Plan 02 Section 20)** — Is the checklist complete and correct as a pre-review gate for all Phase 2+ UI screens? Any missing items that would let a security or accessibility defect through?
+
+4. **Error-state copy matrix (Plan 02 Section 15, ERR-01 through ERR-11)** — Are all 11 error states correctly specified? Any that reveal security-sensitive info, or leave users in a dead-end state?
+
+5. **Navigation model (Plan 02 Section 16)** — Are protected routes correctly identified? Is the auth behavior safe (inline modal returning to action — not a hard redirect losing state)?
+
+6. **Any other defects** in the planned UX flows or design system that would cause production issues when implemented.
+
+---
+
+## Verification Available
+
+Phase 1.5 produces documentation only. No code to typecheck, lint, or test. Verification is:
+- Read plan files and context files from disk
+- Cross-reference plans against `docs/schema-contract.md` and live migrations
+- Cross-reference plans against `01-5-CONTEXT.md` locked decisions
+- Cross-reference plans against `SPEC.md` user flows
+
+---
 
 ## Output Format
 
 ```md
-## Codex Roadmap Review - Gotta Go v1.0 (2026-06-24)
+## Codex Review - Phase 1.5 Execution Plans (01.5-01 + 01.5-02)
 
 **VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
 
-### UI/UX Assessment
-[Detailed assessment of the UI/UX gap and recommendation]
+### Findings
+- [CRITICAL/MAJOR/MINOR] file:line — Description, impact, required fix.
 
-### Roadmap Findings
-- [CRITICAL/MAJOR/MINOR] - Description and required change
+### Open Questions
+- Questions only when the answer affects merge safety.
 
-### Missing or Mis-sequenced Items
-[List anything absent from the roadmap that should be there]
+### Verification
+- Commands run and results, or why verification was not run.
 
 ### Approved
-[What is well-structured and ready to execute]
+- What is correct or ready to proceed.
 ```
 
-Save your completed review to `.claude/codex-review-latest.md`.
+After returning your verdict, paste it into this Claude session and it will be saved to `.claude/codex-review-latest.md`.
