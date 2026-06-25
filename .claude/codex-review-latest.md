@@ -1,22 +1,27 @@
-## Codex Review - Phase 1 Final Fix (2026-06-24)
+## Codex Review - Phase 1.5 Context Follow-up (2026-06-24)
 
 **VERDICT: APPROVE**
 
 ### Findings
 
-- None.
+- None blocking.
 
 ### Verification
 
-- Read `.claude/codex-prompt-latest.md`.
-- Inspected `app/tsconfig.test.json` from disk. It now overrides the inherited root excludes with `["node_modules", "components", "constants"]`, includes test glob patterns, and declares `"types": ["jest", "node"]`.
-- Inspected `app/src/lib/database.types.ts` from disk. `locations.Row.shadowban_status` is now `boolean` at line 169, and `users.Row.shadowban_status` is now `boolean` at line 509. Insert/Update shapes remain optional booleans, matching server defaults and partial writes.
-- Ran `.\node_modules\.bin\tsc.cmd -p tsconfig.test.json --noEmit` from `app/` - passed with exit 0.
-- Ran `npm.cmd test -- --runInBand` from `app/` - passed: 2 suites, 7 tests.
-- Ran `npm.cmd run typecheck` from `app/` - passed with exit 0.
+- Confirmed latest commit `4ace57f` updates only `.planning/phases/01.5-ux-foundation-design-system/01-5-CONTEXT.md`.
+- Re-read the committed Phase 1.5 context file from disk.
+- Verified the six prior Codex issues are addressed:
+  - GPS consent is now recorded only after the OS permission dialog resolves to `granted`; denied permission leaves `gps_consent` false/unset.
+  - Emergency mode is now single-tap from the Map FAB, with mode chips inside the bottom sheet, preserving the <=2-tap path from other top-level tabs.
+  - Changing Table / Accessible fallback now labels unconfirmed locations clearly and offers alternate search/list actions.
+  - Social credential revocation is split correctly: Google OAuth revocation belongs to Phase 2, Apple Sign-In credential revocation remains Phase 9 because it depends on Apple Developer enrollment.
+  - Duplicate-location copy and UI handling are now included in the Submit flow, with server-side duplicate detection called out.
+  - Pending pin visibility and family-mode filtering are documented as RPC-layer/server-side constraints, not client-only filters.
+
+### Non-blocking Note
+
+- `Google OAuth token revocation on account delete` is listed under `Deferred Ideas` even though it is assigned to Phase 2. The substance is correct, but moving that line into a Phase 2/account-deletion requirement section would reduce reader confusion.
 
 ### Approved
 
-- The `tsconfig.test.json` fix resolves the prior TS18003 blocker and keeps Jest/Node globals scoped to test compilation rather than root production TypeScript.
-- The regenerated Supabase types now reflect the `NOT NULL` `shadowban_status` schema for `locations` and `users`.
-- No new issues were introduced in the two-file review scope.
+- Phase 1.5 context is ready for planning. It now gives downstream agents a concrete UX contract for emergency flows, GPS consent, submit/report flows, accessibility, auth-gated actions, and server-enforced visibility constraints.

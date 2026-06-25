@@ -1,70 +1,81 @@
-# Codex Review Prompt — Phase 1 Final Fix (2026-06-24)
+# Codex Review Prompt — Roadmap & Phase Audit (2026-06-24)
 
 ## Scope
 
-Two findings from the prior Codex REQUEST CHANGES verdict have been fixed. This is a targeted re-review of those two fixes only. Return APPROVE if both are correct and no new issues were introduced.
+This is a roadmap and phase-plan audit, not a code review. Review the Gotta Go project roadmap and phase definitions for:
+- Completeness — does the build order cover everything needed for v1.0 launch?
+- Correctness — are the success criteria testable and meaningful?
+- Gaps — what is missing or under-specified?
+- UI/UX — the product owner flagged that there is no dedicated UI/UX design phase. Assess this and recommend where/how design work should be incorporated.
 
-Files in scope:
-- `app/tsconfig.test.json`
-- `app/src/lib/database.types.ts`
+## Files to Read
 
----
+Read all of these from disk:
 
-## What Was Fixed
+- `.planning/ROADMAP.md` — the full 9-phase roadmap
+- `.planning/PROJECT.md` — requirements, constraints, key decisions, out-of-scope list
+- `SPEC.md` — product spec (user flows, GPS, privacy, trust, shadowban, gamification)
+- `docs/schema-contract.md` — database contract and RLS rules
 
-### MAJOR (resolved) — `tsconfig.test.json` TS18003: No inputs were found
+## The UI/UX Gap
 
-**Prior finding:** `tsconfig.test.json` extended root tsconfig whose `exclude` list included `__tests__` and `src/**/__tests__`, which overrode the `include` globs, leaving no files for the compiler to find.
+The product owner specifically raised: **there is no dedicated UI/UX design phase in the roadmap.**
 
-**Fix applied:** `app/tsconfig.test.json`
-1. Added `"exclude": ["node_modules", "components", "constants"]` — overrides the inherited exclude, making test dirs visible
-2. Added `"node"` to the `types` array — explicit `types` list blocked auto-inclusion of `@types/node`, causing `process`/`require` errors in test files
+Currently, UI is distributed across phases:
+- Phase 2: sign-in / sign-up screens
+- Phase 3: MapScreen + LocationDetail modal
+- Phase 4: SubmitFlow screen
+- Phase 5: VerifyFlow screen
+- Phase 6: flag UI
+- Phase 7: report UI
+- Phase 8: Emergency Mode, ratings, UX polish, all error/empty/offline states
 
-**Verification:**
-- `tsc -p tsconfig.test.json --noEmit` → exit 0 (previously exit 2 with TS18003)
-- `tsc --noEmit` (root) → exit 0, no regressions
-- `npm test` → 7/7 pass
+There is no upfront design phase that establishes: visual identity, design system, component library, navigation patterns, accessibility standards, or screen flows before implementation begins.
 
-### MINOR (resolved) — `database.types.ts` stale after NOT NULL migrations
+Assess:
+1. Is the current "distribute UI across phases" approach appropriate for this app and team, or does it risk inconsistent UX and rework?
+2. Should a dedicated UI/UX design phase be added — and if so, where in the sequence (before Phase 2, between phases, as a parallel track)?
+3. What specifically should a UI/UX phase deliver? (wireframes, design tokens, component library, Figma file, etc.)
+4. Are there UI/UX concerns specific to this app's emergency-use context (urgency UX, one-handed use, stress states, accessibility) that need upfront design decisions rather than phase-by-phase bolt-on?
 
-**Prior finding:** `locations.shadowban_status` and `users.shadowban_status` were typed as `boolean | null` in Row, but migration 000001 added NOT NULL constraints.
+## Roadmap Review Questions
 
-**Fix applied:** `app/src/lib/database.types.ts` — regenerated from live Supabase schema via MCP. Both fields now correctly typed as `boolean` (non-null) in Row. Insert/Update retain `shadowban_status?: boolean` (optional with server default).
+Beyond UI/UX, assess:
 
----
+1. **Build order**: Is the dependency chain correct? Any phase that needs something from a later phase?
+2. **Missing phases or plans**: Any significant feature in PROJECT.md requirements that has no corresponding phase plan?
+3. **Success criteria quality**: Are the listed success criteria for each phase actually verifiable, or are any vague/untestable?
+4. **Phase sizing**: Any phases that are too large (risk of stalling) or too small (could be merged)?
+5. **v1.0 completeness**: Does completing Phases 1–9 actually deliver the Eugene seed launch? Is anything missing?
+6. **Apple Developer blocker**: Phase 9 includes iOS App Store submission. Apple Sign-In is required by App Store rules when Google OAuth is offered. Does the current roadmap handle this dependency correctly?
+7. **Data seeding**: The Eugene launch requires 50+ verified locations. There is no phase for seeding/importing initial location data. Is this a gap?
 
-## Verification Evidence
+## Context
 
-- `tsc -p tsconfig.test.json --noEmit` → exit 0
-- `tsc --noEmit` → exit 0
-- `npm test` → 7/7 pass
-- Committed at: `33c951b`
+- App is for people with acute urgency needs (IBS/Crohn's, wheelchair users, parents with infants) — UX failures during emergency mode are a BLOCK-level concern, not a polish concern
+- Android-first for now; iOS blocked pending Apple Developer enrollment
+- Tech stack: Expo SDK 55, Supabase + PostGIS, Mapbox, React Native
+- Multi-agent review: Claude (implementation), Antigravity (PostGIS/RLS/architecture), Codex (quality/security/UX)
+- No designers on team — all UI work done in-house
 
----
-
-## Review Instructions
-
-1. Read `app/tsconfig.test.json` from disk — confirm exclude override and types array
-2. Read `app/src/lib/database.types.ts` — spot-check `locations.shadowban_status` and `users.shadowban_status` in Row types
-3. Run `tsc -p tsconfig.test.json --noEmit` to confirm no TS18003 and no new errors
-4. Run `npm test` to confirm 7/7 still pass
-5. Return APPROVE if both fixes are correct and no new issues found
-
-## Expected Output Format
+## Output Format
 
 ```md
-## Codex Review - Phase 1 Final Fix (2026-06-24)
+## Codex Roadmap Review - Gotta Go v1.0 (2026-06-24)
 
 **VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
 
-### Findings
-- [CRITICAL/MAJOR/MINOR] file:line - Description, impact, required fix.
+### UI/UX Assessment
+[Detailed assessment of the UI/UX gap and recommendation]
 
-### Verification
-- Commands run and results.
+### Roadmap Findings
+- [CRITICAL/MAJOR/MINOR] - Description and required change
+
+### Missing or Mis-sequenced Items
+[List anything absent from the roadmap that should be there]
 
 ### Approved
-- What is correct and ready.
+[What is well-structured and ready to execute]
 ```
 
 Save your completed review to `.claude/codex-review-latest.md`.
