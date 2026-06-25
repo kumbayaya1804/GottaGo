@@ -56,21 +56,25 @@ Produce a design contract — markdown spec + ASCII wireframes — that all clie
 
 **Entry point:** Floating Action Button (FAB) on the Map screen only. Persistent, bottom-right, thumb zone. Red/orange color. Map-tab-scoped — not accessible from Nearby, Submit, or Profile tabs without navigating to Map first (2 taps maximum from any top-level route).
 
-**FAB interaction:** Tap expands to 3 labeled options:
-1. Emergency — nearest any bathroom
-2. Changing Table NOW — nearest confirmed changing-table location
-3. Accessible NOW — nearest confirmed wheelchair-accessible location
+**FAB interaction (single-tap, no expand):** Single tap activates emergency mode immediately — finds the nearest any bathroom and shows the emergency bottom sheet. No intermediate expansion menu. This ensures ≤2 taps from any top-level route (other tab → Map tab = 1 tap; FAB tap = 2nd tap; emergency active).
 
-Changing Table NOW and Accessible NOW are visible to all users (not gated by family_mode).
+Mode switching (Changing Table NOW / Accessible NOW) happens via chips INSIDE the emergency bottom sheet itself — user can switch modes without dismissing the sheet. Chips: [Any Bathroom] [Changing Table] [Accessible]. Active chip = filled. Map re-centers and sheet updates on chip selection.
+
+Changing Table and Accessible chips are visible to all users (not gated by family_mode).
 
 **When emergency mode activates:**
 - Map re-centers on nearest qualifying location
 - Bottom sheet slides up to half-snap (55%) immediately — no peek state
-- Sheet header: red/orange strip + 'NEAREST RESULT' badge
+- Sheet header: red/orange strip + 'NEAREST RESULT' badge + mode chips ([Any Bathroom] [Changing Table] [Accessible])
 - Large location name (h1), bold distance, 'Navigate' as primary CTA (opens device maps app)
 - Map continues to show full context behind the half-sheet
 
-**No qualifying location found:** Show nearest ANY bathroom regardless of type. Message: "No [changing table / accessible] bathroom found nearby — nearest available shown." No empty state, no dead end.
+**No qualifying location found (mode-specific):** When Changing Table or Accessible chip is selected and no confirmed matching location exists nearby, show nearest ANY bathroom as fallback. Required display:
+- "No confirmed [changing table / accessible] bathroom found nearby — showing nearest available."
+- "This location has not been confirmed for [wheelchair access / changing table]."
+- Alternate action button: "Search more" (expands search radius) or "View [accessible/changing table] list" (switches to Nearby tab with mode filter active)
+- Never navigate silently to a location that doesn't meet the user's urgent need without clear labeling.
+- No empty state, no dead end.
 
 **Dismiss:** User taps 'Dismiss' button on the bottom sheet OR taps the FAB again. Sheet collapses to baseline. No auto-dismiss based on GPS proximity.
 
@@ -106,7 +110,7 @@ Changing Table NOW and Accessible NOW are visible to all users (not gated by fam
 3. **GPS denied fallback:** Map opens at city-level view (Eugene, OR default) with manual search bar active. No dead end.
 4. **Map:** Main experience.
 
-**GPS consent capture:** On pre-prompt screen's 'Enable Location' tap, before OS dialog fires, capture `users.gps_consent = true` and `users.gps_consent_at = now()` for signed-in users (or on signup for users who go through auth later).
+**GPS consent capture:** Only after the OS permission dialog resolves to `granted` — never before. Sequence: user taps 'Enable Location' → OS permission dialog fires → if OS grants permission, THEN write `users.gps_consent = true` and `users.gps_consent_at = now()`. If the OS dialog is denied, `gps_consent` must remain `false`/unset. Writing consent before the OS result would record false consent, violating GDPR. The pre-prompt screen's button triggers the OS dialog only; it does not itself constitute consent.
 
 ---
 
@@ -133,7 +137,7 @@ Changing Table NOW and Accessible NOW are visible to all users (not gated by fam
 
 **Multiple pin taps:** Sheet content animates in-place to new location. No dismiss/re-open animation. Map re-centers on new pin. Sheet stays at current snap point.
 
-**Emergency mode sheet:** Same structure + red/orange header strip + 'NEAREST RESULT' badge. Opens directly to half-snap (no peek). Name in h1, bold distance, Navigate as primary CTA above the fold.
+**Emergency mode sheet:** Same structure + red/orange header strip + 'NEAREST RESULT' badge + mode chips ([Any Bathroom] [Changing Table] [Accessible]) below the header. Opens directly to half-snap (no peek). Name in h1, bold distance, Navigate as primary CTA above the fold. Switching chips re-centers map and updates sheet content in-place without dismissing.
 
 ---
 
@@ -190,9 +194,14 @@ Step 3 — GPS confirm:
 - "I'm at this location" primary button
 - Same GPS error states as VerifyFlow
 
+**Submit error states (Step 2 — GPS confirm):** In addition to GPS accuracy errors shared with VerifyFlow, the submit flow must handle:
+- **Possible duplicate detected:** "A bathroom at this address may already exist. [View existing location]" — user can continue submitting or cancel. Duplicate detection runs server-side via proximity check in `submit_location` RPC.
+
 **Post-success:** Success screen: "Location submitted! It'll appear publicly after 2 GPS verifications. You can see it on the map now." → 'Back to Map' button → map re-opens with gray dashed pending pin visible to submitter only.
 
 **Pending pin LocationDetail:** "Pending — 1 of 2 GPS verifications received. Share with friends to speed up verification."
+
+**Pending pin visibility note:** The `locations` table has no `submitter_id` column. Pending pin visibility (submitter-only) requires a server-side JOIN against `submissions.submitter_id` inside the search RPCs. The design system must document this constraint so Phase 3/4 plans include the JOIN, not a client-side filter.
 
 ---
 
@@ -287,9 +296,18 @@ The design system doc should define tokens that replace `Colors.ts` and componen
 - **High Contrast Mode toggle** — Phase 8 settings screen feature (not a design baseline)
 - **Text size override in-app** — Phase 8 settings, supplements OS Dynamic Type
 - **Screen Reader announcement customization** — Phase 8 or later
-- **Social credential revocation** — Phase 9 (requires Apple Developer enrollment)
+- **Apple Sign-In credential revocation** — Phase 9 (requires Apple Developer enrollment; Apple token revocation API call)
+- **Google OAuth token revocation on account delete** — Phase 2 (Google revocation API call on `DELETE /auth/user`; no Apple Developer enrollment required)
 - **Onboarding carousel (3 screens)** — deferred to v2 after product validates
 - **Video/animation welcome screen** — deferred to v2
+
+---
+
+## Security & Enforcement Notes
+
+- **Family mode filter** — `users.family_mode` filtering of `access_sensitivity` locations must be enforced at the Supabase RPC layer (server-side), not in client-side JS. The design system must specify this as a server-side search constraint so Phase 3 plans implement it in the RPC, not the UI layer.
+- **GPS consent** — See First Launch Flow section. Consent is recorded only after OS permission grants. Phase 2 implementation must follow this sequence; pre-prompt acknowledgement does not constitute consent.
+- **Pending pin visibility** — JOIN on `submissions.submitter_id` required in search RPCs; documented in Submit Flow section above.
 
 ---
 
@@ -298,4 +316,4 @@ The design system doc should define tokens that replace `Colors.ts` and componen
 - Exact emoji mapping for 1–5 rating scale: planner proposes in `docs/design/design-system.md` for review gate approval
 - Specific hex values for all color tokens (light + dark): planner derives from Google Maps + Waze reference palette and proposes in design system doc
 - App icon: planner produces an ASCII/text description of the running figure / door concept; actual asset design is out of Phase 1.5 scope
-- GPS consent capture timing for unauthenticated first-launch users: capture at sign-up time (pre-prompt still shows on first launch but consent is stored on account creation)
+- GPS consent for unauthenticated first-launch users: pre-prompt screen fires OS dialog; if granted, consent is recorded when account is created (sign-up flow) or on first authenticated GPS read
