@@ -85,18 +85,23 @@ Touch target enforcement (not spacing tokens, but adjacent concern):
 
 ## Typography
 
-Source: `design-system.md §2`. All `fontSize` values in StyleSheet MUST reference `typography.ts` constants — no inline raw numbers. The 9-level scale applies in full. Phase 2 uses the following subsets:
+Source: `design-system.md §2`. All `fontSize` values in StyleSheet MUST reference `typography.ts` constants — no inline raw numbers. The 9-level scale applies in full. Phase 2 uses the following 4-size subset with exactly 2 weights:
 
 | Role | Token | Size | Weight | Line Height | Phase 2 Usage |
 |------|-------|------|--------|-------------|---------------|
-| Display | `typography.display` | 34pt | Bold 700 | 41pt | Welcome Screen: "Gotta Go" app name |
-| H2 | `typography.h2` | 22pt | SemiBold 600 | 28pt | Screen titles: "Sign In", "Create Account", "Enable Location", "Profile" |
-| H3 | `typography.h3` | 17pt | SemiBold 600 | 22pt | Settings section headers: "Stats", "Settings" |
-| Body | `typography.body` | 17pt | Regular 400 | 24pt | Form field placeholders, body copy on GPS Consent, Profile stats values |
-| BodyMedium | `typography.bodyMedium` | 17pt | Medium 500 | 24pt | All Primary and Secondary button labels |
-| Subhead | `typography.subhead` | 15pt | Regular 400 | 20pt | TOS/Privacy copy below Create Account button; masked email in Profile; metadata rows in Settings |
-| Caption | `typography.caption` | 13pt | Regular 400 | 18pt | Not primary Phase 2 usage — available for timestamps if needed |
-| Label | `typography.label` | 11pt | Medium 500 | 16pt | Tab bar labels (handled by Expo Router tab bar config) |
+| Display | `typography.display` | 34pt | SemiBold 600 | 41pt | Welcome Screen: "Gotta Go" app name |
+| H2 | `typography.h2` | 22pt | SemiBold 600 | 28pt | Screen titles: "Sign In", "Create Account", "Enable Location", "Profile"; modal titles: "Delete Account" |
+| H3 / Body / BodyMedium | `typography.h3` / `typography.body` / `typography.bodyMedium` | 17pt | SemiBold 600 (H3, button labels) / Regular 400 (body copy, placeholders) | 22pt (H3) / 24pt (Body/BodyMedium) | H3: Settings section headers ("Stats", "Settings"), Auth Required modal heading. Body: form field placeholders, body copy on GPS Consent, Profile stats values. BodyMedium (button labels): all Primary and Secondary button labels — SemiBold 600 at 17pt. |
+| Subhead | `typography.subhead` | 15pt | Regular 400 | 20pt | TOS/Privacy copy below Create Account button; masked email in Profile; metadata rows in Settings; "Forgot password?" link |
+
+**Phase 2 declared weights: Regular 400 and SemiBold 600 only.**
+- Regular 400: Body, Subhead, form field placeholders, secondary text
+- SemiBold 600: Display, H2, H3 section headers, all button labels (Primary, Secondary, Destructive, Ghost)
+
+**Sizes not used in Phase 2 screens:**
+- Caption (13pt, `typography.caption`) — exists in `typography.ts` for Phase 3+ use (timestamps, distance metadata). No Phase 2 screen renders 13pt caption text.
+- Label (11pt, `typography.label`) — exists in `typography.ts` for Phase 3+ use. The tab bar label (11pt) is configured via Expo Router's tab bar `tabBarLabelStyle` prop, not via component-level typography constants. No Phase 2 component directly renders 11pt text.
+- Bold 700 and Medium 500 weights — exist in `typography.ts` constants for Phase 3+ use. Phase 2 component StyleSheets must not use these weights.
 
 Dynamic type tolerance: all layouts use flex-based sizing. `numberOfLines` is forbidden on screen title, CTA labels, error copy, and display name. It is permitted on the tagline below the logo if a hard truncation is acceptable at extreme type sizes (confirm in implementation).
 
