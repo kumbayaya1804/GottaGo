@@ -67,7 +67,7 @@ Check that:
 
 - `SPEC.md`, `.planning/PROJECT.md`, and `docs/watch-the-gap.md` agree on the product definition.
 - The core value remains "certainty under urgency."
-- Target users, launch market, pilot assumptions, and out-of-scope items are still accurate.
+- Target users, global availability strategy, promotion assumptions, and out-of-scope items are still accurate.
 - Watch the Gap framing still passes the four gates: specific gap, defined population, cheap pilot, one-sentence explanation.
 
 ### Schema And Supabase Drift

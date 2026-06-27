@@ -6,9 +6,9 @@ Gotta Go is built in strict architectural dependency order: database foundation 
 
 ## Milestone
 
-**v1.0 MVP — Eugene, OR seed launch**
+**v1.0 MVP — Global proof of concept**
 
-Goal: 50+ locations in Eugene with GPS-verified data, parent/accessibility filters, emergency mode, and a trust engine that prevents abuse. iOS + Android via EAS Build.
+Goal: globally available crowdsourced bathroom discovery with GPS-verified data, parent/accessibility filters, emergency mode, and a trust engine that prevents abuse. Adoption and local density come from marketing, promotion, owned social media handles, partnerships, and targeted community seeding rather than a hardcoded launch city. iOS + Android via EAS Build.
 
 ## Phases
 
@@ -24,7 +24,7 @@ Goal: 50+ locations in Eugene with GPS-verified data, parent/accessibility filte
 - [ ] **Phase 5: Trust Engine & Verification** — verify_location RPC, trigger chain, confidence recalc, publish-on-N-verifications gate, VerifyFlow screen
 - [ ] **Phase 6: Decay, Aggregates & Flags** — confidence decay scheduled job (floor enforced), respect_signal_log triggers, respect_signal_90d concurrent refresh, availability_flags RPC
 - [ ] **Phase 7: Reports & Moderation Inputs** — report_location RPC (all 5 report types), auto-suppress trigger (sets locations.suppressed_at), admin SECURITY DEFINER functions for shadowban/suppress
-- [ ] **Phase 7.5: Eugene Seed Operations** — Candidate list, admin import tooling, field verification checklist, ≥50 published locations meeting coverage targets before launch
+- [ ] **Phase 7.5: Growth & Seed Operations** — Candidate sourcing, admin import tooling, field verification checklist, marketing/social launch support, and promoted-region coverage targets
 - [ ] **Phase 8: Client UX & Emergency Modes** — Emergency Mode one-tap, "Changing Table NOW" mode, rating UI, LocationDetail polish, all error/empty/offline states
 - [ ] **Phase 9: Operations & Hardening** — Sentry with PII scrubbing, RLS pgTAP tests, migration test suite, EAS production build config, App Store / Play Store submission prep
 
@@ -212,23 +212,23 @@ Plans:
 
 ---
 
-### Phase 7.5: Eugene Seed Operations
-**Goal**: Seed the Eugene, OR launch market with ≥50 GPS-verified locations meeting coverage targets before public launch. This phase produces admin tooling and a verified dataset, not user-facing features.
+### Phase 7.5: Growth & Seed Operations
+**Goal**: Support global proof-of-concept launch with repeatable sourcing, verification, import, and promotion workflows. This phase produces admin tooling, field verification guidance, and marketing/social launch support so promoted regions can reach useful local density without hardcoding app availability to one city.
 **Depends on**: Phase 7 (suppression and moderation in place before seeding)
-**Requirements**: Candidate location list sourced; admin import tooling tested; field verification checklist created; coverage targets met; import is idempotent; launch-readiness acceptance query passes
+**Requirements**: Candidate location sourcing workflow created; admin import tooling tested; field verification checklist created; promoted-region coverage targets defined; marketing/social launch checklist created; import is idempotent; launch-readiness acceptance query passes
 **Success Criteria** (what must be TRUE):
-  1. ≥50 published locations in Eugene visible on the map
-  2. ≥3 confirmed changing-table locations
-  3. ≥3 confirmed wheelchair-accessible locations
-  4. ≥5 Chill Spot policy-tagged locations (hotel lobbies, UO buildings, bars, libraries)
+  1. App availability is not hardcoded to a single launch city; users can search and contribute globally
+  2. At least one promoted region has a verified starter cluster of published locations visible on the map
+  3. Promoted-region coverage targets include confirmed changing-table locations, wheelchair-accessible locations, and Chill Spot policy-tagged locations
+  4. Marketing, promotion, owned social handles, and community outreach are ready to drive contributor/user activity in priority regions
   5. Admin import script is idempotent — re-run does not create duplicates (duplicate detection via coordinates proximity query)
-  6. All seed locations have `verification_count ≥ 2` OR are within the 48-hour auto-promote window at launch time
-  7. Launch-readiness acceptance query (published, non-suppressed, non-deleted, ≥2 verifications, in Eugene bbox) returns ≥50 rows
+  6. Seeded/promoted locations have `verification_count ≥ 2` OR are within the 48-hour auto-promote window at launch time
+  7. Launch-readiness acceptance query can be parameterized by region and returns published, non-suppressed, non-deleted, verified rows for any promoted area
 **Plans**: TBD
 
 Plans:
-- [ ] 7.5-01: Candidate sourcing list, field verification checklist, duplicate detection query, launch-readiness acceptance query
-- [ ] 7.5-02: Admin import tooling (CSV/JSON → locations, sets data_source='seed'), seed data QA run
+- [ ] 7.5-01: Candidate sourcing workflow, field verification checklist, duplicate detection query, parameterized launch-readiness acceptance query
+- [ ] 7.5-02: Admin import tooling (CSV/JSON → locations, sets data_source='seed'), seed data QA run, marketing/social launch checklist
 
 ---
 
@@ -308,6 +308,6 @@ Plans:
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
 | 7. Reports & Moderation Inputs | 0/2 | Not started | - |
-| 7.5. Eugene Seed Operations | 0/2 | Not started | - |
+| 7.5. Growth & Seed Operations | 0/2 | Not started | - |
 | 8. Client UX & Emergency Modes | 0/3 | Not started | - |
 | 9. Operations & Hardening | 0/3 | Not started | - |

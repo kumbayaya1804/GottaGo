@@ -62,7 +62,7 @@ None documented in CONTEXT.md for Phase 1 (all decisions are locked).
 
 ### Deferred Ideas (OUT OF SCOPE)
 
-- **Launch city decision (Portland vs. Vegas vs. Eugene):** Revisit before Phase 8.
+- **Launch availability decision:** Resolved after Phase 1.5 planning. The app should be available globally for proof of concept; marketing, promotion, owned social media handles, partnerships, and community campaigns drive local density.
 - **Apple Sign-In full implementation:** Stubbed in Phase 2, fully implemented in Phase 9.
 </user_constraints>
 

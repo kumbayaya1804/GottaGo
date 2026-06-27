@@ -82,7 +82,7 @@ Rationale and alternatives below.
 - Mapbox requires a dev client either way; Expo dev client gives us OTA updates and EAS Submit on top.
 
 **Why NOT wait for SDK 56:**
-- SDK 56 beta will land around July–August 2026 based on Expo's cadence. By then this project should already be shipping in Eugene. Upgrade after launch when there is a working app to test against.
+- SDK 56 beta will land around July–August 2026 based on Expo's cadence. By then this project should already be shipping as a global proof of concept. Upgrade after launch when there is a working app to test against.
 
 **Critical constraint:**
 - `@rnmapbox/maps` cannot run in Expo Go. We MUST use `eas build --profile development` for a dev client from day one. Do not start the project with Expo Go intending to "migrate later" — every map screen will be broken until you switch.
@@ -150,7 +150,7 @@ Sources:
 | Library | `@rnmapbox/maps` ^10.1.x | HIGH |
 | Native SDK | Mapbox Maps SDK v11 (set via `RNMapboxMapsVersion: "11.20.1"` or later 11.x) | HIGH |
 | Style | Custom Mapbox Studio style + standard `mapbox://styles/mapbox/streets-v12` fallback | MEDIUM |
-| Offline | Mapbox offline tile packs (built into v11) — defer until v1.1 unless Eugene tests show coverage gaps | MEDIUM |
+| Offline | Mapbox offline tile packs (built into v11) — defer until v1.1 unless proof-of-concept testing shows coverage gaps | MEDIUM |
 
 **Config plugin (app.json):**
 
@@ -179,10 +179,10 @@ Sources:
 - Project constraint: "Mapbox over Google Maps — Better offline tiles, better React Native SDK" (PROJECT.md).
 - `react-native-maps` is currently broken on Expo SDK 55 with Google Maps on iOS (open issue #43288). Picking it would block iOS development.
 - Mapbox Studio gives us custom styling for the brand. Apple/Google Maps cannot match this.
-- Mapbox vector tiles render markers and clusters far faster than `react-native-maps` for the kind of 50–500 pin density we will hit per viewport in Eugene/Vegas.
+- Mapbox vector tiles render markers and clusters far faster than `react-native-maps` for the kind of 50–500 pin density we expect in promoted regions.
 
 **Why NOT MapLibre RN:**
-- It's a viable fork of rnmapbox and avoids Mapbox costs, but: (a) Mapbox free tier (50k MAU map loads) covers Eugene launch and Las Vegas phase 2 easily, (b) Mapbox traffic and 3D buildings are differentiated on iOS, (c) MapLibre's offline-pack API is less mature on the alpha branch.
+- It's a viable fork of rnmapbox and avoids Mapbox costs, but: (a) Mapbox free tier (50k MAU map loads) should cover proof-of-concept usage, (b) Mapbox traffic and 3D buildings are differentiated on iOS, (c) MapLibre's offline-pack API is less mature on the alpha branch.
 - Revisit when MAU approaches the free-tier ceiling.
 
 **Why pin to v11 native, not v10:**
@@ -249,7 +249,7 @@ Commit `database.types.ts`. Regenerate every time the schema changes. This is th
 
 **PostGIS query pattern:**
 - ALWAYS go through `supabase.rpc('nearby_bathrooms', { lat, lng, radius_m })` — never `.from('locations').select(...)` with client-side distance math.
-- Why: PostGIS distance functions need `geography` operators with spatial indexes; doing this on the client requires shipping every row to the device. With even 500 locations in Eugene, that's wasteful and gives bad UX on slow networks.
+- Why: PostGIS distance functions need `geography` operators with spatial indexes; doing this on the client requires shipping every row to the device. With even 500 locations in a promoted region, that's wasteful and gives bad UX on slow networks.
 - The RPC should be `SECURITY DEFINER` with `SET search_path = public, extensions` and explicit filtering of `deleted_at`, `suppressed_at`, `is_shadowbanned` (per schema-contract.md).
 
 **Anti-patterns to reject in review:**
@@ -613,7 +613,7 @@ Sources:
 | `react-native-maps` with Google Maps | Broken on Expo SDK 55 iOS (expo/expo#43288). |
 | Mapbox SDK v10 native | Deprecated by Mapbox. Pin v11. |
 | Firebase Auth | We already chose Supabase Auth. Two auth providers = security incident waiting. |
-| Realm / WatermelonDB | Premature optimization. PostgreSQL is the source of truth; cache layer is TanStack Query. Local DB only justified if Eugene + Vegas data exceeds device memory at 50k+ locations. |
+| Realm / WatermelonDB | Premature optimization. PostgreSQL is the source of truth; cache layer is TanStack Query. Local DB only justified if global proof-of-concept data exceeds device memory at 50k+ locations. |
 | Formik | Slower re-renders than RHF, larger bundle, less active maintenance. |
 | Apollo Client / urql | We don't have GraphQL. Supabase REST + TanStack Query is the path. |
 | `react-native-google-signin` directly | Use Supabase's native Google OAuth flow with deep linking. One fewer SDK to maintain. |

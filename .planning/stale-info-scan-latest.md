@@ -1,50 +1,70 @@
-# Stale Information Scan - 2026-05-20
+# Stale Information Scan - 2026-06-27
 
-Trigger: User requested a durable periodic stale-information scan process.
+Trigger: Phase transition — Phase 1.5 complete, entering Phase 2 planning
 Branch: master
-Commit: a148ed1
-Next review due: 2026-06-19
+Commit: 9a1de31
+Next review due: 2026-07-27
 
 ## Commands Run
 
-- `git status --short` - working tree contains existing staged and unstaged project changes plus this scan work.
-- `git diff --name-only` - confirmed changed tracked files include agent docs, command prompts, project docs, and previous Codex prompt artifact.
-- `rg -n "Gemini|gemini-review|GEMINI\.md|file:///|TODO|TBD|deprecated|outdated|stale|drift|Last reviewed" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md SPEC.md docs .planning .claude` - found scan-control terms, research notes, roadmap placeholders, local skill file links, and historical Gemini references outside active harness docs.
-- `rg -n "service_role|EXPO_PUBLIC|NEXT_PUBLIC|eyJ|sk\." app supabase docs` - found expected `service_role` references in migrations/docs and one package-lock integrity hash false positive; no client service-role key or `sk.` secret was identified by this scan.
-- `rg -n "\b(lat|lng|gps_lat|gps_lon)\b" app supabase docs` - found expected contract examples plus old `gps_lat`/`gps_lon` in remote schema capture and the follow-up migration that backfills and drops them.
-- `rg -n "stale-info-scan|stale-info-scan-latest|Stale Information Scan|Checking stale-information" docs .claude AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md .planning\PROJECT.md` - confirmed stale-scan references are wired into active harness docs and commands.
-- `Get-Content .claude\settings.json -Raw | ConvertFrom-Json` - settings JSON parsed successfully.
-- `.claude/settings.json` stale-scan Stop hook command - produced the expected reminder while the scan artifact was missing.
-- `git diff --check -- ...` - passed for touched tracked files; Git reported only line-ending normalization warnings.
-- `Select-String ... -Pattern '[ \t]+$'` - no trailing whitespace found in touched files.
+- `git status --short` — 15 tracked files modified (unstaged), 9 untracked files
+- `git log --oneline -5` — latest: 9a1de31 docs(02): UI design contract for Auth & Profiles
+- `git diff --stat HEAD` — 15 files changed (79 insertions, 57 deletions) since last commit
+- `rg -n "Gemini|gemini-review|GEMINI\.md|file:///|TODO|TBD|deprecated|outdated|stale|drift|Last reviewed" ...` — found stale model-version strings in ANTIGRAVITY.md and .claude/antigravity-prompt-latest.md; TBD plan placeholders in ROADMAP.md (Phases 3–9, expected); file:/// in .claude/antigravity-review-latest.md (pre-existing WATCH item)
+- `rg -n "service_role|EXPO_PUBLIC|..." app/ supabase/ docs/` — all service_role hits are RLS policy patterns in migrations; EXPO_PUBLIC hits are in test setup (no actual values committed); no secrets found
+- `rg -n "stale-info-scan|agent-harness|codex-prompt-latest|..."` — harness artifact references consistent across AGENTS.md, AGENTS_ROSTER.md, CLAUDE.md, CODEX.md, ANTIGRAVITY.md, docs/agent-harness.md
+- `app/package.json` inspected — expo~55, react-native 0.83.6, jest@29.7.0, @rnmapbox/maps@10.3.1, @supabase/supabase-js@2.106.0, TanStack Query@5, zod@4 — consistent with CLAUDE.md constraints
+- `docs/schema-contract.md` header — "aligned with live schema as of 2026-06-24"
+- `supabase/migrations/` — 6 migrations, latest 20260624000002_ratings_privacy_fix.sql, consistent with schema-contract status date
+- `.planning/PROJECT.md` git diff reviewed
+- `.planning/ROADMAP.md` git diff reviewed
+- `.planning/STATE.md` (untracked) reviewed — GSD state file
 
 ## BLOCKING STALE INFO
 
-- None found in this scan.
+- None.
 
 ## UPDATE REQUIRED
 
-- `.claude/codex-prompt-latest.md` does not yet reflect the current `.claude/review-queue.txt`, which now includes the stale-scan harness changes. Deferred to Claude before the next Codex review, because the prompt should be generated after the current edit batch is settled. Required action: run `/codex-prompt` before asking Codex for the next review.
+1. **15 unstaged working-tree modifications not committed** — During the Phase 2 discuss session, GSD updated PROJECT.md, ROADMAP.md, and research docs (STACK.md, PITFALLS.md, FEATURES.md, ARCHITECTURE.md) to reflect the strategy shift from "Eugene, OR seed launch" to "global proof of concept." These changes exist in the working tree but were never committed. `/gsd-plan-phase` will read these files — if they are uncommitted, the planner could be reading mixed-state content. Required action: **commit the 15 modified files before running /gsd-plan-phase**.
+
+   Files affected:
+   - `.planning/PROJECT.md` — watch-the-gap fit section + constraints updated (Eugene → global)
+   - `.planning/ROADMAP.md` — milestone name, Phase 7.5 renamed "Growth & Seed Operations"
+   - `.planning/config.json` — GSD config state
+   - `.planning/research/STACK.md`, `PITFALLS.md`, `FEATURES.md`, `ARCHITECTURE.md` — city-specific references updated to region-agnostic language
+   - `README.md` — project description updated
+   - `docs/design/design-system.md`, `docs/design/wireframes.md` — minor updates
+   - `docs/stale-info-scan.md` — last reviewed date update
+   - Planning phase context files — minor metadata
+
+2. **`.claude/antigravity-prompt-latest.md` line 7 says "Gemini 3.5"** — This is the model identity Antigravity sees when prompted. The installed Antigravity CLI version may use a newer model. Regenerate this prompt via `/antigravity-review` or the review-gate before the next Antigravity review session to pick up any model identity changes. Deferred to immediately before Phase 2 review gate (not blocking plan phase).
 
 ## WATCH
 
-- `.planning/ROADMAP.md` still contains multiple `Plans: TBD` placeholders. These may be normal for future phases, but they should be revisited before closing a related milestone.
-- `.planning/research/ARCHITECTURE.md` contains historical Gemini references in research notes. They are not in the active harness, but should be rewritten if those notes become active implementation guidance.
-- `.claude/skills/SKILL.md` and `.claude/skills/pitfall_scan.md` contain `file:///` links to local project paths. These may work locally, but they are less portable than project-relative paths.
-- `.planning/research/PITFALLS.md` notes Mapbox v10 deprecation and Supabase/Supavisor drift risks. These remain useful but should be checked against official docs before dependency or deployment decisions.
+3. **ANTIGRAVITY.md** references "Gemini 3.5" in three places (§43 heading "Gemini 3.5 Enhanced Capabilities", §45 capability description, §126 reasoning note). Antigravity works correctly regardless of the version string, but the identity description may not match the deployed model. Update before the next major review cycle.
+
+4. **`docs/agent-harness.md`** "Last reviewed: 2026-05-20" and **`docs/stale-info-scan.md`** "Last reviewed: 2026-05-20" — date metadata is stale but content is consistent with the current workflow. Update last-reviewed dates when either document is next edited.
+
+5. **`.claude/antigravity-review-latest.md`** contains `file:///` links (pre-existing from prior scan). Not actionable before plan phase; revisit if portability becomes a concern.
+
+6. **`.planning/STATE.md`** is untracked — GSD-generated state file with `completed_phases: 1` (does not count Phase 1.5). Commit alongside the working-tree batch (UPDATE REQUIRED item 1).
+
+7. **ROADMAP.md Phases 3–9 "Plans: TBD"** — expected placeholders for future phases, not drift. Revisit before each phase transition.
 
 ## CURRENT
 
-- Active agent docs now point to Claude as orchestrator, Antigravity as architectural reviewer, and Codex as implementation/security reviewer.
-- Active harness docs no longer contain stale Gemini workflow instructions except intentional scan terms.
-- `/stale-info-scan` exists and defines the scan procedure, severities, standard commands, and report template.
-- `/codex-prompt` and `/antigravity-review` include `docs/stale-info-scan.md` and include `.planning/stale-info-scan-latest.md` when present.
-- `docs/agent-harness.md`, `CLAUDE.md`, `AGENTS.md`, `AGENTS_ROSTER.md`, `CODEX.md`, `ANTIGRAVITY.md`, and `.planning/PROJECT.md` require stale-scan handling at the correct gates.
-- `.claude/settings.json` has a Stop hook that reminds Claude when `.planning/stale-info-scan-latest.md` is missing or older than 30 days.
-- `.claude/commands/metaswarm-setup.md` was updated from Codex/Gemini language to Codex/Antigravity language.
+- **Agent harness artifacts** — `.claude/review-queue.txt`, `.claude/antigravity-prompt-latest.md`, `.claude/antigravity-review-latest.md`, `.claude/codex-prompt-latest.md`, `.claude/codex-review-latest.md` all exist and reference correct paths per docs/agent-harness.md. ✓
+- **Schema drift** — `docs/schema-contract.md` aligned with latest migration (20260624000002). No schema changes since last alignment. ✓
+- **Secrets** — No `.env` values, service-role keys, JWTs, or private credentials found in committed files. Test setup uses placeholder values only. ✓
+- **Dependencies** — expo@55, react-native 0.83.6, jest@29.7.0 (pinned), @rnmapbox/maps@10.3.1, Mapbox SDK v11.20.1 — all match CLAUDE.md constraints and prior approved choices. ✓
+- **Phase status accuracy** — ROADMAP.md has Phase 1 `[x]` and Phase 1.5 `[x]` checked. Phase 2 `[ ]` with CONTEXT.md and UI-SPEC.md committed. Accurate. ✓
+- **Product core value** — PROJECT.md still centers "certainty under urgency." ✓
+- **TDD constraints** — jest@29.7.0 pinned, 100% coverage thresholds, tdd-guard-jest BLOCKED per CLAUDE.md. No drift. ✓
+- **Review gate workflow** — `.claude/commands/review-gate.md` exists, chains GSD → Antigravity → Codex per harness. ✓
 
 ## Blocked Checks
 
-- Live Supabase schema drift was not checked because this scan did not request network or credentialed Supabase access.
-- External official documentation freshness was not rechecked because this change only created local project controls; future dependency, SDK, agent-tool, or release decisions should verify official sources.
-- App lint, typecheck, and tests were not run because this scan changed documentation, Claude command files, and settings only.
+- Live Supabase schema drift was not checked — no credentialed Supabase network access during this scan.
+- App lint, typecheck, and tests were not run — no source code changes in scope; deferred to Phase 2 execution.
+- External official documentation freshness (Expo SDK 55, Mapbox SDK v11, @supabase/supabase-js@2.106.0) not rechecked — no dependency changes since Phase 1.

@@ -119,7 +119,7 @@ Features users may *ask* for that actively damage the product. Document these so
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |---|---|---|
-| **Public contributor leaderboard / point display in v1** | Premature gamification rewards spam; spec already defers this. Worse: surfacing a leaderboard before there's a Eugene contributor cohort makes the app look empty. | Track points in DB (spec); surface in v2 when ≥50 contributors active. |
+| **Public contributor leaderboard / point display in v1** | Premature gamification rewards spam; spec already defers this. Worse: surfacing a leaderboard before there is meaningful contributor density makes the app look empty. | Track points in DB (spec); surface in v2 when contributor volume justifies it. |
 | **In-app turn-by-turn navigation** | Massive scope, redundant with Maps/Apple Maps, drains battery, distracts from the contribution loop | Deep-link out to the user's preferred nav app. Every comparable app does this. |
 | **Open chat / DMs / social graph** | Spec explicitly excludes; harassment surface in a domain (bathrooms) where any social vector is suspect | Reports/flags are the only user-to-user signal. Period. |
 | **"Suspicion" / "watch out" / safety-alert reports about people** | Citizen-app failure mode; produces racial profiling and false alarms ([EFF on crowd-sourced suspicion apps](https://www.eff.org/deeplinks/2021/10/crowd-sourced-suspicion-apps-are-out-control)) | Only report attributes of the *location* (closed, code wrong, inaccessible). Never about people who use it. |
@@ -221,7 +221,7 @@ The parent wedge is identified correctly in PROJECT.md. Additional evidence from
 
 - BubbaMaps reviews specifically highlight "amenities, opening hours, and real parent reviews" as the trust trio — Gotta Go has 2 of 3 baked in, just needs the parent-review dimension explicit.
 - RestMap and the Diaper Changing Table Finder both surface **"changing tables in men's rooms"** as a discrete data point. This is a small schema field with outsized social-sharing value (it's the kind of thing dads post about in r/daddit). Strongly recommend adding as a boolean attribute alongside `has_changing_table`.
-- Scary Mommy / parenting press has covered changing-table apps before — the press hook is "we surveyed where dads can change diapers." This is a freeable PR angle once Eugene has 20+ men's-room data points.
+- Parenting press has covered changing-table apps before — the press hook is "we surveyed where dads can change diapers." This is a viable PR angle once promoted regions have enough men's-room changing-table data points.
 - The "Family Restroom" tag (single-occupancy, lockable) overlaps the LGBTQ+ safety need that Refuge Restrooms serves. Gotta Go doesn't have to position as an LGBTQ+ app to capture that benefit — the tag itself does double duty.
 
 **Acquisition implication:** "Changing Table NOW" is the headline. Build it visibly. Put it on the home screen, not buried in a filter.

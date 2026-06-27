@@ -107,7 +107,7 @@ Patterns to follow:
 
 ## Deferred Ideas
 
-- **Launch city decision (Portland vs. Vegas vs. Eugene):** Raised during discussion. Eugene remains the current ROADMAP target. User mentioned possibly launching from Portland or Vegas instead (leaving Oregon in June). This is a roadmap-level decision — revisit before Phase 8 (UX) to ensure any city-specific seeding strategy is locked. Note for PROJECT.md update.
+- **Launch availability decision:** Resolved after Phase 1.5 planning. The app should be available globally for proof of concept. Marketing, promotion, owned social media handles, partnerships, and community campaigns drive local density; no launch city is hardcoded into the roadmap or product UX.
 - **Apple Sign-In full implementation:** Blocked on Apple Developer enrollment ($99/year). Stubbed in Phase 2, fully implemented in Phase 9.
 
 ---

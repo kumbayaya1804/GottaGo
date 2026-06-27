@@ -38,7 +38,7 @@ These cause rewrites, lawsuits, or app death. Address in foundation phases.
 
 **Why it happens:** Developers think "distance < X" is the natural query. It is, logically. But `ST_DWithin` does a cheap bounding-box index lookup first, eliminating 99.9% of candidates before computing exact distances.
 
-**Consequences:** At 50 locations in Eugene, you won't notice. At 5,000 locations across multiple cities, the Emergency Mode "nearest bathroom" query becomes a 2-second sequential scan. Battery drain on mobile becomes a complaint. Supabase compute spikes.
+**Consequences:** At 50 locations in one promoted region, you won't notice. At 5,000 locations across multiple regions, the Emergency Mode "nearest bathroom" query becomes a 2-second sequential scan. Battery drain on mobile becomes a complaint. Supabase compute spikes.
 
 **Prevention:**
 - Standard pattern: `WHERE ST_DWithin(loc, $1, $radius_m) ORDER BY loc <-> $1 LIMIT 10`
@@ -90,7 +90,7 @@ These cause rewrites, lawsuits, or app death. Address in foundation phases.
 - **Mock location flag:** `expo-location` exposes `mocked: boolean` on Android (iOS does not have an equivalent — assume jailbreak). Reject mocked submissions OR weight them to zero trust.
 - **GPS freshness window:** Reject readings older than ~30s. A spoofer can fake coords but generating a fresh fake reading repeatedly is more work.
 - **Accuracy threshold:** Reject readings with `accuracy > 50m`. Most spoofers report unrealistically perfect accuracy (≤5m) — flag *too good* as suspicious too.
-- **Velocity sanity check:** Server tracks last verified location per user. If they were in Eugene 5 minutes ago and now claim Las Vegas, reject (or flag for review).
+- **Velocity sanity check:** Server tracks last verified location per user. If they were in one city 5 minutes ago and now claim a faraway city, reject or flag for review.
 - **WiFi BSSID / cell tower cross-check:** If you collect nearby WiFi SSIDs/BSSIDs (with user consent), compare against a known map. Spoofers rarely fake all signal sources consistently. Note: significant privacy implications, opt-in only.
 - **Multi-constellation check:** Raw GNSS data on modern Android can expose which satellite constellations (GPS, GLONASS, Galileo, Beidou) are visible. Cheap spoofers fake L1 GPS only.
 - **Trust-weighted verification:** A new account's verification counts much less than a trusted user's. Sybil farming requires building trust across N accounts — much higher cost.
@@ -151,23 +151,23 @@ These cause rewrites, lawsuits, or app death. Address in foundation phases.
 
 ---
 
-### CRITICAL-7: Cold Start — Launching Too Wide Kills the App
+### CRITICAL-7: Cold Start — Global Availability Without Local Density Kills Trust
 
-**What goes wrong:** Launching nationally (or even statewide) with 50 locations. Users open the app, see an empty map, uninstall. Network effects are local — a parent in Eugene needs locations *in Eugene*, not 200 in San Francisco.
+**What goes wrong:** The app is globally available, but marketing and seeding do not create useful local clusters. Users open the app, see an empty map in their area, and uninstall. Network effects are local even when app distribution is global — a user needs locations near them, not a large count somewhere else.
 
-**Why it happens:** Pressure to "open the market." Founders want their friends in other cities to use it. The crowdsourcing fallacy: "users will fill it in once we launch." They won't, because they uninstall before contributing.
+**Why it happens:** The product assumes global availability alone will create contributions. Crowdsourced apps still need promotion, owned social channels, partnerships, and targeted community campaigns to bootstrap local density.
 
-**Consequences:** Permanent reputation damage in launch markets. Word-of-mouth dies. The parent segment is especially unforgiving — they tell each other "I tried Gotta Go, it was empty" once, and the network is poisoned for that region.
+**Consequences:** Reputation damage in promoted regions. Word-of-mouth dies. The parent/accessibility segments are especially unforgiving — if users try the app once and find nothing useful nearby, they may not return when the data improves.
 
-**Prevention (Eugene-first strategy, already correct in PROJECT.md):**
-- 50 high-quality verified locations in Eugene *before* public launch — per existing constraint, this is right
-- Coverage type > count: 5-8 Chill Spots, 3-4 changing stations, downtown corridor saturation
-- Founder/team manually verifies all 50 (don't rely on community to bootstrap)
-- App refuses to show "results" outside seeded cities — show "Coming soon to [city]" instead of empty map (preserves trust)
-- Reverse-geocode user location → if outside Eugene, prompt "Help us launch here" CTA with waitlist
-- Las Vegas as Phase 2 (per PROJECT.md): different model — tourist density, international visitors, casino-dominated. Validate the dense-urban model in Eugene first.
+**Prevention (global proof-of-concept strategy):**
+- Do not hardcode one launch city or refuse users outside a selected market
+- Use marketing, promotion, owned social media handles, partnerships, and community outreach to drive density in priority regions
+- Seed promoted regions with high-quality verified locations before campaigns push users there
+- Coverage type > count: Chill Spots, changing stations, accessible bathrooms, and reliable emergency-mode results matter more than raw totals
+- Founder/team/community ambassadors manually verify starter clusters; do not rely on passive crowdsourcing alone
+- Empty areas should show useful search/contribution CTAs such as "Help add bathrooms here" or "Search another area," not a city lockout
 
-**Detection:** Sessions per user per week in launch market < 1.5 = cold start failing. Empty-result-rate > 20% = density insufficient.
+**Detection:** Sessions per user per week in promoted regions < 1.5 = cold start failing. Empty-result-rate > 20% in promoted regions = density insufficient.
 
 **Phase:** Pre-launch / Launch strategy. Phase that ships v1 to public.
 
@@ -408,7 +408,7 @@ Map results sort by composite confidence + distance. Without an index on confide
 
 ### MINOR-2: Date/Time in User's Local Timezone Stored as TIMESTAMP
 
-Hours-of-operation across multiple cities → store as `TIMESTAMPTZ` always. Eugene and Las Vegas timezone difference will bite "is bathroom open now?" queries. **Phase:** Submissions.
+Hours-of-operation across multiple cities → store as `TIMESTAMPTZ` always. Cross-timezone usage will bite "is bathroom open now?" queries. **Phase:** Submissions.
 
 ### MINOR-3: Expo SDK Major Version Drift
 
@@ -445,7 +445,7 @@ Mixing anonymous + authenticated events with no `user_id` alias produces unreada
 2. **RLS is the perimeter, not a layer of defense.** Anon key is public; RLS is the only thing standing between attackers and the DB.
 3. **Defense in depth on GPS.** No single mock-location check works against a determined attacker. Stack 4-5 weak checks; require multiple verifications; weight by trust.
 4. **Confidence decays; deletion never.** Stale data is suppressed from emergency surfaces but not erased — re-verification must be cheap.
-5. **Cold start is local.** Eugene saturation before Eugene → Las Vegas. Don't pretend to be in markets you haven't seeded.
+5. **Cold start is local even when distribution is global.** Use marketing, promotion, social channels, partnerships, and community seeding to build useful local clusters; do not hardcode a launch city.
 6. **PIN data is the wedge AND the legal risk.** Community-reported framing, business opt-out, no PIN gating without a path for businesses to engage constructively.
 7. **Reward quality, cap quantity.** Freshness pings are the lowest-reward action and capped. Verifications outweigh ratings outweigh pings.
 

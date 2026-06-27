@@ -15,7 +15,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 - **Gap:** Public restroom access is unreliable, hidden, stigmatized, or uncertain.
 - **Population:** Parents, road-trippers, delivery drivers, people with medical conditions, disabled people, menstruating people, people with urgency needs, and anyone navigating public space under bodily pressure.
-- **Cheap pilot:** Seed Eugene, OR with 50 high-quality verified locations and validate urgent discovery, changing-table, and accessibility flows before broader expansion.
+- **Proof of concept:** Make the app available globally, then use marketing, promotion, owned social media, partnerships, and community campaigns to drive local density and validate urgent discovery, changing-table, and accessibility flows.
 - **One-sentence explanation:** Gotta Go turns unreliable public restroom access into community-verified infrastructure for certainty under urgency.
 
 ## Requirements
@@ -84,7 +84,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 - Leaderboard / gamification UI — tracked in DB, surfaced in v2 when volume justifies rewards
 - Business partnership / verified badge program — needs user volume for leverage first
-- Las Vegas market seeding — Eugene, OR first to validate model, then expand
+- Single-city launch gating — v1 should not hardcode availability to one city; targeted campaigns can build density in priority regions without blocking global use
 - Web / PWA version — mobile-first, native GPS UX justified React Native
 - Anonymous (no-auth) submissions — reduces abuse surface area for v1
 - Monetization UI — validate the product first
@@ -104,7 +104,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 **Target users (refined):** People for whom urgency is a real need, not just inconvenience: (1) people with IBS, Crohn's, colitis, or other bowel/GI conditions, (2) wheelchair users and mobility-impaired people needing accessible stalls, (3) parents with infants needing changing tables. General urgency users are also served, but the accessibility-focused users are the ones who will contribute data most reliably and share most organically.
 
-**Launch strategy:** Eugene, OR as the seed market. Target 50 high-quality verified locations before public launch — prioritize: 5–8 Chill Spots (hotel lobbies, UO buildings, friendly bars), 3–4 with confirmed changing stations, accessible bathroom coverage in downtown corridor. Quality over density. Las Vegas is phase 2: tourist density, international visitors, severe lack of public bathroom infrastructure outside casinos.
+**Launch strategy:** Global proof-of-concept availability. Usage and local density should come from marketing, promotion, owned social media handles, partnerships, creator/community outreach, and targeted seeding campaigns. Priority regions can receive extra sourcing and verification effort, but the app should not hardcode a launch city or refuse users outside a chosen market. Quality still matters more than raw count: promoted regions should prioritize Chill Spots, confirmed changing stations, and accessible bathroom coverage.
 
 **Parent segment:** Changing table data is the feature that drives word-of-mouth in parenting communities (Facebook groups, Reddit parenting subs, Buy Nothing networks). "Changing Table NOW" emergency mode is the single-feature driver for this segment.
 
@@ -122,7 +122,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 - **Data Integrity**: Minimum 2 independent GPS verifications (or 1 + 48hr no-flag window) before location publishes. Single-verification threshold is an unacceptable abuse surface.
 - **Liability**: Policy tags use community-reported framing, not declarative. "Users report this as accessible" not "this place allows free use." Moves liability to crowd, not platform.
 - **Gamification ordering**: If reward tiers are implemented, "Just used this" freshness confirmation must be lowest-reward or capped per location/user/window — not 3rd highest as in original design.
-- **Eugene density requirement**: 50 locations is the floor, but coverage type matters more than count.
+- **Coverage density requirement**: local usefulness matters more than raw global count. Marketing and community seeding should build useful clusters in promoted regions, but no city is hardcoded as the launch gate.
 - **Security**: No raw SQL strings unless migrations or safely parameterized server-only code. GPS coordinates in PostGIS geometry/geography columns only. No PII in logs.
 - **Review gate**: No commit without APPROVE from both Antigravity and Codex (or all BLOCK/REQUEST CHANGES resolved).
 
@@ -133,7 +133,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 | React Native (Expo) over PWA | GPS verification and emergency mode require native performance; mobile is the use-case trigger | — Pending |
 | Supabase + PostGIS | Schema already live, proximity queries built in, auth included | — Pending |
 | Mapbox for map rendering (not react-native-maps) | react-native-maps Google provider is broken on Expo SDK 55 iOS (expo/expo#43288). Google Maps API key still usable for geocoding/Places REST calls. | — Pending |
-| Eugene → Las Vegas launch sequence | Validate dense urban model before tourist-corridor model | — Pending |
+| Global proof-of-concept availability | Crowdsourced apps should be usable wherever contributors appear; marketing, promotion, and owned social channels drive adoption and local density instead of a hardcoded city rollout | — Pending |
 | Gamification in DB from day one, UI in v2 | Track data now; don't surface rewards until volume justifies them | — Pending |
 | 2-verification publish threshold | 1 verification is too easy to abuse with GPS spoofing | — Pending |
 | Accessibility-focused users as primary segment | IBS/Crohn's, wheelchair users, and parents have the highest urgency and will contribute + share most organically | — Pending |

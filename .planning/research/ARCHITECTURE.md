@@ -408,7 +408,7 @@ This is the architecturally-derived order. Each level has hard dependencies on e
 
 ## 7. Scalability Considerations
 
-| Concern | At 50 locations (Eugene seed) | At 5K locations (10-city) | At 50K+ (national) |
+| Concern | At first promoted-region cluster | At 5K locations (multi-region) | At 50K+ (global) |
 |---|---|---|---|
 | Spatial search | GIST on geography is overkill but free | Still GIST; tune `LIMIT` | Add covering indexes; consider partitioning by region |
 | respect_signal_90d refresh | Full CONCURRENT refresh every 1h fine | Refresh every 6h, off-peak | Replace with `pg_ivm` or roll-forward aggregates |
@@ -439,7 +439,7 @@ These are invariants the whole system depends on; breaking any one is a security
 
 ## 9. Open Items For Phase-Specific Research
 
-- **Exact tuning values** for `max_accuracy_m`, `verify_radius_m`, `decay_half_life_days`, `confidence_floor`, `report_auto_suppress_threshold` — needs field data from Eugene seed.
+- **Exact tuning values** for `max_accuracy_m`, `verify_radius_m`, `decay_half_life_days`, `confidence_floor`, `report_auto_suppress_threshold` — needs field data from promoted-region seed campaigns.
 - **Play Integrity / App Attest** — required before public launch or before v1? (Recommend: before public launch; not before MVP testing.)
 - **Whether ratings should also have decay** — current SPEC focuses decay on verification freshness, but old ratings may also become stale.
 - **Photo submissions** — out of v1 SPEC, but if added, image moderation must live in an Edge Function before storage write.

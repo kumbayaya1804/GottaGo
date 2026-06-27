@@ -1,8 +1,29 @@
 # Gotta Go
 
-Gotta Go is a crowdsourced bathroom finder for moments when restroom access is urgent. The project focuses on fast discovery, verified location data, contributor privacy, and abuse-resistant moderation.
+Gotta Go is a crowdsourced bathroom finder for moments when restroom access is urgent. It is built around one idea: finding a bathroom should not depend on luck, embarrassment, or insider knowledge.
 
-The v1.0 MVP target is a Eugene, Oregon seed launch with 50+ GPS-verified bathroom locations, parent and accessibility filters, emergency modes, and a trust engine that prevents spam and unsafe data from becoming public.
+## Why This Exists
+
+I am building Gotta Go because public restroom access is treated like a minor inconvenience until someone urgently needs it. For people with bowel conditions, parents with infants, wheelchair users, delivery drivers, travelers, and anyone caught away from home, bad information can become a real loss of dignity.
+
+Bathrooms exist, but the useful details are scattered: which places allow walk-ins, which doors need codes, which restrooms have changing tables, which locations are accessible, which information is stale, and which places are safe to rely on in a hurry.
+
+Gotta Go is meant to turn that hidden local knowledge into community-verified infrastructure: visible, searchable, privacy-aware, and useful in the moment it matters.
+
+## What Gotta Go Does
+
+Gotta Go helps people find nearby bathrooms, search by city or address, filter for accessibility and family needs, use emergency modes, and contribute updated information when they are physically present.
+
+The v1.0 MVP target is a global proof of concept for crowdsourced bathroom access. The app should be available wherever users are, while local density grows through marketing, promotion, owned social channels, partnerships, and community contribution.
+
+## What Makes It Different
+
+- GPS-verified contributions instead of anonymous untrusted listings
+- Trust and moderation rules that protect public search quality
+- Parent and accessibility filters, including changing-table and wheelchair-accessible needs
+- Emergency modes designed for urgency rather than browsing
+- Access-code handling for signed-in users only
+- Privacy rules that avoid exposing contributor identity, precise movement, auth tokens, or moderation state
 
 ## Status
 

@@ -138,7 +138,7 @@ Route: `/(tabs)/index`
 │                                  │
 │        ( city-level view )       │
 │                                  │
-│          Eugene, OR              │
+│      Search a city or address     │
 │       [●]      [●]               │
 │            [●]        [●]        │
 │                                  │
@@ -151,7 +151,7 @@ Route: `/(tabs)/index`
 
 ← Search bar is ACTIVE/highlighted by default (no GPS center) ← ACTIVE
 ← Filter chip row hidden when GPS denied
-← Map opens at city-level (Eugene, OR default); no GPS-centered pin
+← Map opens to manual city/address search; no hardcoded default city; no GPS-centered pin
 ← FAB still present; no dead end — user browses via search
 
 ---

@@ -107,7 +107,7 @@ Changing Table and Accessible chips are visible to all users (not gated by famil
 
 1. **Welcome screen:** App name (large) + tagline "Find a bathroom when it matters most" + single 'Find a Bathroom' CTA button + below CTA: "By continuing, you agree to our [Terms of Service] and [Privacy Policy]." (tappable links). No carousel, no feature list.
 2. **GPS consent pre-prompt:** Full screen before OS dialog. Copy: "Gotta Go uses your location to find bathrooms nearby. We never share your exact location or store your GPS history." Button: 'Enable Location' → triggers OS permission dialog.
-3. **GPS denied fallback:** Map opens at city-level view (Eugene, OR default) with manual search bar active. No dead end.
+3. **GPS denied fallback:** Map opens to a manual city/address search state with no hardcoded default city. If a prior search exists, the map may use that last searched area. No dead end.
 4. **Map:** Main experience.
 
 **GPS consent capture:** Only after the OS permission dialog resolves to `granted` — never before. Sequence: user taps 'Enable Location' → OS permission dialog fires → if OS grants permission, THEN write `users.gps_consent = true` and `users.gps_consent_at = now()`. If the OS dialog is denied, `gps_consent` must remain `false`/unset. Writing consent before the OS result would record false consent, violating GDPR. The pre-prompt screen's button triggers the OS dialog only; it does not itself constitute consent.
