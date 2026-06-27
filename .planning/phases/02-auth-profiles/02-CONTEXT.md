@@ -42,7 +42,7 @@ All decisions below are LOCKED. Downstream agents (researcher, planner, executor
 | Decision | Value |
 |----------|-------|
 | Implementation | `supabase.auth.signInWithOAuth({ provider: 'google' })` + `expo-web-browser` to open the consent page |
-| Deep-link callback scheme | `gottago://auth/callback` — registered in `app.config.ts` scheme field |
+| Deep-link callback scheme | `gotta-go://auth/callback` — `app.config.ts` already declares `scheme: 'gotta-go'` (confirmed). Supabase redirect allow-list must include `gotta-go://auth/callback`. |
 | iOS | **No Google button on iOS.** Disabled Apple Sign-In button with explanation text: "Apple Sign-In coming soon — use email/password for now." |
 | Android | Google OAuth button is present and functional |
 
@@ -93,7 +93,8 @@ The `display_name` uniqueness constraint must be enforced at the **database leve
 | Decision | Value |
 |----------|-------|
 | Timing | **Immediate** — account is deleted on confirmation. No grace period. |
-| Contributed data | **Anonymized** — submissions and ratings remain (they are community data). `user_id` is set to `null`. User identity is removed; location data is preserved. |
+| Contributed data | **Anonymized** — submissions and ratings remain (community data). `user_id` / `submitter_id` is set to `null`. User identity removed; location data preserved. |
+| Child table strategy | **SET NULL migration** — `verification_events.user_id`, `trust_events.user_id`, `reports.user_id`, `failure_events.user_id` are currently `NOT NULL`. A Wave 0 migration alters all four to `NULL`-able with `ON DELETE SET NULL`. Without this migration the `delete_account` RPC cannot execute. |
 | Trigger | Settings → "Delete Account" → confirmation modal where user must type `DELETE` to confirm. |
 | RPC | `delete_account` RPC (server-side) handles anonymization + auth user deletion. Client never touches the `users` table directly for deletion. |
 
@@ -134,6 +135,20 @@ These exist from Phase 1 and must be extended, not replaced:
 - Display name editing UI (Settings screen is a stub in Phase 2; edit comes later)
 - Social sign-in providers beyond Google
 - Two-factor authentication
+
+---
+
+## 10. Research Amendments (2026-06-27)
+
+Findings from Phase 2 research that amend or extend prior decisions. All items below are LOCKED.
+
+| Finding | Impact |
+|---------|--------|
+| `display_name` uniqueness is **case-insensitive** | Use `lower(display_name)` unique index (or `citext`). "Admin" and "admin" are the same name. Migration required. |
+| `handle_new_user()` trigger **exists on live DB** but not in migrations | Wave 0 must add a migration capturing the trigger. Function body: `INSERT INTO public.users (id, email) VALUES (NEW.id, NEW.email)` — `display_name` is NOT set by the trigger, must be set via RPC/update after signup. |
+| `react-native-gesture-handler` and `expo-auth-session` **not installed** | Wave 0 task: `npx expo install react-native-gesture-handler expo-auth-session@55.0.17`. GestureHandlerRootView must wrap root layout. |
+| TDD structure: **`src/features/auth/`** pattern | Auth business logic (session management, form validation, RPC calls) lives in `src/features/auth/` and is covered at 100%. Screen files in `src/app/` remain thin wrappers excluded from coverage per existing jest.config.js rule. |
+| Password minimum length mismatch | `supabase/config.toml` sets `minimum_password_length = 6`; UX should show 8-char minimum. Wave 0 migration or config update needed to align to 8. |
 
 ---
 
