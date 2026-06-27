@@ -1,0 +1,22 @@
+{
+  "phase": "02",
+  "phase_name": "Auth & Profiles",
+  "areas_completed": ["Auth state architecture", "Google OAuth approach"],
+  "areas_remaining": ["GPS consent placement", "Sign-in UX details"],
+  "decisions": {
+    "auth_state_architecture": {
+      "session_provider": "React Context / SessionProvider in _layout.tsx",
+      "protected_routes": "useSegments + router.replace in root _layout.tsx",
+      "user_row_fetch": "Session only — users table row fetched lazily via TanStack Query",
+      "sign_out_triggers": "Settings button + onAuthStateChange SIGNED_OUT event",
+      "cold_start_ui": "Blank splash until session resolves (loading=true until first onAuthStateChange event)",
+      "email_confirmation": "Disabled — signUp() returns session immediately (no email confirmation required in v1)",
+      "unauthenticated_landing": "Map tab — users browse freely, prompted to sign in on protected actions"
+    },
+    "google_oauth": {
+      "implementation": "Supabase signInWithOAuth + expo-web-browser deep link",
+      "callback_scheme": "gottago://auth/callback",
+      "ios_apple_stub": "Disabled Apple button + explanation text ('Apple Sign-In coming soon — use email/password for now'). No Google button shown on iOS."
+    }
+  }
+}
