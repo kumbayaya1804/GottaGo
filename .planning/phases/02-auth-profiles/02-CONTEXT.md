@@ -94,7 +94,7 @@ The `display_name` uniqueness constraint must be enforced at the **database leve
 |----------|-------|
 | Timing | **Immediate** — account is deleted on confirmation. No grace period. |
 | Contributed data | **Anonymized** — submissions and ratings remain (community data). `user_id` / `submitter_id` is set to `null`. User identity removed; location data preserved. |
-| Child table strategy | **SET NULL migration** — `verification_events.user_id`, `trust_events.user_id`, `reports.user_id`, `failure_events.user_id` are currently `NOT NULL`. A Wave 0 migration alters all four to `NULL`-able with `ON DELETE SET NULL`. Without this migration the `delete_account` RPC cannot execute. |
+| Child table strategy | **SET NULL migration** — `verification_events.user_id`, `trust_events.user_id`, `reports.user_id`, `failure_events.user_id`, AND `availability_flags.reporter_id` (5 total) are currently `NOT NULL`. A Wave 0 migration alters all five to `NULL`-able with `ON DELETE SET NULL`. Without this migration the `delete_account` RPC cannot execute. |
 | Trigger | Settings → "Delete Account" → confirmation modal where user must type `DELETE` to confirm. |
 | RPC | `delete_account` RPC (server-side) handles anonymization + auth user deletion. Client never touches the `users` table directly for deletion. |
 
