@@ -16,6 +16,7 @@ files_modified:
   - app/src/features/auth/__tests__/validation.test.ts
   - app/src/features/auth/__tests__/redirect.test.ts
   - app/src/features/auth/__tests__/SessionProvider.test.tsx
+  - app/src/features/auth/__tests__/useSession.test.ts
   - app/src/features/auth/__tests__/displayName.test.ts
   - app/src/features/auth/__tests__/gpsConsent.test.ts
   - app/src/app/_layout.tsx
@@ -168,7 +169,7 @@ jest.setup.ts already mocks (from 02-01a): @rnmapbox/maps, expo-location, react-
     src/app screens in Tasks 6–7 stay thin.
   </action>
   <acceptance_criteria>
-    - `cd app && npm test -- features/auth/validation.test.ts features/auth/redirect.test.ts features/auth/SessionProvider.test.tsx features/auth/displayName.test.ts features/auth/gpsConsent.test.ts` exits 0.
+    - `cd app && npm test -- features/auth/validation.test.ts features/auth/redirect.test.ts features/auth/SessionProvider.test.tsx features/auth/useSession.test.ts features/auth/displayName.test.ts features/auth/gpsConsent.test.ts` exits 0.
     - `cd app && npm run test:coverage` shows 100% lines/branches/functions/statements for all six new `src/features/auth/*` files.
     - `grep -n 'export function nextRoute' app/src/features/auth/redirect.ts` and `grep -n 'export function SessionProvider\|export const SessionProvider\|export function useSession' app/src/features/auth/SessionProvider.tsx app/src/features/auth/useSession.ts` return matches.
     - A test asserts requestGpsConsent performs NO rpc call when status is 'denied' (T-02-04 proof).
@@ -239,10 +240,11 @@ jest.setup.ts already mocks (from 02-01a): @rnmapbox/maps, expo-location, react-
   <acceptance_criteria>
     - `cd app && npm test -- app/(auth) app/gps-consent app/reset-password` exits 0 (render, on-submit validation, error-state, and consent-write-condition tests pass).
     - `grep -n 'Invalid email or password.' app/src/app/(auth)/sign-in.tsx` matches and NO branch renders a more specific auth-failure reason (T-02-01).
+    - A sign-in test asserts that every `supabase.auth.signInWithPassword` error branch renders exactly "Invalid email or password." and that the network-failure branch renders the separate copy "Couldn't sign in. Check your connection and try again." — no branch leaks a more specific reason (test must cover at least: wrong password, unregistered email, and generic server error paths).
     - `grep -n 'check_display_name_available\|checkDisplayNameAvailable' app/src/app/(auth)/sign-up.tsx` and `grep -n 'options:.*data\|display_name' app/src/app/(auth)/sign-up.tsx` match.
     - `grep -n 'requestGpsConsent' app/src/app/gps-consent.tsx` matches; a gps-consent test asserts navigation proceeds on BOTH granted and denied with NO consent write on denied/skip.
     - `grep -n 'resetPasswordForEmail' app/src/app/(auth)/forgot-password.tsx` and `grep -n 'updateUser' app/src/app/reset-password.tsx` match.
-    - `grep -rn '#[0-9A-Fa-f]\{6\}' app/src/app/(auth)/sign-in.tsx app/src/app/(auth)/sign-up.tsx app/src/app/gps-consent.tsx | grep -v '^\s*//'` returns nothing (token-only styling).
+    - `grep -rn '#[0-9A-Fa-f]\{6\}' app/src/app/(auth)/sign-in.tsx app/src/app/(auth)/sign-up.tsx app/src/app/(auth)/forgot-password.tsx app/src/app/reset-password.tsx app/src/app/gps-consent.tsx | grep -v '^\s*//'` returns nothing (token-only styling).
   </acceptance_criteria>
 </task>
 

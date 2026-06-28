@@ -111,7 +111,7 @@ These exist from Phase 1 and must be extended, not replaced:
 | `app/src/app/(auth)/sign-in.tsx` | Stub — `<Text>Sign In (Phase 2)</Text>` | Replace with full form |
 | `app/src/app/(auth)/sign-up.tsx` | Stub — `<Text>Sign Up (Phase 2)</Text>` | Replace with full form |
 | `app/src/app/(tabs)/index.tsx` | Map stub | Unauthenticated access must work (no redirect) |
-| `app/src/app/(tabs)/profile.tsx` | Profile stub | Protected — redirect to sign-in if no session |
+| `app/src/app/(tabs)/profile.tsx` | Profile stub | Public — conditional rendering (unauthenticated sees Sign In / Create Account CTA; no router.replace redirect) |
 
 ---
 
