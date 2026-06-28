@@ -94,7 +94,9 @@ Antigravity operates in two review modes:
 
 ## Output Format
 
-Return reviews as:
+After completing every review, write the full verdict to `.claude/antigravity-review-latest.md`. This is mandatory — do not skip it, even when the verdict is APPROVE. Claude and the review gate depend on this file being current.
+
+Return reviews in this format:
 
 ```md
 ## Antigravity Review - [Change Set / Branch Name]

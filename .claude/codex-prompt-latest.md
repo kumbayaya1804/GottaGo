@@ -192,4 +192,6 @@ Severity definitions (from docs/review-severity.md):
 - REQUEST CHANGES: correctness issue or missing guard — fix before execution
 - NOTE: improvement suggestion, does not block execution
 APPROVE requires zero BLOCKs and zero REQUEST CHANGES.
+
+After completing the review, write the full verdict to `.claude/codex-review-latest.md`.
 </output_format>

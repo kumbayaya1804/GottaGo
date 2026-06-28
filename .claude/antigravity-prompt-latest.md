@@ -193,6 +193,8 @@ Flag any flow that ends in a dead end, loss of data, or silent failure.
 Antigravity — [date]
 ```
 
+After completing the review, write the full verdict to `.claude/antigravity-review-latest.md`.
+
 Severity definitions (from `docs/review-severity.md`):
 - **BLOCK**: architectural flaw, data loss risk, security hole, or GDPR violation that must be fixed before ANY execution begins.
 - **REQUEST CHANGES**: correctness issue, missing guard, or insufficient test coverage — fix before execution.

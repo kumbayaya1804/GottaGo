@@ -144,6 +144,8 @@ When no codebase exists yet, Codex should create contracts and scaffolding that 
 
 ## Review Output
 
+After completing every review, write the full verdict to `.claude/codex-review-latest.md`. This is mandatory — do not skip it, even when the verdict is APPROVE. Claude and the review gate depend on this file being current.
+
 Use this format:
 
 ```md
