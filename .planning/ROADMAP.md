@@ -88,11 +88,11 @@ Plans:
   9. GPS consent prompt captures `users.gps_consent = true` and `users.gps_consent_at = now()` before any GPS read
   10. Settings screen stub exists with: sign out, privacy policy link, ToS link, account deletion entry point, location permission explanation with OS settings deep link
   11. All screens pass Phase 1.5 component acceptance checklist before Codex review
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Supabase auth wiring (SessionProvider, onAuthStateChange), sign-in/sign-up screens, protected route layout, GPS consent prompt
-- [ ] 02-02: Google OAuth deep link flow (Android-only gate), profile auto-create trigger verification, Apple Sign-In stub, account deletion RPC, Settings screen stub, onboarding privacy/ToS links
+- [ ] 02-01-PLAN.md — Wave 0 setup (packages, babel, config, profile trigger, display-name unique index, check_display_name_available + set_gps_consent RPCs), token files, SessionProvider + protected-route guard, Welcome/Sign-In/Sign-Up/GPS-Consent/Password-Reset screens (email/password path)
+- [ ] 02-02-PLAN.md — Nullable-FK migration + update_profile/delete_account RPCs, Google OAuth (Android-only) + Apple stub (iOS) + deep-link callback, Profile/Settings stub, Delete + Auth-Required modals, profile-trigger verification, onboarding privacy/ToS links
 
 ---
 
