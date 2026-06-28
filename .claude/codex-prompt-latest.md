@@ -2,7 +2,7 @@
 Project: Gotta Go — crowdsourced bathroom finder
 Stack: Expo SDK 55 / React Native 0.83.6 / React 19 / Expo Router v4 / Supabase + PostGIS / Mapbox
 Review type: Pre-execution PLAN review (Phase 2: Auth & Profiles). No application code has been written yet.
-Round: 1 (first Codex review of Phase 2 plans)
+Round: 2 (re-review of the 9 RC findings from Round 1)
 </context>
 
 <role>
@@ -18,170 +18,119 @@ Read your standing instructions from CODEX.md before reviewing.
 Do not rely solely on this prompt. Read each file directly:
 
 ```
-.planning/phases/02-auth-profiles/02-01a-PLAN.md
 .planning/phases/02-auth-profiles/02-01b-PLAN.md
 .planning/phases/02-auth-profiles/02-02-PLAN.md
-.planning/phases/02-auth-profiles/02-CONTEXT.md
-.planning/phases/02-auth-profiles/02-RESEARCH.md
-.planning/phases/02-auth-profiles/02-VALIDATION.md
 docs/review-severity.md
 CODEX.md
-CLAUDE.md (TDD Guard section, scope table)
 ```
 
-## Step 2 — Verify each item in the checklist below
+## Step 2 — Verify each RC finding from Round 1 is resolved
 
-Work through the list item by item. For each item, state PASS, FAIL, or NOT APPLICABLE with evidence.
+Round 1 returned REQUEST CHANGES with 9 findings. Verify each one against the current files on disk.
+For each finding, state RESOLVED, PARTIALLY RESOLVED, or STILL FAILING with one line of evidence.
 
-### 2.1 TDD Guard Compliance
+### RC-1 — 02-01b: `useSession.test.ts` missing from `files_modified`
 
-The project uses TDD Guard (enforced via pre-commit hook). Rules from CLAUDE.md:
+Check `02-01b-PLAN.md` frontmatter:
+- [ ] `app/src/features/auth/__tests__/useSession.test.ts` is present in `files_modified`
 
-- Every new `src/features/**` file must have a paired test file BEFORE implementation begins (TDD order: test → fail → implement → pass).
-- Coverage threshold: 100% lines/branches/functions/statements for `src/features/**` and `src/lib/**`.
-- `src/app/**` screen files are TDD-tested but EXCLUDED from coverage collection (thin wrappers).
-- jest@29.7.0 is PINNED — do not upgrade.
-- `supabase/migrations/**` is OFF for TDD Guard (raw SQL, reviewed by architecture).
+Check Task 5 acceptance_criteria test command:
+- [ ] `features/auth/useSession.test.ts` appears in the `npm test --` command
 
-Check in 02-01b-PLAN.md:
-- [ ] All 6 `src/features/auth/` source files have corresponding `__tests__/` files in `files_modified`
-- [ ] Task 5 is marked `tdd="true"` and specifies test-first RED->GREEN->REFACTOR
+### RC-2 — 02-02: `profileStats.test.ts` missing from `files_modified`
 
-Check in 02-02-PLAN.md:
-- [ ] All `src/features/auth/` and `src/features/profile/` source files have corresponding test files
-- [ ] Tasks 3 and 6 are marked `tdd="true"`
+Check `02-02-PLAN.md` frontmatter:
+- [ ] `app/src/features/profile/__tests__/profileStats.test.ts` is present in `files_modified`
 
-Check 02-01a-PLAN.md:
-- [ ] Token files (constants) are correctly excluded from TDD requirement (non-behavioral)
-- [ ] Migrations correctly excluded from TDD requirement
+Also verify the Task 3 acceptance_criteria test command already includes `features/profile/profileStats.test.ts` (it did in Round 1 — confirm it still does).
 
-### 2.2 jest@29.7.0 Pin Protection
+### RC-3 — 02-01b: sign-in test does not assert all credential-failure branches
 
-Check 02-01a Task 2 (package install):
-- [ ] Task explicitly says "do not let jest be upgraded from the PINNED 29.7.0"
-- [ ] Acceptance criteria includes a step that verifies jest version after the install
+Check Task 7 acceptance_criteria in `02-01b-PLAN.md`:
+- [ ] There is an explicit test requirement (not just a grep) asserting every `supabase.auth.signInWithPassword` error branch renders exactly "Invalid email or password."
+- [ ] The requirement calls out at least: wrong password, unregistered email, and generic server error paths
+- [ ] The network-failure branch copy is specified separately
 
-### 2.3 Security: No PII in Logs
+### RC-4 — 02-02: DeleteAccountModal test missing `"delete"` and `"Delete"` regressions
 
-Check all three plans for any task that handles email, display_name, or GPS coordinates:
-- [ ] No task instructs logging `email` or `display_name` to `console.log`
-- [ ] No task instructs logging GPS coordinates
-- [ ] The section 20 Component Acceptance Checklist Security section (cited in 02-01b and 02-02) includes "No PII ... written to console.log" — verify it is present and covers email/display_name
+Check Task 5 acceptance_criteria in `02-02-PLAN.md`:
+- [ ] The test requirement explicitly requires empty input, `"delete"`, and `"Delete"` to keep the button disabled
+- [ ] Only exact `"DELETE"` enables the button
 
-### 2.4 Security: Generic Auth Error Copy
+### RC-5 — 02-02: OAuth test only requires `cancel`, not `dismiss`
 
-Check 02-01b Task 7 (sign-in screen):
-- [ ] Error copy on bad credentials is exactly "Invalid email or password." — no "user not found" or "incorrect password"
-- [ ] A test asserts this exact string appears for ALL credential failures
-- [ ] Network failure copy is separate ("Couldn't sign in. Check your connection and try again.")
+Check Task 3 acceptance_criteria in `02-02-PLAN.md`:
+- [ ] The test requirement asserts both `'cancel'` AND `'dismiss'` results return null without throwing
 
-### 2.5 Security: No User Enumeration via Display Name Check
+### RC-6 — 02-01b: raw-hex grep omits `forgot-password.tsx` and `reset-password.tsx`
 
-Check 02-01b Task 7 (sign-up screen):
-- [ ] `checkDisplayNameAvailable` is called before `supabase.auth.signUp` (pre-check)
-- [ ] The error message "That display name is already taken." does not reveal whether the EMAIL is taken
-- [ ] A 23505 unique-violation backstop is also handled (server-side race safety)
+Check Task 7 acceptance_criteria in `02-01b-PLAN.md`:
+- [ ] `app/src/app/(auth)/forgot-password.tsx` is included in the raw-hex grep
+- [ ] `app/src/app/reset-password.tsx` is included in the raw-hex grep
 
-### 2.6 Security: Account Deletion Type-DELETE Gate
+### RC-7 — 02-02: raw-hex grep in Task 4 omits `sign-up.tsx`
 
-Check 02-02 Task 5 (Delete Account modal):
-- [ ] The "Delete Account" button is DISABLED until input field contains exactly "DELETE" (case-sensitive)
-- [ ] A test asserts the button is disabled when input is "delete" or "Delete" (not just when empty)
-- [ ] `swipe-to-dismiss` is explicitly forbidden for this modal (accidental deletion risk)
+Check Task 4 acceptance_criteria in `02-02-PLAN.md`:
+- [ ] `app/src/app/(auth)/sign-up.tsx` is included in the Task 4 raw-hex grep
 
-### 2.7 Security: OAuth Redirect Allow-List
+### RC-8 — 02-02: 02-02 screen coverage not complete across Tasks 4 and 5
 
-Check 02-02 Task 2 (human-verify checkpoint):
-- [ ] The checkpoint requires adding `gotta-go://auth/callback` to the Supabase redirect allow-list
-- [ ] The checkpoint does NOT allow proceeding until this is confirmed
-- [ ] The plan uses `gotta-go://auth/callback` (not `gottago://`) throughout
+Verify that between Task 4 and Task 5 acceptance_criteria, every modified screen/component file in `02-02-PLAN.md` is covered by at least one raw-hex grep:
+- [ ] `app/src/app/(auth)/sign-in.tsx` — Task 4
+- [ ] `app/src/app/(auth)/sign-up.tsx` — Task 4 (this was the missing one)
+- [ ] `app/src/app/auth/callback.tsx` — Task 4
+- [ ] `app/src/app/(tabs)/profile.tsx` — Task 5
+- [ ] `app/src/app/(components)/DeleteAccountModal.tsx` — Task 5
+- [ ] `app/src/app/(components)/AuthRequiredModal.tsx` — Task 5
 
-### 2.8 Security: Platform.OS Gate for Google OAuth
+### RC-9 — 02-02: `02-01-SUMMARY.md` not in any task-level `read_first`
 
-Check 02-02 Task 4 (sign-in screen OAuth buttons):
-- [ ] Google button is behind `Platform.OS === 'android'` check
-- [ ] iOS renders disabled Apple stub ONLY — no Google button
-- [ ] A test asserts: on Android, Google button renders + no Apple stub; on iOS, Apple stub renders + no Google button
+Check `02-02-PLAN.md`:
+- [ ] A top-level `<read_first>` section (or equivalent) appears before `<tasks>` requiring the executor to read `.planning/phases/02-auth-profiles/02-01-SUMMARY.md` before any task starts
 
-### 2.9 Security: PKCE OAuth Flow
+## Step 3 — Confirm no regressions introduced
 
-Check 02-02 Task 3 (oauth.ts module):
-- [ ] The OAuth flow uses `skipBrowserRedirect: true` + `WebBrowser.openAuthSessionAsync`
-- [ ] The callback parses `?code=` (PKCE) not implicit tokens
-- [ ] `supabase.auth.exchangeCodeForSession(code)` is called with the extracted code
-- [ ] A test asserts the `cancel`/`dismiss` result returns `null` without throwing
-
-### 2.10 GPS Consent Test Assertion
-
-Check 02-01b Task 5 (gpsConsent.ts):
-- [ ] A test explicitly asserts NO `rpc('set_gps_consent')` call when the OS status is `denied`
-- [ ] A test explicitly asserts NO rpc call when the user taps "Skip for now"
-
-### 2.11 No Raw Hex in Screen StyleSheets
-
-Check 02-01b Tasks 6 and 7 and 02-02 Tasks 4 and 5:
-- [ ] Each task's acceptance_criteria includes a grep command checking for no raw hex (`#[0-9A-Fa-f]{6}`) in the screen files
-- [ ] Token files (Colors.ts) ARE expected to contain hex values — make sure the grep excludes them
-
-### 2.12 LEGAL_URLS Placeholder Handling
-
-Check 02-01a Task 3 (legal.ts constant file):
-- [ ] The plan explicitly handles the case where Termly URLs are not yet known (placeholder constants)
-- [ ] The SUMMARY is required to note the placeholder status so it is not forgotten before the review gate
-
-### 2.13 Password Length Alignment
-
-Check 02-01a Task 2 and 02-01b Task 5:
-- [ ] `supabase/config.toml` minimum_password_length is changed from 6 to 8 (02-01a Task 2)
-- [ ] Zod `password` schema in validation.ts enforces minimum 8 characters (02-01b Task 5)
-- [ ] These two values are aligned
-
-### 2.14 Validation Timing
-
-Check 02-01b Task 7 (all auth forms):
-- [ ] Forms validate on submit only — no inline/blur validation
-- [ ] This is confirmed in the CONTEXT.md and the plan does not contradict it
-
-## Step 3 — Assess overall plan quality
-
-1. Are all acceptance_criteria runnable automated commands (no manual-only checks listed as automated)?
-2. Is the dependency chain between plans correct (02-01a → 02-01b → 02-02)?
-3. Does 02-02 correctly reference `02-01-SUMMARY.md` (produced at end of 02-01b) as a read_first dependency?
-4. Is there any scope in the plans that violates CLAUDE.md security constraints ("No raw SQL except migrations or safely parameterized server-only RPCs", "No PII in logs", "GPS in PostGIS geometry/geography columns only")?
+The fixes were narrow plan-doc edits. Confirm:
+1. The `files_modified` frontmatter in both plans is internally consistent — every source file has a paired test file and vice versa (no orphans introduced by the additions)
+2. The Task 3 acceptance_criteria test command in `02-02-PLAN.md` still lists all four test files (oauth, updateProfile, deleteAccount, profileStats)
+3. No other acceptance_criteria lines were accidentally changed
 
 </instructions>
 
-<prior_reviews>
-No prior Codex reviews for Phase 2. This is Round 1.
+<round_1_verdict>
+## CODEX VERDICT: REQUEST CHANGES (Round 1)
 
-GSD plan checker (revision 1): VERIFICATION PASSED — zero blockers, four warnings (all addressed before this review request):
-- `availability_flags.reporter_id` table name corrected throughout
-- 02-01 split into 02-01a (13 files, 4 tasks) and 02-01b (22 files, 3 tasks)
-- All `gottago://` -> `gotta-go://` corrections applied
-- VALIDATION.md Wave 0 test file names corrected
-</prior_reviews>
+9 findings, all REQUEST CHANGES severity. Antigravity returned APPROVE in Round 1 with 2 NOTEs (both non-blocking).
 
-<verification_focus>
-This is a pre-execution plan review. No runnable code exists yet. Verification steps should focus on:
-1. Reading plan files from disk and cross-referencing with CONTEXT.md locked decisions
-2. Checking that acceptance_criteria commands would actually verify what they claim
-3. Verifying the test assertions described in the plans would catch the security issues they're supposed to mitigate
-4. Checking for internal consistency between the three plans (interfaces match, depends_on chain is correct)
-</verification_focus>
+The 9 RC findings and their stated fixes (applied between rounds):
+
+1. `02-01b files_modified` missing `useSession.test.ts` → added to frontmatter + Task 5 test command
+2. `02-02 files_modified` missing `profileStats.test.ts` → added to frontmatter
+3. `02-01b Task 7` sign-in grep insufficient → explicit branch-covering test requirement added
+4. `02-02 Task 5` DELETE gate missing case-sensitivity regressions → added `"delete"` + `"Delete"` cases
+5. `02-02 Task 3` OAuth test only required `cancel` → added `dismiss` requirement
+6. `02-01b Task 7` raw-hex grep missing `forgot-password.tsx` + `reset-password.tsx` → added both
+7. `02-02 Task 4` raw-hex grep missing `sign-up.tsx` → added
+8. `02-02` overall screen coverage incomplete after Task 4 fix — verify all 6 screen files now covered
+9. `02-02` no task-level `read_first` for `02-01-SUMMARY.md` → top-level `<read_first>` block added before `<tasks>`
+
+Codex - June 28, 2026
+</round_1_verdict>
 
 <output_format>
 ## CODEX VERDICT: [APPROVE / REQUEST CHANGES / BLOCK]
 
-### Checklist Results
-[For each item in Step 2, state PASS / FAIL / NOT APPLICABLE with one line of evidence]
+### RC Finding Resolution
+[For each of the 9 RC findings, state RESOLVED / PARTIALLY RESOLVED / STILL FAILING with one line of evidence]
 
-### Findings
-[For each FAIL:]
-**[SEVERITY: BLOCK | REQUEST CHANGES | NOTE]** `file:line` — [description]
-[Specific fix required]
+### Regression Check
+[PASS or FAIL for each of the 3 regression checks in Step 3]
+
+### New Findings (if any)
+[Any new BLOCK or REQUEST CHANGES introduced by the edits — none expected]
 
 ### Summary
-[2-3 sentences on overall plan quality and readiness]
+[1-2 sentences]
 
 ### Sign-off
 Codex — [date]
