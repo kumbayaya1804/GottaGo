@@ -277,9 +277,9 @@ create unique index users_display_name_lower_uniq on public.users (lower(display
 | `verification_events.user_id` | :155 | `uuid not null references users(id)` |
 | `reports.user_id` | :226 | `uuid not null references users(id)` |
 | `failure_events.user_id` | :262 | `uuid not null references users(id)` |
-| `flags.reporter_id` | :294 | `uuid not null references users(id)` (also references users — confirm deletion handling) |
+| `availability_flags.reporter_id` | :294 | `uuid not null references users(id)` (also references users — confirm deletion handling) |
 
-CONTEXT §6 names only the first six; `flags.reporter_id` (:294) is a 7th `users(id)` ref the planner must confirm with the deletion decision (RESEARCH Open Q2 / Assumption A6). NULLs are distinct in Postgres unique indexes, so `ratings.unique(user_id, location_id)` stays valid after nulling.
+CONTEXT §6 names all seven; `availability_flags.reporter_id` (:294) is the 7th `users(id)` ref included in the SET NULL migration (RESEARCH Open Q2 / Assumption A6). NULLs are distinct in Postgres unique indexes, so `ratings.unique(user_id, location_id)` stays valid after nulling.
 
 **`handle_new_user` trigger** (CONTEXT §10 — function body confirmed against live DB): `INSERT INTO public.users (id, email) VALUES (NEW.id, NEW.email)` — does **not** set `display_name`. Therefore `display_name` must be set by a post-signup RPC/update (the trigger reading `raw_user_meta_data->>'display_name'` is the RESEARCH *alternative*, but CONTEXT §10 locks the id+email-only body). Capture the existing live trigger in a migration for reproducibility.
 

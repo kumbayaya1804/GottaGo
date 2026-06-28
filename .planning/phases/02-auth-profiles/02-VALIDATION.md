@@ -56,11 +56,19 @@ created: 2026-06-27
 
 ## Wave 0 Requirements
 
-- [ ] `app/src/features/auth/__tests__/session.test.ts` — stubs for SessionProvider + protected route tests
-- [ ] `app/src/features/auth/__tests__/forms.test.ts` — stubs for sign-in, sign-up, password reset validation
-- [ ] `app/src/features/auth/__tests__/gpsConsent.test.ts` — stub for GPS consent write logic
-- [ ] `app/src/features/auth/__tests__/deleteAccount.test.ts` — stub for delete_account RPC anonymization
-- [ ] `npx expo install react-native-gesture-handler expo-auth-session@55.0.17` — missing packages
+Created via TDD in 02-01b (Tasks 5–7) and 02-02 (Tasks 3, 6):
+
+- [ ] `app/src/features/auth/__tests__/SessionProvider.test.tsx` — SessionProvider + protected route tests
+- [ ] `app/src/features/auth/__tests__/validation.test.ts` — Zod schemas + sign-in/sign-up validation error copy
+- [ ] `app/src/features/auth/__tests__/redirect.test.ts` — nextRoute guard logic
+- [ ] `app/src/features/auth/__tests__/displayName.test.ts` — check_display_name_available + 23505 mapping
+- [ ] `app/src/features/auth/__tests__/gpsConsent.test.ts` — GPS consent write logic (NO rpc on denied)
+- [ ] `app/src/features/auth/__tests__/oauth.test.ts` — Google OAuth signInWithGoogle + handleAuthCallback
+- [ ] `app/src/features/profile/__tests__/deleteAccount.test.ts` — delete_account RPC anonymization (7 tables)
+- [ ] `app/src/features/profile/__tests__/updateProfile.test.ts` — update_profile RPC + 23505 mapping
+- [ ] `app/src/features/profile/__tests__/profileTrigger.test.ts` — trigger provisioning contract
+- [ ] `npx expo install react-native-gesture-handler` — 02-01a Task 2
+- [ ] `cd app && npx expo install expo-auth-session` — 02-02 Task 2 (after package legitimacy checkpoint)
 
 ---
 

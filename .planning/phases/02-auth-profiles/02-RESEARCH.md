@@ -17,14 +17,14 @@
 5. **Cold-start UI** = blank splash (`loading=true`) until first `onAuthStateChange` event fires — no premature redirect.
 6. **Email confirmation** = DISABLED in v1 (`signUp()` returns a session immediately).
 7. **Unauthenticated landing** = Map tab; sign-in prompt appears only on protected action.
-8. **Google OAuth** = `supabase.auth.signInWithOAuth({ provider: 'google' })` + `expo-web-browser`; deep-link callback `gottago://auth/callback`; **Android-only**.
+8. **Google OAuth** = `supabase.auth.signInWithOAuth({ provider: 'google' })` + `expo-web-browser`; deep-link callback `gotta-go://auth/callback`; **Android-only**.
 9. **iOS** = no Google button; disabled Apple Sign-In stub + "coming soon" copy.
 10. **GPS consent** = dedicated screen after sign-in/sign-up, before Map tab, first launch only; explanation first, then OS dialog; writes `users.gps_consent` + `users.gps_consent_at` ONLY on `granted`.
 11. **Welcome screen** = logo + tagline + two buttons "Sign In" / "Create Account" (UI-SPEC authoritative over wireframe).
 12. **Sign-up fields** = email + password + display name on one form.
 13. **Display name** = unique, 3–20 chars, letters/numbers/spaces/hyphens/underscores; DB-level unique index + API-layer friendly error.
 14. **Account deletion** = immediate, no grace period; submissions & ratings anonymized (`user_id = null`); type-`DELETE`-to-confirm; `delete_account` RPC (client never touches `users` directly).
-15. **Password reset** = magic link → `gottago://auth/callback` → in-app Reset Password screen.
+15. **Password reset** = magic link → `gotta-go://auth/callback` → in-app Reset Password screen.
 16. **Form validation** = on submit only (no inline/blur validation).
 17. **TOS/Privacy copy** = below Create Account button, tappable links, no checkbox.
 18. **Supabase client** (`app/src/lib/supabase.ts`) = already configured; NO changes needed.
@@ -484,24 +484,19 @@ export default function RootLayout() {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does a profile-creation trigger already exist on the live project?** (HIGH PRIORITY)
-   - What we know: no trigger in migrations; `users` has no INSERT policy; provisioning must be elevated.
-   - What's unclear: whether one was added via the Supabase dashboard (outside migrations).
-   - Recommendation: verify on the live project before planning 02-02 (Supabase MCP `list` triggers / `select … from pg_trigger`/dashboard). Plan a `handle_new_user` migration if absent; document + align if present. Either way, capture it as a migration so it's reproducible.
+1. **Does a profile-creation trigger already exist on the live project?** — RESOLVED: `handle_new_user()` trigger confirmed live via Supabase MCP (`on_auth_user_created` → inserts id+email only, NOT display_name). Wave 0 migration in 02-01a captures it for reproducibility. See CONTEXT §10.
 
-2. **Deletion handling for verification_events / trust_events / reports / failure_events.**
-   - CONTEXT only covers submissions + ratings. These four are `NOT NULL` RESTRICT refs that will block deletion.
-   - Recommendation: user decides anonymize-to-null vs reassign-to-sentinel vs delete, per table, before writing the RPC. (GDPR leans anonymize/delete.)
+2. **Deletion handling for verification_events / trust_events / reports / failure_events.** — RESOLVED: SET NULL migration for all 5 child tables + submissions + ratings = 7 FK columns total. `availability_flags.reporter_id` confirmed as 7th. See CONTEXT §6.
 
-3. **Deep-link scheme: `gotta-go` (current config) vs `gottago` (CONTEXT)?** Pick one; update the losing document; add to Supabase redirect allow-list.
+3. **Deep-link scheme: `gotta-go` (current config) vs `gottago` (CONTEXT)?** — RESOLVED: `gotta-go://auth/callback` is authoritative (from `app.config.ts:10`). CONTEXT §4 has been corrected. All plans use `gotta-go://`.
 
-4. **Termly Privacy Policy + ToS URLs** — exact URLs needed for onboarding + Settings links.
+4. **Termly Privacy Policy + ToS URLs** — RESOLVED (deferred): placeholder constants in `app/src/constants/legal.ts`; user supplies live URLs before `/review-gate`. See SUMMARY note in 02-01a.
 
-5. **display_name case sensitivity** for the unique index (recommend case-insensitive).
+5. **display_name case sensitivity** for the unique index — RESOLVED: case-insensitive `lower(display_name)` unique index. See CONTEXT §10.
 
-6. **Should `jest.config.js` `!src/app/**` exclusion change** now that real screens land here, or is the "logic in covered modules + thin screens" convention the standard going forward? (Recommend the latter; document it.)
+6. **Should `jest.config.js` `!src/app/**` exclusion change?** — RESOLVED: convention confirmed and locked. Logic in covered `src/features/**` modules (100%), thin screens in `src/app/**` excluded from coverage collection. Documented in jest.config.js comment.
 
 ---
 

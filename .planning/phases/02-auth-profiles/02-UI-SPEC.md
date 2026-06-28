@@ -296,7 +296,7 @@ None on the Welcome Screen itself. Cold-start blank splash is handled by `Sessio
 |---------|----------|
 | Tap "Sign In" button | Submit form; show loading state; handle success/error |
 | Tap "Forgot password?" | Navigate to password reset flow (email entry screen) |
-| Tap "Continue with Google" (Android only) | `supabase.auth.signInWithOAuth({ provider: 'google' })` + `expo-web-browser` open; deep link returns via `gottago://auth/callback` |
+| Tap "Continue with Google" (Android only) | `supabase.auth.signInWithOAuth({ provider: 'google' })` + `expo-web-browser` open; deep link returns via `gotta-go://auth/callback` |
 | Tap "Create account" link | Navigate to `/(auth)/sign-up` |
 | Already signed in | `useSegments` redirects away from `/(auth)/sign-in` to `/(tabs)/index` immediately |
 
@@ -777,7 +777,7 @@ Auth screens `/(auth)/sign-in` and `/(auth)/sign-up` redirect to `/(tabs)/index`
 | Error display | Inline below the relevant field; `accessibilityLiveRegion="assertive"` on error container |
 | Password visibility toggle | Eye icon inside Password field; toggles `secureTextEntry` prop |
 | "Forgot password?" | Navigates to password reset email entry screen (in-app, not browser) |
-| Deep link callback | `gottago://auth/callback` — registered in `app.config.ts` scheme; handled in `_layout.tsx` or auth group layout |
+| Deep link callback | `gotta-go://auth/callback` — registered in `app.config.ts` scheme; handled in `_layout.tsx` or auth group layout |
 | GPS Consent OS dialog | Triggered by tapping "Enable Location" button; consent written only on granted resolution |
 | "Skip for now" | Sets no state; navigates to Map tab; map opens in ERR-01 manual search mode |
 | Account deletion | Two-step: tap row → modal → type "DELETE" → tap Destructive button → RPC → session revocation |

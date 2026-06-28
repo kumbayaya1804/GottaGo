@@ -70,7 +70,7 @@ Apple OAuth is a stub only (no Apple Developer account). Google OAuth is Android
 | Protected-action entry point | Sign-in screen first (not a choice hub). "Don't have an account? Create one" link at bottom. |
 | Sign-up fields | Email + password + display name (all three on one form) |
 | Auth error copy | Generic: "Invalid email or password." — no user enumeration |
-| Password reset | User taps "Forgot password?", enters email, receives magic link. Link uses `gottago://auth/callback` deep link to return to an in-app Reset Password screen. |
+| Password reset | User taps "Forgot password?", enters email, receives magic link. Link uses `gotta-go://auth/callback` deep link to return to an in-app Reset Password screen. |
 | Form validation timing | On submit only — no inline/blur validation errors while typing |
 | TOS/Privacy copy | Below "Create Account" button: "By creating an account you agree to our [Terms of Service] and [Privacy Policy]." Tappable links, no checkbox required. |
 
