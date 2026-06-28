@@ -28,3 +28,13 @@ jest.mock('react-native-mmkv', () => {
     })),
   };
 });
+
+jest.mock('expo-web-browser', () => ({
+  maybeCompleteAuthSession: jest.fn(),
+  openAuthSessionAsync: jest.fn(),
+}));
+
+jest.mock('expo-router', () => ({
+  useSegments: jest.fn(() => []),
+  useRouter: jest.fn(() => ({ replace: jest.fn() })),
+}));
