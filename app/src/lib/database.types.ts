@@ -41,7 +41,7 @@ export type Database = {
           expires_at: string
           id: string
           location_id: string
-          reporter_id: string
+          reporter_id: string | null
           type: string
         }
         Insert: {
@@ -49,7 +49,7 @@ export type Database = {
           expires_at?: string
           id?: string
           location_id: string
-          reporter_id: string
+          reporter_id?: string | null
           type: string
         }
         Update: {
@@ -57,7 +57,7 @@ export type Database = {
           expires_at?: string
           id?: string
           location_id?: string
-          reporter_id?: string
+          reporter_id?: string | null
           type?: string
         }
         Relationships: [
@@ -112,21 +112,21 @@ export type Database = {
           location_id: string
           timestamp: string | null
           type: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           id?: string
           location_id: string
           timestamp?: string | null
           type: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           id?: string
           location_id?: string
           timestamp?: string | null
           type?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -233,7 +233,7 @@ export type Database = {
           location_id: string
           review_text: string | null
           updated_at: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           accessibility?: number | null
@@ -244,7 +244,7 @@ export type Database = {
           location_id: string
           review_text?: string | null
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           accessibility?: number | null
@@ -255,7 +255,7 @@ export type Database = {
           location_id?: string
           review_text?: string | null
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -283,7 +283,7 @@ export type Database = {
           location_id: string
           report_type: string
           trust_weight: number
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -293,7 +293,7 @@ export type Database = {
           location_id: string
           report_type: string
           trust_weight?: number
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -303,7 +303,7 @@ export type Database = {
           location_id?: string
           report_type?: string
           trust_weight?: number
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -362,7 +362,7 @@ export type Database = {
           id: string
           location_id: string | null
           status: string
-          submitter_id: string
+          submitter_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -372,7 +372,7 @@ export type Database = {
           id?: string
           location_id?: string | null
           status?: string
-          submitter_id: string
+          submitter_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -382,7 +382,7 @@ export type Database = {
           id?: string
           location_id?: string | null
           status?: string
-          submitter_id?: string
+          submitter_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -441,7 +441,7 @@ export type Database = {
           delta: number
           id: string
           timestamp: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           action_type: string
@@ -449,7 +449,7 @@ export type Database = {
           delta: number
           id?: string
           timestamp?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           action_type?: string
@@ -457,7 +457,7 @@ export type Database = {
           delta?: number
           id?: string
           timestamp?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -531,7 +531,7 @@ export type Database = {
           id: string
           location_id: string
           timestamp: string | null
-          user_id: string
+          user_id: string | null
           weight: number
         }
         Insert: {
@@ -541,7 +541,7 @@ export type Database = {
           id?: string
           location_id: string
           timestamp?: string | null
-          user_id: string
+          user_id?: string | null
           weight: number
         }
         Update: {
@@ -551,7 +551,7 @@ export type Database = {
           id?: string
           location_id?: string
           timestamp?: string | null
-          user_id?: string
+          user_id?: string | null
           weight?: number
         }
         Relationships: [
@@ -674,6 +674,7 @@ export type Database = {
             Args: { p_lat: number; p_lon: number; p_radius_m?: number }
             Returns: number
           }
+      delete_account: { Args: never; Returns: undefined }
       get_locations_in_radius:
         | {
             Args: {
@@ -766,6 +767,7 @@ export type Database = {
             }
           }
       set_gps_consent: { Args: never; Returns: undefined }
+      update_profile: { Args: { new_display_name: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
