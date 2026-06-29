@@ -1,10 +1,73 @@
-import { View } from 'react-native';
-import { Stack } from 'expo-router';
+﻿import React, { useEffect } from 'react';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SessionProvider } from '../features/auth/SessionProvider';
+import { useSession } from '../features/auth/useSession';
+import { nextRoute } from '../features/auth/redirect';
+import { supabase } from '../lib/supabase';
 
+/**
+ * Guard component - reads session state and performs route-level redirects.
+ *
+ * Two effects:
+ *   1. Session guard: calls nextRoute() whenever loading/session/segments change.
+ *      If loading, does nothing. Otherwise redirects as needed.
+ *   2. PASSWORD_RECOVERY: separate supabase.auth.onAuthStateChange subscription
+ *      that watches for the PASSWORD_RECOVERY event and navigates to /reset-password.
+ *      Unsubscribes on unmount.
+ *
+ * When loading is true, renders null (blank splash) per CONTEXT section 1.
+ */
+function GuardComponent() {
+  const sessionValue = useSession();
+  const session = sessionValue?.session ?? null;
+  const loading = sessionValue?.loading ?? true;
+  const router = useRouter();
+  const segments = useSegments();
+
+  // Effect 1: redirect guard based on session state
+  useEffect(() => {
+    if (loading) return;
+    const route = nextRoute(segments as string[], !!session);
+    if (route !== null) {
+      // as never required: expo-router replace type is strict about known routes
+      router.replace(route as never);
+    }
+  }, [loading, session, segments, router]);
+
+  // Effect 2: PASSWORD_RECOVERY deep-link handler (separate subscription)
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        router.replace('/reset-password' as never);
+      }
+    });
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, [router]);
+
+  if (loading) {
+    return null;
+  }
+
+  return <Stack />;
+}
+
+/**
+ * RootLayout - entry point for Expo Router.
+ *
+ * Wraps the entire navigation tree in:
+ *   1. GestureHandlerRootView - required by react-native-gesture-handler
+ *   2. SessionProvider - provides auth session context to all descendants
+ *   3. GuardComponent - handles route protection and PASSWORD_RECOVERY redirects
+ */
 export default function RootLayout() {
   return (
-    <View style={{ flex: 1 }}>
-      <Stack />
-    </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SessionProvider>
+        <GuardComponent />
+      </SessionProvider>
+    </GestureHandlerRootView>
   );
 }

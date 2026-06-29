@@ -1,5 +1,9 @@
-import { Stack } from 'expo-router';
+﻿import { Stack } from 'expo-router';
 
+/**
+ * Auth group layout — headerless Stack.
+ * Screens: sign-in, sign-up, reset-password (future).
+ */
 export default function AuthLayout() {
-  return <Stack />;
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
