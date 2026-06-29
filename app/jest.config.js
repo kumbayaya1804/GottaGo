@@ -8,6 +8,7 @@ module.exports = {
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
     '!src/lib/database.types.ts', // Supabase-generated, not behavioral
+    '!src/constants/**', // Pure data declarations (design tokens, legal URLs) — no logic to test
     '!src/app/**',  // Screens excluded from coverage collection — testable auth logic lives in src/features/** at 100% coverage; src/app/** screens are TDD-tested but excluded per CONTEXT §10 / Open Q6
   ],
   coverageThreshold: {
