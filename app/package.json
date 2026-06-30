@@ -22,6 +22,7 @@
     "date-fns": "^4.2.1",
     "expo": "~55.0.26",
     "expo-application": "~55.0.15",
+    "expo-auth-session": "~55.0.17",
     "expo-camera": "~55.0.19",
     "expo-constants": "~55.0.16",
     "expo-dev-client": "~55.0.35",
