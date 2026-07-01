@@ -243,7 +243,7 @@ Architecture not yet mapped. Follow existing patterns found in the codebase.
 <!-- GSD:skills-start source:skills/ -->
 ## Project Skills
 
-No project skills found. Add skills to any of: `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, `.github/skills/`, or `.codex/skills/` with a `SKILL.md` index file.
+Project skills exist in `.claude/skills/` (index: `.claude/skills/SKILL.md`): PostGIS Optimizer, RLS Security Guard, Trust Engine Validator, and Pitfall Scan — plus vendored `supabase` and `supabase-postgres-best-practices` reference packages (also mirrored in `.agents/skills/`). This section is auto-managed; if it drifts out of sync with what's actually on disk again, re-run the GSD skills sync or edit it manually — don't trust it without checking `.claude/skills/` directly.
 <!-- GSD:skills-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->
