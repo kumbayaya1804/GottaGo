@@ -1,6 +1,6 @@
 ﻿TERMS OF SERVICE
 
-Last Updated: April 4, 2026
+Last Updated: July 1, 2026
 
 Agreement to Our Legal Terms
 
@@ -482,7 +482,9 @@ The app provides information, not permission. Users are responsible for complyin
 
 27. UGC License Grant
 
-By submitting location data or other content, you grant Watch The Gap, LLC a non-exclusive, royalty-free, worldwide license to use, display, and distribute your submissions for the purpose of operating the app.
+Location data, access codes, timing tips, ratings, and any other content you submit through the Services are “Contributions” as defined in Section 6, and the license you grant to Watch The Gap, LLC over that content is the Contribution License set out in Section 7 — this section does not create a separate or narrower license. Section 7's license is what allows us to operate, improve, and, if we ever transfer, license, or sell the Services or the business, to pass on that same right to a successor.
+
+This section addresses content — the facts and material you contribute about bathroom locations and your own submissions. It does not expand what we do with your personal information (your identity, account details, or precise location tied to you), which is governed separately by our Privacy Policy (Section 11). Our current practice, as stated in the Privacy Policy, is that we have not sold or shared personal information with third parties for a business or commercial purpose.
 
 28. Contact Us
 
