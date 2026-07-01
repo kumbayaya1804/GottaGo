@@ -104,6 +104,19 @@ Anthropic retires and supersedes model IDs on its own schedule, independent of t
 
 If the `claude-api` skill (or its cached model catalog) is available, use it as the source of truth for current model IDs; otherwise check platform.claude.com directly.
 
+### Codex And Antigravity Prompt Drift
+
+`.claude/codex-prompt-latest.md` and `.claude/antigravity-prompt-latest.md` are what the reviewers actually read before returning a verdict — a stale or malformed packet directly degrades review quality, independent of whether the underlying code is fine. Check that:
+
+- Both prompt files satisfy every item in `docs/agent-harness.md` § Prompt Packet Requirements: task goal and phase, changed files from `.claude/review-queue.txt`, relevant project context/constraints, actual file contents or an explicit diff, verification commands already run with outcomes, known caveats/failed commands/missing tooling, and the required output format and verdict definitions.
+- The files reflect the **current** task, not a stale round, phase, or finding set from a task that already closed (e.g. a leftover "Round 2 re-review of 9 RC findings" packet after those findings were resolved and committed). A prompt describing work that no longer matches `.claude/review-queue.txt` or the current diff is `UPDATE REQUIRED`, not just aging.
+- `.claude/review-queue.txt` lists exactly the files in scope for the pending review — no orphaned entries from a prior, already-reviewed task.
+- `CODEX.md` and `ANTIGRAVITY.md` still match `docs/agent-harness.md` on role boundaries (Codex: implementation/security/test quality; Antigravity: architecture/PostGIS/RLS/trust math/data integrity), the verdict definitions in `docs/review-severity.md`, and the required output format — a drift here means a reviewer packet built from either standing-instructions file will be internally inconsistent with what the harness contract expects.
+- Neither prompt file contains secrets, service-role keys, auth tokens, `.env` values, or precise user location data (see docs/agent-harness.md § Prompt Packet Requirements and § Permission Posture).
+- `.claude/antigravity-review-latest.md` and `.claude/codex-review-latest.md` correspond to the prompt that most recently ran, not an older prompt — a mismatched pair means the "latest" verdict is being read against the wrong scope.
+
+If a prompt packet is missing, malformed, or scoped to stale work, treat it as `BLOCKING STALE INFO` when a review is currently pending on it, or `UPDATE REQUIRED` otherwise — do not let a reviewer proceed against a packet you know is wrong.
+
 ### Planning And Status Drift
 
 Check that:
