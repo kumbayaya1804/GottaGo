@@ -100,17 +100,18 @@ Plans:
 ### Phase 3: Read Path & Map
 **Goal**: The map renders real bathroom locations fetched from Supabase via PostGIS RPCs. Public search excludes deleted/shadowbanned/suppressed records. Emergency mode reads nearest location.
 **Depends on**: Phase 2 (auth required for location details and future mutations)
-**Requirements**: User can view a map of bathrooms near their current GPS location; User can search for bathrooms in any city/area (manual search fallback for denied GPS); User can filter by Chill Spot/wheelchair accessible/changing table/cleanliness/currently open; "Emergency Mode" one-tap nearest available bathroom; User can tap a listing to see full details
+**Requirements**: User can view a map of bathrooms near their current GPS location; User can search for bathrooms in any city/area (manual search fallback for denied GPS); User can filter by Chill Spot/wheelchair accessible/changing table/cleanliness/currently open; "Emergency Mode" one-tap nearest available bathroom; User can tap a listing to see full details; User with `family_mode` enabled does not see locations flagged `access_sensitivity` = sensitive in any search result (RPC-layer enforcement per Phase 1.5 UI spec 02-UI-SPEC.md:903, not client-side)
 **Success Criteria** (what must be TRUE):
   1. MapScreen renders Mapbox map with bathroom location pins from `search_locations_bbox` RPC
   2. RPC returns only published, non-deleted, non-shadowbanned, non-suppressed locations — filters: `shadowban_status = false AND deleted_at IS NULL AND suppressed_at IS NULL`
-  3. `search_locations_nearby` returns nearest location ordered by distance (meters, not degrees)
-  4. LocationDetail modal shows name, policy tag, confidence score, last verified
-  5. Denied location permission: map shows manual city/address search input instead of GPS-centered view (no dead-end state)
-  6. No-results state: named "No bathrooms found nearby" UI with "Search this area" button
-  7. Shadowbanned/deleted/suppressed test fixtures confirmed absent from search results
-  8. Plan 03-01 includes a migration adding `locations.suppressed_at TIMESTAMPTZ` if the column does not already exist in the live schema, before RPCs reference it
-  9. All screens pass Phase 1.5 component acceptance checklist before Codex review
+  3. RPC additionally excludes `access_sensitivity`-flagged-sensitive locations when the requesting user's `users.family_mode = true` — enforced in the RPC, not filtered client-side
+  4. `search_locations_nearby` returns nearest location ordered by distance (meters, not degrees)
+  5. LocationDetail modal shows name, policy tag, confidence score, last verified
+  6. Denied location permission: map shows manual city/address search input instead of GPS-centered view (no dead-end state)
+  7. No-results state: named "No bathrooms found nearby" UI with "Search this area" button
+  8. Shadowbanned/deleted/suppressed/family_mode-excluded test fixtures confirmed absent from the relevant search results
+  9. Plan 03-01 includes a migration adding `locations.suppressed_at TIMESTAMPTZ` if the column does not already exist in the live schema, before RPCs reference it
+  10. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
@@ -123,17 +124,18 @@ Plans:
 ### Phase 4: GPS Service & Submission
 **Goal**: Users physically present at a bathroom can submit it. GPS sample is validated server-side. Submitted locations enter pending state awaiting verification. Access codes and timing tips are writable in this phase — before Phase 8 attempts to display them.
 **Depends on**: Phase 3
-**Requirements**: User can submit a new bathroom location with name, address, policy tag, access type, hours; User can submit/update the access code (PIN) for a location; User can add timing tips; Submitted locations enter a pending state until 2 independent GPS verifications; GPS accuracy, freshness, and mock detection enforced
+**Requirements**: User can submit a new bathroom location with name, address, policy tag, access type, hours; User can submit/update the access code (PIN) for a location; User can add timing tips; User sets an `access_sensitivity` value at submission, correctable by the community the same way `policy_tag` is (not admin-only, not auto-derived); Submitted locations enter a pending state until 2 independent GPS verifications; GPS accuracy, freshness, and mock detection enforced
 **Success Criteria** (what must be TRUE):
   1. GpsService hook returns `{coord, accuracy, mocked, timestamp}` with high-accuracy mode
   2. Mocked locations are rejected at the RPC layer (not just client-side)
   3. `submit_location` RPC inserts a pending row and fires creator-initial verification event
   4. `submit_location` RPC accepts optional `access_code` and `timing_tips` fields and stores them correctly
-  5. Access code write path requires auth; stored value is NOT returned in public search results (only in authenticated LocationDetail reads)
-  6. GPS accuracy > 50m and stale fixes (>60s) are rejected server-side with a generic error
-  7. SubmitFlow form validates with Zod, handles all error states (denied permission, low accuracy, failed write)
-  8. Newly submitted location appears on map in pending state visible only to submitter
-  9. All screens pass Phase 1.5 component acceptance checklist before Codex review
+  5. `submit_location` RPC accepts an `access_sensitivity` value using the same community-set/correctable trust model as `policy_tag` (feeds Phase 3's `family_mode` filter)
+  6. Access code write path requires auth; stored value is NOT returned in public search results (only in authenticated LocationDetail reads)
+  7. GPS accuracy > 50m and stale fixes (>60s) are rejected server-side with a generic error
+  8. SubmitFlow form validates with Zod, handles all error states (denied permission, low accuracy, failed write)
+  9. Newly submitted location appears on map in pending state visible only to submitter
+  10. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
@@ -145,7 +147,7 @@ Plans:
 ### Phase 5: Trust Engine & Verification
 **Goal**: A second independent user can GPS-verify a location, triggering the trust engine. Two non-shadowbanned verifications publish the location. Trust score and confidence score update incrementally.
 **Depends on**: Phase 4
-**Requirements**: User can GPS-verify a location by being physically within range; Verification weight (`verification_events.weight`) scaled by user trust score + proximity; Location publishes after 2 independent GPS verifications OR 1 + 48-hour no-flag window; Location confidence degrades over time (decay system set up here, job in Phase 6)
+**Requirements**: User can GPS-verify a location by being physically within range; Verification weight (`verification_events.weight`) scaled by user trust score + proximity; Location publishes after 2 independent GPS verifications OR 1 + 48-hour no-flag window; Location confidence degrades over time (decay system set up here, job in Phase 6); User is notified when their contribution is verified/published; User sees a private, non-comparative personal impact stat on their Profile reflecting their real GPS-verified contribution count
 
 **Trust scale (from live schema — Phase 5 must align to these):**
 - `users.trust_score`: integer, default 9 (document intended range and what constitutes high/low trust before implementing weight formulas)
@@ -161,12 +163,14 @@ Plans:
   6. `users.trust_score` increments correctly via `trust_events` append pattern (`delta` sign must match `action_type`)
   7. VerifyFlow screen handles accepted/rejected/denied-permission states without leaking rejection reason
   8. 48-hour auto-promote job logic exists (Edge Function or pg_cron stub) even if not yet scheduled
-  9. All screens pass Phase 1.5 component acceptance checklist before Codex review
+  9. Push notification sent to a submitter when their own submitted/verified location transitions to `published` ("your contribution was verified") — reward-loop notification only, scoped per research/FEATURES.md:132; no proximity or marketing notifications
+  10. Profile screen shows a private, non-comparative personal impact stat computed from the user's GPS-verified contribution count (e.g., "Your contributions have helped confirm N bathrooms are ready for someone who needs one") — no ranking against other users, no fabricated reach number; this narrows but does not violate the gamification-UI deferral (see PROJECT.md Out of Scope)
+  11. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
 - [ ] 05-01: verify_location RPC + AFTER INSERT trigger chain (recalc_confidence, trust_events, publish gate), compute_verification_weight function (produces `verification_events.weight`)
-- [ ] 05-02: VerifyFlow screen, "I'm here" button, accepted/rejected/loading states
+- [ ] 05-02: VerifyFlow screen, "I'm here" button, accepted/rejected/loading states, "contribution verified" push notification on publish transition, personal impact stat on Profile screen
 
 ---
 
@@ -196,20 +200,22 @@ Plans:
 **Boundary with Phase 6:** Phase 6 owns temporary expiring availability flags (`availability_flags`). Phase 7 owns all durable reports (`reports` table). These are separate concepts with separate tables — do not mix.
 
 **Depends on**: Phase 6
-**Requirements**: User can file a durable report for any of the 5 named types: code wrong, permanently closed, currently locked/inaccessible, unsafe/dirty, duplicate; Locations with multiple same-type reports are suppressed (sets `locations.suppressed_at IS NOT NULL`); Moderation decisions enforced below UI layer
+**Requirements**: User can file a durable report for any of the 5 named types: code wrong, permanently closed, currently locked/inaccessible, unsafe/dirty, duplicate; User can report another user's content as abusive/objectionable (`report_user`), independent of reporting a location — closes the Apple Guideline 1.2 / Play UGC requirement to report/block abusive users; Locations with multiple same-type reports are suppressed (sets `locations.suppressed_at IS NOT NULL`); Moderation decisions enforced below UI layer
 **Success Criteria** (what must be TRUE):
   1. `report_location` RPC accepts all 5 `report_type` values: 'permanently_closed', 'currently_locked', 'inaccurate_information' (covers code wrong/hours), 'dirty_unsafe', 'moved_relocated' — and inserts with reporter identity never returned in public reads
-  2. Auto-suppress trigger fires when same-type reports exceed `app_config.report_suppress_threshold` and sets `locations.suppressed_at = now()`
-  3. Once `locations.suppressed_at IS NOT NULL`, location is excluded from all public search RPCs (consistent with Phase 3 filters)
-  4. Admin SECURITY DEFINER functions exist for shadowban_user, shadowban_location, unsuppress_location (clears suppressed_at)
-  5. Shadowbanned user's existing contributions are excluded from public aggregates immediately
-  6. Report UI in LocationDetail handles all 5 report types with confirmation and error states
-  7. All screens pass Phase 1.5 component acceptance checklist before Codex review
+  2. `report_user` RPC exists — lets a user flag another user's content as abusive/objectionable, reporter identity never returned in public reads (same privacy pattern as `report_location`). No new client-facing "block" UI and no new author attribution added anywhere in the app — this feeds the existing `shadowban_user` admin function below, satisfying Apple 1.2 / Play UGC through report + moderator action rather than self-service blocking
+  3. Auto-suppress trigger fires when same-type reports exceed `app_config.report_suppress_threshold` and sets `locations.suppressed_at = now()`
+  4. Once `locations.suppressed_at IS NOT NULL`, location is excluded from all public search RPCs (consistent with Phase 3 filters)
+  5. Admin SECURITY DEFINER functions exist for shadowban_user, shadowban_location, unsuppress_location (clears suppressed_at) — `shadowban_user` is the enforcement point for `report_user` findings
+  6. Shadowbanned user's existing contributions are excluded from public aggregates immediately
+  7. Report UI in LocationDetail handles all 5 report types with confirmation and error states
+  8. Push notification sent to the original reporter when their report leads to a location fix (unsuppress or correction) — "your reported location was fixed," the second reward-loop notification type from research/FEATURES.md:132
+  9. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
-- [ ] 07-01: report_location RPC (all 5 types), auto-suppress trigger (sets locations.suppressed_at), admin SECURITY DEFINER moderation functions (shadowban_user, shadowban_location, unsuppress_location)
-- [ ] 07-02: Report UI in LocationDetail, all 5 report type flows, confirmation states
+- [ ] 07-01: report_location RPC (all 5 types), report_user RPC, auto-suppress trigger (sets locations.suppressed_at), admin SECURITY DEFINER moderation functions (shadowban_user, shadowban_location, unsuppress_location)
+- [ ] 07-02: Report UI in LocationDetail, all 5 report type flows, confirmation states, "report user" entry point, "reported location was fixed" push notification on unsuppress/correction
 
 ---
 
@@ -236,7 +242,7 @@ Plans:
 ### Phase 8: Client UX & Emergency Modes
 **Goal**: The app feels fast, intuitive, and purpose-built for urgency. Emergency modes work with one tap. Ratings are collectable. All error, empty, and offline states are handled — against the Phase 1.5 component acceptance checklist.
 **Depends on**: Phase 5 (trust engine live), Phase 6 (flags/decay live), Phase 7.5 (seed data live)
-**Requirements**: "Emergency Mode" one-tap; "Changing Table NOW" emergency mode; "Accessible NOW" emergency mode; User can rate cleanliness/accessibility/convenience; Separate changing surface cleanliness dimension; Access codes (PINs) visible only to signed-in users; Filter by policy tag/wheelchair/changing table/cleanliness/currently open
+**Requirements**: "Emergency Mode" one-tap; "Changing Table NOW" emergency mode; "Accessible NOW" emergency mode; User can rate cleanliness/accessibility/convenience; Separate changing surface cleanliness dimension; Access codes (PINs) visible only to signed-in users; Filter by policy tag/wheelchair/changing table/cleanliness/currently open; User can save/favorite a location and view a "My Favorites" list
 **Success Criteria** (what must be TRUE):
   1. Emergency Mode routes user to nearest published location in ≤2 taps from any top-level route (verified against Phase 1.5 nav model)
   2. "Changing Table NOW" filter returns nearest confirmed changing-table location
@@ -247,13 +253,15 @@ Plans:
   7. Denied location permission: map shows manual city/address search input instead of GPS-centered view (no dead-end state)
   8. Offline: cached pins remain visible; new fetch shows "No connection" banner with retry button
   9. No results: named "No bathrooms found nearby" state with "Search this area" button
-  10. All screens pass Phase 1.5 component acceptance checklist before Codex review
+  10. User can tap a heart/save icon on LocationDetail to favorite a location; favorites persist to a `user_favorites` table and appear in a "My Favorites" list
+  11. All screens pass Phase 1.5 component acceptance checklist before Codex review
 **Plans**: TBD
 
 Plans:
 - [ ] 08-01: Emergency Mode + "Changing Table NOW" + "Accessible NOW" one-tap flows
 - [ ] 08-02: Rating UI (cleanliness, accessibility, convenience + changing surface dimension), access code display gate
 - [ ] 08-03: Filter system polish, all error/empty/offline states, UX pass
+- [ ] 08-04: Save/favorite location (user_favorites table, heart icon, My Favorites list)
 
 ---
 

@@ -35,11 +35,14 @@ The real product is not just restroom locations, but **certainty under urgency**
 - [ ] "Changing Table NOW" emergency mode — one-tap nearest confirmed changing station
 - [ ] "Accessible NOW" emergency mode — one-tap nearest wheelchair-accessible confirmed bathroom
 - [ ] Access codes (PINs) visible only to signed-in users; only shown for listings where community policy tag allows it
+- [ ] User with `family_mode` enabled does not see locations flagged `access_sensitivity` = sensitive, enforced at the RPC layer (Phase 3)
+- [ ] User can save/favorite a location and view a "My Favorites" list (Phase 8)
 
 **Submissions**
 - [ ] User can submit a new bathroom location with: name, address, policy tag, access type, hours
 - [ ] User can submit/update the bathroom access code (PIN) for a location
 - [ ] User can add timing tips ("avoid 12–1pm lunch rush")
+- [ ] User sets an `access_sensitivity` value at submission, community-correctable the same way `policy_tag` is (Phase 4)
 - [ ] Submitted locations enter a pending state until 2 independent GPS verifications
 
 **GPS Verification**
@@ -47,11 +50,14 @@ The real product is not just restroom locations, but **certainty under urgency**
 - [ ] Verification weight is scaled by user trust score + proximity
 - [ ] Location publishes after 2 independent GPS verifications OR 1 verification + 48-hour no-flag window
 - [ ] Location confidence degrades over time without fresh verifications (decay system)
+- [ ] Push notification when a user's own submission is published ("your contribution was verified") — reward-loop only, no proximity/marketing notifications (Phase 5)
 
 **Ratings & Quality**
 - [ ] User can rate a location: cleanliness, accessibility, convenience (1–5)
 - [ ] Separate changing surface cleanliness dimension (parents segment)
 - [ ] User can submit a specific report (code wrong, closed, inaccessible)
+- [ ] User can report another user's content as abusive/objectionable (`report_user`), independent of reporting a location — feeds the existing shadowban_user admin function; no self-service block UI, no new author attribution (Phase 7; closes Apple 1.2 / Play UGC requirement)
+- [ ] Push notification when a user's own report leads to a location fix ("your reported location was fixed") — reward-loop only (Phase 7)
 - [ ] Locations with multiple inaccuracy reports are suppressed pending re-verification
 
 **Authentication**
@@ -79,10 +85,11 @@ The real product is not just restroom locations, but **certainty under urgency**
 - [ ] Trust events logged for all actions
 - [ ] Shadowban support for bad actors (locations and users)
 - [ ] Gamification points tracked in DB but NOT surfaced in v1 UI
+- [ ] Profile screen shows a private, non-comparative personal impact stat derived from the user's GPS-verified contribution count (e.g., "Your contributions have helped confirm N bathrooms are ready for someone who needs one") — no ranking, no leaderboard, no fabricated "people helped" figure (Phase 5)
 
 ### Out of Scope (v1)
 
-- Leaderboard / gamification UI — tracked in DB, surfaced in v2 when volume justifies rewards
+- Comparative/competitive gamification UI — leaderboards, points display, badges, rankings against other users. Tracked in DB, surfaced in v2 when volume justifies rewards. (A private, non-comparative personal impact stat is in v1 scope — see Trust System above; the deferral is specifically about comparison/competition, not all reflection of a user's own contributions.)
 - Business partnership / verified badge program — needs user volume for leverage first
 - Single-city launch gating — v1 should not hardcode availability to one city; targeted campaigns can build density in priority regions without blocking global use
 - Web / PWA version — mobile-first, native GPS UX justified React Native
@@ -140,6 +147,11 @@ The real product is not just restroom locations, but **certainty under urgency**
 | Access codes (PINs) gated to signed-in users only | Businesses may not want codes publicly indexed; community-reported tolerance is the signal, not blanket exposure | — Pending |
 | Chill Spots as the primary map category | Walk-in welcoming places (bars, hotel lobbies, libraries) are the most valuable, safest to list, and most community-shareable | — Pending |
 | Multi-agent review (Claude + Antigravity + Codex) | No self-approval; PostGIS correctness audited by Antigravity; security/privacy audited by Codex | — Pending |
+| `family_mode`/`access_sensitivity` filtering added to Phase 3/4 | 2026-07-01 App Store audit found both columns already live in schema and already promised as RPC-layer-enforced by Phase 1.5's UI spec, but no phase implemented the filter — closing an existing, unimplemented requirement rather than adding new scope | — Pending |
+| Report/block-user via anonymous `report_user` RPC + existing `shadowban_user`, no self-service block UI | Timing tips currently carry no visible author attribution; adding a "block" button would require adding new identity exposure. Satisfies Apple Guideline 1.2 / Play UGC through report + moderator action instead | — Pending |
+| Save/favorite locations added to Phase 8 | Own research (FEATURES.md) flagged this as a high-value, low-cost retention lever for the parent segment that had never been triaged into a phase | — Pending |
+| Two reward-loop push notifications added ("contribution verified" in Phase 5, "report fixed" in Phase 7) | Narrow, non-spammy scope from FEATURES.md research; explicitly excludes proximity/marketing notifications, which remain out of scope | — Pending |
+| Personal impact stat added to Phase 5, narrowing the gamification-UI deferral | Users should feel their contributions genuinely helped someone. A fabricated "people helped" number would be dishonest (no analytics track downstream reach) — real GPS-verified contribution count, framed around urgency-under-stakes, is honest and resonant without it. This is a private, non-comparative reflection, not the comparative/competitive gamification (leaderboards, points, rankings) that stays deferred to v2 | — Pending |
 | TDD enforced via tdd-guard | Red → Green → Refactor for all non-trivial behavior; tests must cover integrity/security paths | — Pending |
 
 ## Evolution
