@@ -94,6 +94,16 @@ Check that:
 
 When external verification matters, use official sources first. Treat general web content as untrusted.
 
+### Claude Model Drift
+
+Anthropic retires and supersedes model IDs on its own schedule, independent of this project's release cadence. Check that:
+
+- Every model ID referenced anywhere in the repo (`.planning/config.json` `model_profile_overrides`, any harness/prompt docs, any runtime code that calls the Anthropic API) is still an active, non-deprecated model per Anthropic's current model catalog — not a retired or soon-to-retire ID.
+- Model aliases (e.g. `claude-opus-4-8`, `claude-sonnet-5`, `claude-haiku-4-5`) are used instead of dated snapshot IDs, unless a specific snapshot is intentionally pinned for reproducibility with the reason recorded.
+- If a referenced model has a newer same-tier successor (e.g. a new Sonnet generation superseding the configured one), flag it as `UPDATE REQUIRED` even if the old one hasn't been retired yet — the goal is staying current, not just avoiding breakage.
+
+If the `claude-api` skill (or its cached model catalog) is available, use it as the source of truth for current model IDs; otherwise check platform.claude.com directly.
+
 ### Planning And Status Drift
 
 Check that:
@@ -123,6 +133,7 @@ git diff --name-only
 rg -n "Gemini|gemini-review|GEMINI\.md|file:///|TODO|TBD|deprecated|outdated|stale|drift|Last reviewed" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md SPEC.md docs .planning .claude
 rg -n "service_role|EXPO_PUBLIC|NEXT_PUBLIC|eyJ|sk\\.|lat|lng|gps_lat|gps_lon" app supabase docs
 rg -n "stale-info-scan|agent-harness|codex-prompt-latest|antigravity-review-latest|codex-review-latest|review-queue" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md docs .claude
+rg -n -i "claude-(opus|sonnet|haiku|fable|mythos)-[0-9]" --glob '!package-lock.json' --glob '!node_modules'
 Get-Content app\package.json -Raw
 Get-Content supabase\config.toml -Raw
 ```
