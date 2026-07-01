@@ -1,6 +1,6 @@
 # Phase 2 — Plan 02-02 Summary (IN PROGRESS)
-<!-- save point: 2026-07-01 -->
-<!-- status: T1 COMPLETE, T2 partial (package done; dashboard pending), T3–T6 not started -->
+<!-- save point: 2026-07-01 (round 2) -->
+<!-- status: T1 COMPLETE, T2 COMPLETE, T3 code-complete/uncommitted (blocked on live migration apply — see .beads/context/execution-state.md), T4–T6 not started -->
 
 ---
 
@@ -9,7 +9,8 @@
 | SHA | Description | WU |
 |-----|-------------|-----|
 | `ac66fc4` | feat(02-02-T1): nullable FK migration + update_profile/delete_account RPCs | T1 |
-| `fa63838` | chore(02-02-T2): install expo-auth-session@55.0.17 | T2 partial |
+| `fa63838` | chore(02-02-T2): install expo-auth-session@55.0.17 | T2 partial (dashboard/EAS config has no code commit — verified live, not git-tracked) |
+| — | T3 not yet committed — code complete, one review round done with fixes applied, blocked on live migration apply pending fresh user confirmation in a new session | T3 |
 
 ---
 
@@ -42,37 +43,49 @@ Applied live. Two SECURITY DEFINER functions (revoke public + anon; grant authen
 
 ---
 
-## T2 — expo-auth-session Verify + Dashboard Config (PARTIAL)
+## T2 — expo-auth-session Verify + Dashboard Config (COMPLETE)
 
 ### Package (DONE)
 - `expo-auth-session@55.0.17` installed via `npx expo install` (Expo-resolved pin)
 - Publisher verified: `github.com/expo/expo`, MIT, no postinstall script
 - `jest@29.7.0` unchanged
 
-### Dashboard Tasks (PENDING — user must complete)
-- [ ] Supabase Dashboard → Authentication → Providers → Google: enable with client id + secret
-- [ ] Authentication → URL Configuration → Redirect URLs: add `gotta-go://auth/callback` and `gotta-go://**`
-- [ ] Authentication → Providers → Email: confirm "Confirm email" is DISABLED
-- [ ] EAS secrets: `GOOGLE_CLIENT_ID` and `GOOGLE_SECRET` exist (never in repo)
-
-**Resume signal:** User types `"approved — provider configured"`
+### Dashboard Tasks (DONE — verified live 2026-07-01)
+- [x] Supabase Dashboard → Authentication → Providers → Google: enabled with real client id + secret (from a newly-created Google Cloud OAuth 2.0 Web client, redirect URI `https://ebmzhjmmtmldhrojkdqw.supabase.co/auth/v1/callback`)
+- [x] Authentication → URL Configuration → Redirect URLs: `gotta-go://auth/callback` and `gotta-go://**` added
+- [x] Authentication → Providers → Email: "Confirm email" confirmed DISABLED
+- [x] EAS secrets: `GOOGLE_CLIENT_ID` (sensitive) and `GOOGLE_SECRET` (secret) confirmed present in all 3 EAS environments (production/preview/development) via `eas env:list`
 
 ---
 
-## T3–T6 (NOT STARTED)
+## T3 — Covered OAuth + Profile Modules (CODE COMPLETE, NOT COMMITTED — blocked)
+
+**Files:** `auth/oauth.ts`, `profile/{updateProfile,deleteAccount,profileStats}.ts` + 4 test files (21 tests total, 100% coverage on all four).
+
+**Review round 1:** Both Antigravity and Codex independently returned REQUEST CHANGES:
+- [CRITICAL/MAJOR, both] `profileStats.ts` queried `ratings` directly — blocked by the privacy-motivated privilege revocation in migration `20260624000002`. Fixed by adding `get_profile_stats()` SECURITY DEFINER RPC (migration `20260627000005`, written but **not yet applied live**) deriving the user via `auth.uid()`, and rewriting `profileStats.ts`/its test to call it instead of querying tables directly.
+- [MINOR, Antigravity] `oauth.ts` unsafe `data.url` access — fixed with an explicit guard.
+- [MINOR, informational] iOS Guideline 4.8 gating is T4's (`sign-in.tsx`) responsibility, not T3's — flagged forward, no T3 action needed.
+
+**Current blocker:** the migration needs to be applied live to `ebmzhjmmtmldhrojkdqw` and `database.types.ts` regenerated before typecheck is fully clean and a second review round can run. This requires direct user confirmation in a live session (a background coder agent correctly refused to act on a coordinator-relayed confirmation for this exact reason). Full detail and exact next steps: `.beads/context/execution-state.md` § "How to unblock next session."
+
+**Still needs, in order:** apply migration → regenerate types → re-run full DoD → fresh Antigravity + Codex review round (not a reuse of round 1's verdicts) → commit → close `gotta-go-3ov` → re-enable TDD Guard (`tdd-guard on`, exact literal message) → proceed to T4.
+
+---
+
+## T4–T6 (NOT STARTED)
 
 | Task | BD ID | Scope | Blocked By |
 |------|-------|-------|------------|
-| T3 — TDD modules | gotta-go-3ov | oauth.ts, updateProfile.ts, deleteAccount.ts, profileStats.ts + tests | T2 dashboard ✓ |
-| T4 — OAuth UI + callback + sign-up wiring | gotta-go-wct | sign-in.tsx, auth/callback.tsx, sign-up.tsx | T3 |
-| T5 — Profile + Settings + Delete/AuthRequired modals | gotta-go-g1u | (tabs)/profile.tsx, (components)/*.tsx | T3 |
+| T4 — OAuth UI + callback + sign-up wiring | gotta-go-wct | sign-in.tsx, auth/callback.tsx, sign-up.tsx | T3 commit |
+| T5 — Profile + Settings + Delete/AuthRequired modals | gotta-go-g1u | (tabs)/profile.tsx, (components)/*.tsx | T3 commit |
 | T6 — Profile-trigger provisioning test | gotta-go-ntn | features/profile/__tests__/profileTrigger.test.ts | T1 + T5 |
 
 ---
 
-## Test Suite State (as of fa63838)
-- **109 tests, 15 suites, 0 failures, 100% coverage** (unchanged from 02-01b)
-- No new src/features/** added yet in 02-02 (T1/T2 are DB + package changes only)
+## Test Suite State (as of last independent verification, pre-commit)
+- **19 suites, 130 tests, 100% coverage** on all touched files (oauth.ts, updateProfile.ts, deleteAccount.ts, profileStats.ts all at 100%)
+- `profileStats.ts` has 4 expected typecheck errors until the RPC migration above is live and types regenerated — generated-types lag, not a real bug
 
 ---
 

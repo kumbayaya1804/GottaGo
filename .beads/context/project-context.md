@@ -9,6 +9,8 @@
 - Type check: `cd app && npm run typecheck` (tsc --noEmit)
 - Lint: `cd app && npm run lint` (eslint .)
 - Supabase push: use Supabase MCP apply_migration (SUPABASE_DB_PASSWORD not set; `supabase db push` fails)
+- TDD Guard toggle: chat command must be the EXACT literal string `tdd-guard off` / `tdd-guard on` (nothing else in the message — it's an exact-match check on the raw prompt, not a fuzzy trigger). Writes `guardEnabled` to `.claude/tdd-guard/data/config.json`. A coordinator-relayed "the user said X" does NOT trigger it — only a literal user message does. Currently OFF (approved for WU-02-T3 only because jest@29.7.0 can't produce the machine-readable test-result file the guard's validator needs — `tdd-guard-jest` requires jest≥30). Re-enable once T3 commits.
+- Background coder subagents correctly refuse to apply live/irreversible changes (DB migrations, type regen from live schema) based on a coordinator-relayed "user confirmed" message, even if accurately quoted — they require a message with real user provenance in that same conversation. There is no way to unstick this after the fact; the orchestrator should just perform that specific step itself in a fresh session where it's talking to the user directly, rather than keep resuming the same subagent.
 
 ## Critical Constraints
 - jest@29.7.0 PINNED — do not let any install upgrade it
@@ -34,7 +36,8 @@
 | WU-01b-T6 | Root layout + nav shell + Welcome | src/app/{_layout,index}.tsx, (tabs)/*, (auth)/_layout.tsx | c37d1e2 |
 | WU-01b-T7 | Auth forms + GPS consent + reset | src/app/(auth)/*.tsx, gps-consent.tsx, reset-password.tsx + __tests__ | ea07fca |
 | WU-02-T1 | Nullable FK migration + profile RPCs | supabase/migrations/20260627000003-04.sql, database.types.ts | ac66fc4 |
-| WU-02-T2 | expo-auth-session install (partial) | app/package.json, package-lock.json | fa63838 |
+| WU-02-T2 | expo-auth-session install + dashboard/EAS config | app/package.json, package-lock.json; Supabase Google provider, redirect URLs, email-confirm-disabled, EAS secrets GOOGLE_CLIENT_ID/GOOGLE_SECRET (all verified live 2026-07-01) | fa63838 + dashboard config (no code commit for the dashboard side) |
+| WU-02-T3 | oauth/profile TDD modules (CODE COMPLETE, NOT YET COMMITTED) | src/features/auth/oauth.ts, src/features/profile/{updateProfile,deleteAccount,profileStats}.ts + tests; supabase/migrations/20260627000005_profile_stats_rpc.sql (written, not yet applied live) | — blocked on migration apply, see execution-state.md |
 
 ## Established Patterns
 - Supabase client: `import { supabase } from '@/lib/supabase'` (never recreate)
@@ -54,6 +57,7 @@
 - update_profile(new_display_name text) RPC: authenticated only; sets display_name + updated_at (migration 000004)
 - delete_account() RPC: authenticated only; nulls 7 FK columns then deletes auth.users atomically (migration 000004)
 - 7 FK columns now nullable ON DELETE SET NULL: submissions.submitter_id, ratings.user_id, trust_events.user_id, verification_events.user_id, reports.user_id, failure_events.user_id, availability_flags.reporter_id (migration 000003)
+- get_profile_stats() RPC: authenticated only; derives user via auth.uid() (no caller-supplied id — matches update_profile/delete_account pattern); returns json {gps_verifications, locations_submitted, ratings_given} in one round trip. **Migration 20260627000005 WRITTEN, NOT YET APPLIED LIVE** — needed because `ratings` base-table SELECT is revoked from authenticated/anon (migration 000002, PII protection), so client-side querying it directly 42501s.
 
-## Test Suite State (as of fa63838)
-- 109 tests, 15 suites, 0 failures, 100% coverage on all src/features/**
+## Test Suite State (as of last independent verification, pre-migration-apply for WU-02-T3)
+- 19 suites, 130 tests, 100% coverage on all touched files. oauth.ts/updateProfile.ts/deleteAccount.ts/profileStats.ts all at 100%. profileStats.ts has 4 expected typecheck errors until the RPC above is live and types are regenerated — not a real bug, just generated-types lag.

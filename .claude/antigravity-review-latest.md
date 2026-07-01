@@ -1,18 +1,26 @@
-## ANTIGRAVITY VERDICT: APPROVE
+## Antigravity Review - Phase 2 Auth & Profiles Wave 2
 
-### Summary
-The Phase 2 plans (02-01a, 02-01b, and 02-02) for the Gotta Go project are architecturally sound, security-conscious, and compliant with all project standards. The plans successfully address critical data integrity requirements (case-insensitive display name unique indexes, database-enforced GDPR GPS consent, and cascading NULL account deletion) and implement robust authentication via email/password and Google OAuth (Android-only) while staying compliant with Apple Guideline 4.8 on iOS. 
+**VERDICT: REQUEST CHANGES**
 
-### Findings
+### Issues
+- **[CRITICAL] app/src/features/profile/profileStats.ts:22** — Direct client-side SELECT query on base table `ratings` is blocked by database privilege revocation. 
+  * *Description & Impact*: Migration `20260624000002_ratings_privacy_fix.sql` explicitly runs `revoke select on ratings from authenticated;` (and `20260624000000_block_fixes.sql` revokes it from `anon`) to prevent exposure of rater identity (PII). Because table-level privileges are checked before RLS, any client-side query targeting the base `ratings` table directly will fail at runtime with a permission error (PostgreSQL error code `42501`). Furthermore, the public view `ratings_public` excludes the `user_id` column to enforce privacy, meaning the client cannot use it to filter and count ratings given by a specific user.
+  * *Required Fix*: Implement a `SECURITY DEFINER` RPC in PostgreSQL (e.g., `get_user_profile_stats(p_user_id uuid)`) that performs the counting queries on the server side where table privileges are bypassed, and expose this RPC to the `authenticated` role. Update `profileStats.ts` to call this RPC instead of querying the base tables directly from the client.
 
-**[SEVERITY: NOTE]** `.planning/phases/02-auth-profiles/02-CONTEXT.md:114` — Contradiction on `(tabs)/profile.tsx` protection. The table in `02-CONTEXT.md` §7 lists the Profile tab as `Protected — redirect to sign-in if no session`, which contradicts `02-CONTEXT.md` §1 ("Unauthenticated landing: Map tab — users browse freely; sign-in prompt appears only when a protected action is tapped"), `02-UI-SPEC.md` Screen 6 (which defines a fully-specified "Profile Tab - Unauthenticated" view with a Sign In CTA), and `02-PATTERNS.md`. The plans (02-01b and 02-02) correctly treat `(tabs)/profile` as public with conditional rendering (no navigation redirect), which matches the authoritative UI-SPEC design contract. No fix is required for the plans, but updating `02-CONTEXT.md` to reflect this alignment is recommended for consistency.
+### Concerns
+- **[MINOR] app/src/features/auth/oauth.ts:25** — Unsafe property access on `data.url`.
+  * *Description & Impact*: If `supabase.auth.signInWithOAuth` returns successfully but without a redirect URL in `data` (or if `data` is null), `WebBrowser.openAuthSessionAsync(data.url, redirectTo)` will throw a runtime `TypeError` trying to access `url` on null/undefined.
+  * *Recommendation*: Use optional chaining or throw an explicit descriptive error if `data?.url` is missing before opening the auth session.
+- **[MINOR] iOS OAuth Compliance (Apple Guideline 4.8)** — Front-end implementation dependency.
+  * *Description & Impact*: `oauth.ts` exposes `signInWithGoogle` without any platform-specific guards, leaving the responsibility of platform-gating entirely to the calling screen (`sign-in.tsx`). If the UI fails to correctly platform-gate this call on iOS, the app will violate Apple Developer Guideline 4.8 and face App Store rejection.
+  * *Recommendation*: Double-check `sign-in.tsx` to verify that `signInWithGoogle` is strictly gated behind `Platform.OS === 'android'` and that iOS displays the disabled Apple Sign-In stub only.
 
-**[SEVERITY: NOTE]** `.planning/phases/02-auth-profiles/02-02-PLAN.md:180-184` — Redundant `UPDATE` statements in `delete_account()` RPC. The RPC manually sets foreign keys in 7 tables to `NULL` before deleting the user. Because Migration 3 (`20260627000003_nullable_user_fks.sql`) modifies these constraints to `ON DELETE SET NULL`, the database will automatically nullify these columns when the user is deleted. The manual updates are redundant but act as a safe and explicit backup.
+### Verification
+- **Code Inspection**: Reviewed all changed files logged in `.claude/review-queue.txt` ([oauth.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/auth/oauth.ts), [updateProfile.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/updateProfile.ts), [deleteAccount.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/deleteAccount.ts), and [profileStats.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/profileStats.ts)).
+- **Privilege & Policy Audit**: Audited `supabase/migrations/20260624000000_block_fixes.sql` and `20260624000002_ratings_privacy_fix.sql` to confirm database permission settings, confirming the `revoke select on ratings` blocks all direct client-side selects.
+- **Unit Test Execution**: Ran `npm test` within the `app` directory. All 19 test suites and 133 tests passed successfully. Note that `profileStats.test.ts` passed because it mocks the Supabase client and did not hit the live PostgreSQL database permission checks.
 
-### Verification Steps Taken
-1. **Scope Inspection**: Reviewed the plan files `02-01a-PLAN.md`, `02-01b-PLAN.md`, and `02-02-PLAN.md` along with `02-CONTEXT.md`, `02-RESEARCH.md`, `02-PATTERNS.md`, `02-VALIDATION.md`, and `ROADMAP.md`.
-2. **Schema Verification**: Ran PowerShell commands to analyze `supabase/migrations/20260519010000_remote_schema.sql` and verify the exact definitions of the 7 foreign keys pointing to `users(id)` and the database policies on `submissions`.
-3. **Database Integration Check**: Attempted local database querying via `supabase db query` to check constraint names, confirming the local postgres server is stopped (connection refused), but verified constraint names using PG standard naming conventions.
-
-### Sign-off
-Antigravity — June 28, 2026
+### Approved
+- **Auth Callback & OAuth Handling**: PKCE code extraction and session exchange logic in `oauth.ts` are robust and correctly implemented.
+- **Profile RPC Wiring**: The `updateProfile` and `deleteAccount` wrappers are clean, secure, and properly call the `update_profile` and `delete_account` RPCs.
+- **Account Deletion Cascade Safety**: The database-level modifications to the 7 foreign keys (`ON DELETE SET NULL`) successfully unblock account deletion.
