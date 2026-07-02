@@ -1,6 +1,6 @@
 # Phase 2 — Plan 02-02 Summary (IN PROGRESS)
-<!-- save point: 2026-07-01 (round 2) -->
-<!-- status: T1 COMPLETE, T2 COMPLETE, T3 code-complete/uncommitted (blocked on live migration apply — see .beads/context/execution-state.md), T4–T6 not started -->
+<!-- save point: 2026-07-02 -->
+<!-- status: T1 COMPLETE, T2 COMPLETE, T3 COMPLETE, T4 COMPLETE, T5 NEXT, T6 PENDING -->
 
 ---
 
@@ -10,7 +10,9 @@
 |-----|-------------|-----|
 | `ac66fc4` | feat(02-02-T1): nullable FK migration + update_profile/delete_account RPCs | T1 |
 | `fa63838` | chore(02-02-T2): install expo-auth-session@55.0.17 | T2 partial (dashboard/EAS config has no code commit — verified live, not git-tracked) |
-| — | T3 not yet committed — code complete, one review round done with fixes applied, blocked on live migration apply pending fresh user confirmation in a new session | T3 |
+| `10e0f9e` | feat(profile): OAuth + profile TDD modules with get_profile_stats RPC | T3 |
+| `76c7375` | feat(auth): OAuth UI, deep-link callback, and sign-up profile wiring | T4 |
+| `c2e1e33` | docs(review-gate): runtime-boundary/mock-boundary audit + self-enforcing hook (process, not a WU) | — |
 
 ---
 
@@ -58,7 +60,7 @@ Applied live. Two SECURITY DEFINER functions (revoke public + anon; grant authen
 
 ---
 
-## T3 — Covered OAuth + Profile Modules (CODE COMPLETE, NOT COMMITTED — round 3 review pending)
+## T3 — Covered OAuth + Profile Modules (COMPLETE — commit `10e0f9e`)
 
 **Files:** `auth/oauth.ts`, `profile/{updateProfile,deleteAccount,profileStats}.ts` + 4 test files (21 tests total, 100% coverage on all four).
 
@@ -73,23 +75,37 @@ Applied live. Two SECURITY DEFINER functions (revoke public + anon; grant authen
 - Antigravity: **APPROVE** — critical `ratings` fix confirmed resolved; only a MINOR carry-forward note (iOS 4.8 gating, T4's concern).
 - Codex: **REQUEST CHANGES** — [MAJOR] the Supabase MCP `apply_migration` tool assigns its own timestamp-based version on apply rather than honoring the local file's version. Local file was drafted as `20260627000005_profile_stats_rpc.sql` but Supabase recorded it live as `20260701211135_profile_stats_rpc`, creating repo/live migration-history drift. Fixed by renaming the local file to `20260701211135_profile_stats_rpc.sql` to match. All of Codex's other findings from round 1 confirmed resolved (RPC correctness, `auth.uid()` scoping, cast pattern acceptable, test coverage of the error path).
 
-**Still needs, in order:** round 3 review (Antigravity + Codex re-confirm on the renamed file — content unchanged, filename only) → commit → close `gotta-go-3ov` → re-enable TDD Guard (`tdd-guard on`, exact literal message) → proceed to T4.
+**Round 3:** both APPROVE. iOS 4.8 note carried forward to T4. Committed `10e0f9e`; TDD Guard re-enabled (`tdd-guard on`) immediately after.
 
 ---
 
-## T4–T6 (NOT STARTED)
+## T4 — OAuth UI + Deep-Link Callback + Sign-Up Profile Wiring (COMPLETE — commit `76c7375`)
+
+**Files:** `app/src/app/(auth)/{sign-in,sign-up}.tsx` + tests, `app/src/app/auth/callback.tsx` + test (new route), `app/src/features/auth/SessionProvider.tsx` + test, `app/src/app/_layout.tsx` + test.
+
+**Round 1:** Antigravity APPROVE (confirmed 3 flagged design decisions: explicit nav in `callback.tsx`, direct `exchangeCodeForSession` in `sign-in.tsx`, why OAuth never reaches `callback.tsx`). Codex **BLOCKER** — `signUp()` creates a session immediately (email confirmation disabled); while `sign-up.tsx` awaits `updateProfile()`, the root guard could race it and redirect to `/(tabs)` before the display-name error was shown, or before `/gps-consent`. Fixed by adding `suppressGuardRedirect`/`setSuppressGuardRedirect` to `SessionContextValue` (scope expanded to `SessionProvider.tsx`/`_layout.tsx`, both already-approved from WU-01b); `sign-up.tsx` raises it before `signUp()`, clears it only via `useEffect` cleanup on unmount (not `finally`, which would only narrow the race).
+
+**Round 2:** Antigravity APPROVE (didn't catch the next finding). Codex **MAJOR** — a second submit after a failed `updateProfile()` re-ran the display-name precheck and `signUp()` against an already-created account instead of retrying just the profile write. Fixed with an `accountCreated` state gate: subsequent submits skip straight to `updateProfile()` once the account exists.
+
+**Round 3:** both Antigravity and Codex **APPROVE**. Both independently assessed the residual `accountCreated`-resets-on-remount edge case as non-blocking (converging reasoning: the root guard eventually routes any authenticated-but-incomplete-profile session out of the `(auth)` group).
+
+**Side effect:** this review cycle prompted a tightening of the review-handoff standard itself (runtime-boundary/mock-boundary audit now mandatory in `CODEX.md`/`ANTIGRAVITY.md`, self-enforced via `.beads/hooks/pre-commit` → `.claude/hooks/check-review-artifacts.js`). Committed separately as `c2e1e33` (process, not app code).
+
+---
+
+## T5–T6 (NOT STARTED)
 
 | Task | BD ID | Scope | Blocked By |
 |------|-------|-------|------------|
-| T4 — OAuth UI + callback + sign-up wiring | gotta-go-wct | sign-in.tsx, auth/callback.tsx, sign-up.tsx | T3 commit |
-| T5 — Profile + Settings + Delete/AuthRequired modals | gotta-go-g1u | (tabs)/profile.tsx, (components)/*.tsx | T3 commit |
-| T6 — Profile-trigger provisioning test | gotta-go-ntn | features/profile/__tests__/profileTrigger.test.ts | T1 + T5 |
+| T5 — Profile + Settings + Delete/AuthRequired modals | gotta-go-g1u | (tabs)/profile.tsx, (components)/{DeleteAccountModal,AuthRequiredModal}.tsx | none — ready to start |
+| T6 — Profile-trigger provisioning test | gotta-go-ntn | features/profile/__tests__/profileTrigger.test.ts | T5 |
+
+Full verbatim spec for T5 is in `.beads/context/execution-state.md` § "Next Task — WU-02-T5 Verbatim Spec".
 
 ---
 
-## Test Suite State (as of last independent verification, pre-commit)
-- **19 suites, 130 tests, 100% coverage** on all touched files (oauth.ts, updateProfile.ts, deleteAccount.ts, profileStats.ts all at 100%)
-- `profileStats.ts` has 4 expected typecheck errors until the RPC migration above is live and types regenerated — generated-types lag, not a real bug
+## Test Suite State (as of commit `76c7375`)
+- **20 suites, 153 tests, 100% coverage** on all `src/features/**`. typecheck clean, lint clean (27 pre-existing unrelated `unicode-bom` warnings).
 
 ---
 
@@ -102,3 +118,4 @@ Applied live. Two SECURITY DEFINER functions (revoke public + anon; grant authen
 | 20260627000002 | auth_rpcs | ✓ Applied (02-01a) |
 | 20260627000003 | nullable_user_fks | ✓ Applied (02-02 T1) |
 | 20260627000004 | profile_rpcs | ✓ Applied (02-02 T1) |
+| 20260701211135 | profile_stats_rpc | ✓ Applied (02-02 T3) — note: live version differs from any draft filename timestamp; Supabase's `apply_migration` assigns its own |
