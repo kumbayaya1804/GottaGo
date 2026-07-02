@@ -1,26 +1,23 @@
-## Antigravity Review - Phase 2 Auth & Profiles Wave 2
+## Antigravity Review - Phase 2 Auth & Profiles Wave 2 (Round 3)
 
-**VERDICT: REQUEST CHANGES**
+**VERDICT: APPROVE**
+
+### Summary
+The updated Phase 2 profile and auth implementations are approved. The migration timestamp issue has been corrected, with the new profile stats RPC migration stored as `supabase/migrations/20260701211135_profile_stats_rpc.sql`. All other code, schema logic, and RLS constraints remain fully correct and verified.
 
 ### Issues
-- **[CRITICAL] app/src/features/profile/profileStats.ts:22** — Direct client-side SELECT query on base table `ratings` is blocked by database privilege revocation. 
-  * *Description & Impact*: Migration `20260624000002_ratings_privacy_fix.sql` explicitly runs `revoke select on ratings from authenticated;` (and `20260624000000_block_fixes.sql` revokes it from `anon`) to prevent exposure of rater identity (PII). Because table-level privileges are checked before RLS, any client-side query targeting the base `ratings` table directly will fail at runtime with a permission error (PostgreSQL error code `42501`). Furthermore, the public view `ratings_public` excludes the `user_id` column to enforce privacy, meaning the client cannot use it to filter and count ratings given by a specific user.
-  * *Required Fix*: Implement a `SECURITY DEFINER` RPC in PostgreSQL (e.g., `get_user_profile_stats(p_user_id uuid)`) that performs the counting queries on the server side where table privileges are bypassed, and expose this RPC to the `authenticated` role. Update `profileStats.ts` to call this RPC instead of querying the base tables directly from the client.
+No blocking issues remain.
 
 ### Concerns
-- **[MINOR] app/src/features/auth/oauth.ts:25** — Unsafe property access on `data.url`.
-  * *Description & Impact*: If `supabase.auth.signInWithOAuth` returns successfully but without a redirect URL in `data` (or if `data` is null), `WebBrowser.openAuthSessionAsync(data.url, redirectTo)` will throw a runtime `TypeError` trying to access `url` on null/undefined.
-  * *Recommendation*: Use optional chaining or throw an explicit descriptive error if `data?.url` is missing before opening the auth session.
-- **[MINOR] iOS OAuth Compliance (Apple Guideline 4.8)** — Front-end implementation dependency.
-  * *Description & Impact*: `oauth.ts` exposes `signInWithGoogle` without any platform-specific guards, leaving the responsibility of platform-gating entirely to the calling screen (`sign-in.tsx`). If the UI fails to correctly platform-gate this call on iOS, the app will violate Apple Developer Guideline 4.8 and face App Store rejection.
-  * *Recommendation*: Double-check `sign-in.tsx` to verify that `signInWithGoogle` is strictly gated behind `Platform.OS === 'android'` and that iOS displays the disabled Apple Sign-In stub only.
+- **[MINOR] iOS OAuth Compliance (Apple Guideline 4.8)**:
+  * Ensure that the frontend screens (specifically `sign-in.tsx`) strictly gate the Google OAuth button with `Platform.OS === 'android'` and display the Apple sign-in stub as disabled on iOS. This is an integration requirement to prevent App Store rejection.
 
 ### Verification
-- **Code Inspection**: Reviewed all changed files logged in `.claude/review-queue.txt` ([oauth.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/auth/oauth.ts), [updateProfile.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/updateProfile.ts), [deleteAccount.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/deleteAccount.ts), and [profileStats.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/profileStats.ts)).
-- **Privilege & Policy Audit**: Audited `supabase/migrations/20260624000000_block_fixes.sql` and `20260624000002_ratings_privacy_fix.sql` to confirm database permission settings, confirming the `revoke select on ratings` blocks all direct client-side selects.
-- **Unit Test Execution**: Ran `npm test` within the `app` directory. All 19 test suites and 133 tests passed successfully. Note that `profileStats.test.ts` passed because it mocks the Supabase client and did not hit the live PostgreSQL database permission checks.
+- **Code Inspection**: Inspected [oauth.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/auth/oauth.ts), [oauth.test.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/auth/__tests__/oauth.test.ts), [updateProfile.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/updateProfile.ts), [deleteAccount.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/deleteAccount.ts), [profileStats.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/profileStats.ts), [profileStats.test.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/__tests__/profileStats.test.ts), and the updated migration file [20260701211135_profile_stats_rpc.sql](file:///C:/Users/mrsai/Gotta%20Go/supabase/migrations/20260701211135_profile_stats_rpc.sql).
+- **RPC & Schema Validation**: Inspected [database.types.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/lib/database.types.ts) to verify the registered schema matches the new migration. The RPC `get_profile_stats` is properly declared, correctly runs as a `SECURITY DEFINER`, and avoids exposing any base-table queries.
+- **Unit Test Execution**: Executed `npm test` from the `app/` directory. All 19 test suites and 130 tests pass successfully.
 
 ### Approved
-- **Auth Callback & OAuth Handling**: PKCE code extraction and session exchange logic in `oauth.ts` are robust and correctly implemented.
-- **Profile RPC Wiring**: The `updateProfile` and `deleteAccount` wrappers are clean, secure, and properly call the `update_profile` and `delete_account` RPCs.
-- **Account Deletion Cascade Safety**: The database-level modifications to the 7 foreign keys (`ON DELETE SET NULL`) successfully unblock account deletion.
+- **OAuth Flow**: Correctly handles PKCE exchange, properly checks `data?.url` safety, and catches cancels/dismisses gracefully.
+- **Profile Stats RPC**: The counts are securely performed on the server side via the `get_profile_stats` RPC, avoiding direct `select` operations on the restricted `ratings` table.
+- **Account Deletion Cascade & Anonymization**: Cascading user anonymization works correctly via the `delete_account` RPC and the corresponding table foreign keys set to nullify on user deletion.

@@ -766,6 +766,7 @@ export type Database = {
               isSetofReturn: true
             }
           }
+      get_profile_stats: { Args: never; Returns: Json }
       set_gps_consent: { Args: never; Returns: undefined }
       update_profile: { Args: { new_display_name: string }; Returns: undefined }
     }

@@ -58,18 +58,22 @@ Applied live. Two SECURITY DEFINER functions (revoke public + anon; grant authen
 
 ---
 
-## T3 — Covered OAuth + Profile Modules (CODE COMPLETE, NOT COMMITTED — blocked)
+## T3 — Covered OAuth + Profile Modules (CODE COMPLETE, NOT COMMITTED — round 3 review pending)
 
 **Files:** `auth/oauth.ts`, `profile/{updateProfile,deleteAccount,profileStats}.ts` + 4 test files (21 tests total, 100% coverage on all four).
 
 **Review round 1:** Both Antigravity and Codex independently returned REQUEST CHANGES:
-- [CRITICAL/MAJOR, both] `profileStats.ts` queried `ratings` directly — blocked by the privacy-motivated privilege revocation in migration `20260624000002`. Fixed by adding `get_profile_stats()` SECURITY DEFINER RPC (migration `20260627000005`, written but **not yet applied live**) deriving the user via `auth.uid()`, and rewriting `profileStats.ts`/its test to call it instead of querying tables directly.
+- [CRITICAL/MAJOR, both] `profileStats.ts` queried `ratings` directly — blocked by the privacy-motivated privilege revocation in migration `20260624000002`. Fixed by adding `get_profile_stats()` SECURITY DEFINER RPC deriving the user via `auth.uid()`, and rewriting `profileStats.ts`/its test to call it instead of querying tables directly.
 - [MINOR, Antigravity] `oauth.ts` unsafe `data.url` access — fixed with an explicit guard.
 - [MINOR, informational] iOS Guideline 4.8 gating is T4's (`sign-in.tsx`) responsibility, not T3's — flagged forward, no T3 action needed.
 
-**Current blocker:** the migration needs to be applied live to `ebmzhjmmtmldhrojkdqw` and `database.types.ts` regenerated before typecheck is fully clean and a second review round can run. This requires direct user confirmation in a live session (a background coder agent correctly refused to act on a coordinator-relayed confirmation for this exact reason). Full detail and exact next steps: `.beads/context/execution-state.md` § "How to unblock next session."
+**Migration applied (2026-07-01):** user confirmed directly in a live session; applied via Supabase MCP `apply_migration` to `ebmzhjmmtmldhrojkdqw`, `database.types.ts` regenerated, full DoD re-passed (0 typecheck errors, 130/130 tests, 100% coverage, 0 lint errors).
 
-**Still needs, in order:** apply migration → regenerate types → re-run full DoD → fresh Antigravity + Codex review round (not a reuse of round 1's verdicts) → commit → close `gotta-go-3ov` → re-enable TDD Guard (`tdd-guard on`, exact literal message) → proceed to T4.
+**Review round 2:**
+- Antigravity: **APPROVE** — critical `ratings` fix confirmed resolved; only a MINOR carry-forward note (iOS 4.8 gating, T4's concern).
+- Codex: **REQUEST CHANGES** — [MAJOR] the Supabase MCP `apply_migration` tool assigns its own timestamp-based version on apply rather than honoring the local file's version. Local file was drafted as `20260627000005_profile_stats_rpc.sql` but Supabase recorded it live as `20260701211135_profile_stats_rpc`, creating repo/live migration-history drift. Fixed by renaming the local file to `20260701211135_profile_stats_rpc.sql` to match. All of Codex's other findings from round 1 confirmed resolved (RPC correctness, `auth.uid()` scoping, cast pattern acceptable, test coverage of the error path).
+
+**Still needs, in order:** round 3 review (Antigravity + Codex re-confirm on the renamed file — content unchanged, filename only) → commit → close `gotta-go-3ov` → re-enable TDD Guard (`tdd-guard on`, exact literal message) → proceed to T4.
 
 ---
 

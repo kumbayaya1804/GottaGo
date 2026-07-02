@@ -37,7 +37,7 @@
 | WU-01b-T7 | Auth forms + GPS consent + reset | src/app/(auth)/*.tsx, gps-consent.tsx, reset-password.tsx + __tests__ | ea07fca |
 | WU-02-T1 | Nullable FK migration + profile RPCs | supabase/migrations/20260627000003-04.sql, database.types.ts | ac66fc4 |
 | WU-02-T2 | expo-auth-session install + dashboard/EAS config | app/package.json, package-lock.json; Supabase Google provider, redirect URLs, email-confirm-disabled, EAS secrets GOOGLE_CLIENT_ID/GOOGLE_SECRET (all verified live 2026-07-01) | fa63838 + dashboard config (no code commit for the dashboard side) |
-| WU-02-T3 | oauth/profile TDD modules (CODE COMPLETE, NOT YET COMMITTED) | src/features/auth/oauth.ts, src/features/profile/{updateProfile,deleteAccount,profileStats}.ts + tests; supabase/migrations/20260627000005_profile_stats_rpc.sql (written, not yet applied live) | — blocked on migration apply, see execution-state.md |
+| WU-02-T3 | oauth/profile TDD modules (CODE COMPLETE, NOT YET COMMITTED) | src/features/auth/oauth.ts, src/features/profile/{updateProfile,deleteAccount,profileStats}.ts + tests; supabase/migrations/20260701211135_profile_stats_rpc.sql (applied live 2026-07-01) | — round 3 review pending (filename-only fix after Codex flagged migration version drift), see execution-state.md |
 
 ## Established Patterns
 - Supabase client: `import { supabase } from '@/lib/supabase'` (never recreate)
@@ -57,7 +57,7 @@
 - update_profile(new_display_name text) RPC: authenticated only; sets display_name + updated_at (migration 000004)
 - delete_account() RPC: authenticated only; nulls 7 FK columns then deletes auth.users atomically (migration 000004)
 - 7 FK columns now nullable ON DELETE SET NULL: submissions.submitter_id, ratings.user_id, trust_events.user_id, verification_events.user_id, reports.user_id, failure_events.user_id, availability_flags.reporter_id (migration 000003)
-- get_profile_stats() RPC: authenticated only; derives user via auth.uid() (no caller-supplied id — matches update_profile/delete_account pattern); returns json {gps_verifications, locations_submitted, ratings_given} in one round trip. **Migration 20260627000005 WRITTEN, NOT YET APPLIED LIVE** — needed because `ratings` base-table SELECT is revoked from authenticated/anon (migration 000002, PII protection), so client-side querying it directly 42501s.
+- get_profile_stats() RPC: authenticated only; derives user via auth.uid() (no caller-supplied id — matches update_profile/delete_account pattern); returns json {gps_verifications, locations_submitted, ratings_given} in one round trip. **Applied live 2026-07-01** (migration `20260701211135_profile_stats_rpc.sql` — note: Supabase MCP's `apply_migration` tool assigns its own timestamp version on apply rather than honoring the local filename's version; the local file was renamed post-apply to match, after Codex caught the drift in round 2 review) — needed because `ratings` base-table SELECT is revoked from authenticated/anon (migration 000002, PII protection), so client-side querying it directly 42501s.
 
-## Test Suite State (as of last independent verification, pre-migration-apply for WU-02-T3)
-- 19 suites, 130 tests, 100% coverage on all touched files. oauth.ts/updateProfile.ts/deleteAccount.ts/profileStats.ts all at 100%. profileStats.ts has 4 expected typecheck errors until the RPC above is live and types are regenerated — not a real bug, just generated-types lag.
+## Test Suite State (as of last independent verification, post-migration-apply for WU-02-T3)
+- 19 suites, 130 tests, 100% coverage on all touched files. oauth.ts/updateProfile.ts/deleteAccount.ts/profileStats.ts all at 100%. typecheck clean (0 errors) now that the RPC is live and types are regenerated.
