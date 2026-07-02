@@ -1,6 +1,6 @@
 # Verification Commands
 
-Status: provisional. Update this file when the actual stack is scaffolded.
+Status: active. Update this file when the stack or host tooling changes.
 
 ## Goal
 
@@ -8,16 +8,22 @@ Every non-trivial change should have a clear verification signal before commit. 
 
 ## Expected Command Categories
 
-Once the project has a Node/TypeScript app, expected commands should include:
+For the Expo/TypeScript app, expected commands include:
 
 ```bash
-npm test
-npm run typecheck
-npm run lint
-npm run build
+cd app && npm.cmd test -- --runInBand
+cd app && npm.cmd run typecheck
+cd app && npm.cmd run lint
+cd app && npm.cmd run test:coverage -- --runInBand
 ```
 
-If the project uses a different package manager, replace these with the project-standard commands.
+On this Windows host, use `npm.cmd` rather than `npm` from PowerShell. The `.ps1` shims can be blocked by execution policy.
+
+For focused Jest runs against Expo Router paths containing literal parentheses, use `--runTestsByPath` so Jest does not treat `(auth)` as a regular-expression group:
+
+```bash
+cd app && npm.cmd test -- --runInBand --runTestsByPath "src/app/__tests__/(auth)/sign-in.test.tsx"
+```
 
 ## Supabase And Database Verification
 
@@ -42,6 +48,8 @@ For user-facing UI changes, verify:
 - Slow or failed network calls
 - Keyboard accessibility for controls
 - No PII or precise coordinates in visible logs/debug UI
+- Parent layout, provider, route guard, and async event behavior when those boundaries can change the screen outcome
+- Whether screen tests mock production boundaries such as router, auth session, Supabase RPCs, GPS, network, or RLS behavior
 
 When a dev server exists, run it and inspect the affected route in a browser if practical.
 
@@ -57,6 +65,8 @@ Minimum evidence to look for:
 - Tests for GPS radius, freshness, and accuracy rules
 - No sensitive values in logs
 
+For auth, routing, Supabase writes, GPS, trust/shadowban, RLS-sensitive reads, and async UI flows, reviewers should include a call-path and mock-boundary check in addition to test results. Passing isolated unit or screen tests is not sufficient when those tests replace the provider, route guard, database, policy, or external callback that decides production behavior.
+
 ## Review Reporting
 
 Reviewers should include a verification section:
@@ -69,4 +79,3 @@ Reviewers should include a verification section:
 ```
 
 If a command fails, report the failing command and the relevant failure. Do not hide failed verification behind an approval.
-

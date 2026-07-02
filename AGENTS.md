@@ -31,7 +31,7 @@ Claude does not self-approve. All non-trivial code passes through both reviewers
 
 ## Code Reviewer 1 - Antigravity (Antigravity CLI)
 
-Focus: correctness, logic, architecture, data integrity, PostGIS queries, and RLS policy placement.
+Focus: correctness, logic, architecture, data integrity, PostGIS queries, RLS policy placement, and dynamic runtime safety.
 
 Antigravity acts as the senior architectural auditor for system-level reasoning:
 - PostGIS geometry correctness, SRID consistency, and geospatial query performance
@@ -39,6 +39,7 @@ Antigravity acts as the senior architectural auditor for system-level reasoning:
 - RLS policy placement and shadowban enforcement at the database/query layer
 - Materialized view design and refresh strategy
 - Cross-feature data integrity and edge cases
+- **Dynamic Runtime State-Flow Audits**: Trace async lifecycles, event interleaving, and state transition boundaries to identify race conditions (e.g., router redirects preempting slow post-auth writes). Audit whether mocks in unit tests mask live database-layer constraints or privilege revocations.
 
 **Invoke from terminal:**
 ```bash

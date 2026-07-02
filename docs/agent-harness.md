@@ -39,10 +39,10 @@ The harness follows current primary-source guidance from agentic coding platform
    Antigravity owns architecture, PostGIS, RLS placement, trust math, confidence decay, aggregate correctness, and system-level data integrity. Codex owns implementation quality, security/privacy, TypeScript correctness, test quality, user-visible failure states, and practical production risk.
 
 3. Review is artifact-driven.
-   No reviewer approves from intent alone. Every review must have a concrete artifact bundle: scope, context, changed files, exact file contents or diff, verification evidence, and requested output format.
+   No reviewer approves from intent alone. Every review must have a concrete artifact bundle: scope, context, changed files, exact file contents or diff, verification evidence, runtime-boundary context, and requested output format.
 
 4. Handoffs are explicit.
-   Claude must state what is being handed off, which files are in scope, what verdict is requested, and what evidence the reviewer should inspect. Reviewers must not silently expand into unrelated changes unless they uncover a security, privacy, data-integrity, or production-breaking risk.
+   Claude must state what is being handed off, which files are in scope, what verdict is requested, and what evidence the reviewer should inspect. Handoffs must name the nearest callers, callees, providers, route guards, RPCs, policies, hooks, migrations, or tests that can affect the changed behavior. Reviewers must not silently expand into unrelated changes unless they uncover a security, privacy, data-integrity, or production-breaking risk.
 
 5. Guardrails beat speed.
    Any BLOCK verdict stops the line. Any REQUEST CHANGES verdict requires a fix and re-review. Conflicts between Antigravity and Codex are resolved by documenting the conflict and taking the stricter interpretation for security, privacy, RLS, GPS integrity, and data-loss concerns.
@@ -116,9 +116,13 @@ Every reviewer packet must include:
 - Changed files from `.claude/review-queue.txt`.
 - Relevant project context and constraints.
 - Actual file contents or an explicit diff.
+- Runtime-boundary context: nearest callers/callees, providers/layouts, route guards, hooks, RPCs, migrations, policies, scheduled jobs, or external callbacks that can change behavior.
+- Mock-boundary context: tests that mock any of those boundaries, and a prompt for reviewers to decide whether the mocks hide production behavior.
 - Verification commands already run and their outcomes.
 - Known caveats, failed commands, or missing tooling.
 - Required output format and verdict definitions.
+
+Packets should be self-contained but not bloated. Prefer focused excerpts, exact diffs, full changed files, and the relevant dependency chain over pasting every project document wholesale. Include full source documents only when the whole document is directly relevant to the review.
 
 Do not include secrets, service-role keys, auth tokens, private `.env` values, or precise user location data in reviewer prompts.
 

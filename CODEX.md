@@ -11,10 +11,12 @@ Claude remains the default implementation agent. Codex may implement when the hu
 For every Codex review:
 1. Read `.claude/codex-prompt-latest.md`; if it is missing, stop and say the review scope is missing.
 2. Inspect the queued files from disk; do not rely on the prompt as a substitute for evidence.
-3. Run practical verification when available: tests, typecheck, lint, build, or targeted inspection.
-4. Put findings first, with exact `file:line` references and required fixes.
-5. Do not approve uninspected code or unverifiable safety claims.
-6. Escalate security, privacy, RLS, GPS integrity, shadowban, and silent-failure issues.
+3. Do a call-path pass: inspect the nearest callers, callees, provider/layout effects, route guards, RPCs, policies, and lifecycle boundaries that can change the reviewed behavior.
+4. Check whether tests or mocks hide the real runtime boundary, especially parent layouts, auth/session events, router behavior, Supabase constraints, RLS, GPS, and network failures.
+5. Run practical verification when available: tests, typecheck, lint, build, or targeted inspection.
+6. Put findings first, with exact `file:line` references and required fixes.
+7. Do not approve uninspected code or unverifiable safety claims.
+8. Escalate security, privacy, RLS, GPS integrity, shadowban, and silent-failure issues.
 
 ## Project Context
 
@@ -57,6 +59,8 @@ Before returning any Codex review, Codex must read `.claude/codex-prompt-latest.
 
 Codex must:
 - Read the relevant implementation, tests, migrations, and calling code before judging
+- Trace cross-file state transitions for auth, routing, GPS, Supabase writes, RLS-sensitive reads, and async UI flows; do not stop at the edited file when a provider, guard, hook, or RPC decides the real behavior
+- Compare test mocks against production wiring and call out when screen-level or unit tests bypass the boundary that can fail in the app
 - Check for stale project instructions when the change touches docs, prompts, migrations, generated types, dependencies, launch assumptions, or review workflow
 - Look for both direct bugs and missing enforcement at the correct layer
 - Check that client code does not become the security boundary
@@ -68,6 +72,7 @@ Codex must:
 
 Codex must not:
 - Approve code based only on a task description
+- Approve a UI or screen change solely because isolated component tests pass when parent layout, provider, auth-event, navigation, database, or RLS behavior is mocked away
 - Treat client filtering as sufficient for trust, RLS, GPS, or shadowban rules
 - Ignore missing error handling around writes or security-sensitive reads
 - Recommend broad rewrites when a localized change solves the defect
@@ -161,6 +166,9 @@ Use this format:
 
 ### Verification
 - Commands run and results, or why verification was not run.
+
+### Runtime Boundary Check
+- Mandatory whenever the review packet includes a "Dependency Call Chains" or "Runtime Boundary And Mock Audit" section (i.e. any multi-file or cross-boundary change). State the call-path traced, which tests mock which boundaries, and whether any mock could hide production behavior. If the packet omitted this context, say so explicitly instead of skipping the section.
 
 ### Approved
 - What is correct or ready to merge.

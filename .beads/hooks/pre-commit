@@ -1,4 +1,12 @@
 #!/usr/bin/env sh
+# --- BEGIN PROJECT CUSTOM HOOKS (tracked in git, safe from beads upgrades) ---
+# node .claude/hooks/check-review-artifacts.js blocks commits that stage files
+# currently in .claude/review-queue.txt if the Antigravity/Codex packets or
+# verdicts are missing required runtime-boundary/mock-boundary sections.
+if command -v node >/dev/null 2>&1; then
+  node .claude/hooks/check-review-artifacts.js || exit 1
+fi
+# --- END PROJECT CUSTOM HOOKS ---
 # --- BEGIN BEADS INTEGRATION v1.0.4 ---
 # This section is managed by beads. Do not remove these markers.
 if command -v bd >/dev/null 2>&1; then
