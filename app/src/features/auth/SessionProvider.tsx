@@ -7,11 +7,19 @@ import { supabase } from '../../lib/supabase';
  * session: the active Supabase auth session, or null if unauthenticated
  * loading: true until the first auth event fires (blank-splash gate — decision #5)
  * signOut: calls supabase.auth.signOut()
+ * suppressGuardRedirect: when true, the root layout guard's auto-redirect effect
+ *   (redirect.ts nextRoute) is skipped. Set by screens that create a session as a
+ *   side effect of an in-flight multi-step flow (e.g. sign-up: signUp() creates a
+ *   session immediately since email confirmation is disabled, but the screen still
+ *   has to call updateProfile() and show/handle its error before it's safe to let
+ *   the guard route the user elsewhere) — WU-02-T4 review finding.
  */
 export interface SessionContextValue {
   session: Session | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  suppressGuardRedirect: boolean;
+  setSuppressGuardRedirect: (value: boolean) => void;
 }
 
 /**
@@ -45,6 +53,7 @@ interface SessionProviderProps {
 export function SessionProvider({ children }: SessionProviderProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [suppressGuardRedirect, setSuppressGuardRedirect] = useState(false);
 
   useEffect(() => {
     // Hydrate session from AsyncStorage on cold start
@@ -69,7 +78,9 @@ export function SessionProvider({ children }: SessionProviderProps) {
   };
 
   return (
-    <SessionContext.Provider value={{ session, loading, signOut }}>
+    <SessionContext.Provider
+      value={{ session, loading, signOut, suppressGuardRedirect, setSuppressGuardRedirect }}
+    >
       {children}
     </SessionContext.Provider>
   );

@@ -6,26 +6,38 @@
  */
 
 import React from 'react';
+import { Platform } from 'react-native';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
+let mockSearchParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   useRouter: jest.fn(() => ({ push: mockPush, replace: mockReplace })),
   useSegments: jest.fn(() => []),
+  useLocalSearchParams: jest.fn(() => mockSearchParams),
 }));
 
 const mockSignInWithPassword = jest.fn();
+const mockExchangeCodeForSession = jest.fn();
 jest.mock('../../../lib/supabase', () => ({
   supabase: {
     auth: {
       signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
+      exchangeCodeForSession: (...args: unknown[]) => mockExchangeCodeForSession(...args),
     },
   },
 }));
 
+const mockSignInWithGoogle = jest.fn();
+jest.mock('../../../features/auth/oauth', () => ({
+  signInWithGoogle: (...args: unknown[]) => mockSignInWithGoogle(...args),
+}));
+
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSearchParams = {};
+  Platform.OS = 'android';
 });
 
 import SignInScreen from '../../(auth)/sign-in';
@@ -116,6 +128,117 @@ describe('SignInScreen', () => {
         email: 'user@example.com',
         password: 'password123',
       });
+    });
+  });
+
+  describe('platform-gated OAuth row', () => {
+    it('shows "Continue with Google" and no Apple stub on Android', () => {
+      Platform.OS = 'android';
+
+      const { getByText, queryByText } = render(<SignInScreen />);
+
+      expect(getByText('Continue with Google')).toBeTruthy();
+      expect(queryByText('Sign in with Apple — coming soon')).toBeNull();
+    });
+
+    it('shows the disabled Apple stub and no Google button on iOS', () => {
+      Platform.OS = 'ios';
+
+      const { getByText, queryByText } = render(<SignInScreen />);
+
+      expect(getByText('Sign in with Apple — coming soon')).toBeTruthy();
+      expect(queryByText('Continue with Google')).toBeNull();
+    });
+
+    it('the Apple stub reports accessibilityState disabled', () => {
+      Platform.OS = 'ios';
+
+      const { getByLabelText } = render(<SignInScreen />);
+      const stub = getByLabelText('Sign in with Apple — coming soon');
+
+      expect(stub.props.accessibilityState).toEqual({ disabled: true });
+    });
+
+    it('tapping "Continue with Google" calls signInWithGoogle', async () => {
+      Platform.OS = 'android';
+      mockSignInWithGoogle.mockResolvedValue(null);
+
+      const { getByText } = render(<SignInScreen />);
+      fireEvent.press(getByText('Continue with Google'));
+
+      await waitFor(() => {
+        expect(mockSignInWithGoogle).toHaveBeenCalled();
+      });
+    });
+
+    it('exchanges the returned code for a session when signInWithGoogle resolves with a code', async () => {
+      Platform.OS = 'android';
+      mockSignInWithGoogle.mockResolvedValue('abc123');
+      mockExchangeCodeForSession.mockResolvedValue({ data: { session: {} }, error: null });
+
+      const { getByText } = render(<SignInScreen />);
+      fireEvent.press(getByText('Continue with Google'));
+
+      await waitFor(() => {
+        expect(mockExchangeCodeForSession).toHaveBeenCalledWith('abc123');
+      });
+    });
+
+    it('does not attempt an exchange when signInWithGoogle resolves null (cancel/dismiss)', async () => {
+      Platform.OS = 'android';
+      mockSignInWithGoogle.mockResolvedValue(null);
+
+      const { getByText } = render(<SignInScreen />);
+      fireEvent.press(getByText('Continue with Google'));
+
+      await waitFor(() => {
+        expect(mockSignInWithGoogle).toHaveBeenCalled();
+      });
+      expect(mockExchangeCodeForSession).not.toHaveBeenCalled();
+    });
+
+    it('shows the network error copy when signInWithGoogle throws', async () => {
+      Platform.OS = 'android';
+      mockSignInWithGoogle.mockRejectedValue(new Error('provider not enabled'));
+
+      const { getByText } = render(<SignInScreen />);
+      fireEvent.press(getByText('Continue with Google'));
+
+      await waitFor(() => {
+        expect(
+          getByText("Couldn't sign in. Check your connection and try again.")
+        ).toBeTruthy();
+      });
+    });
+
+    it('shows the network error copy when exchangeCodeForSession returns an error', async () => {
+      Platform.OS = 'android';
+      mockSignInWithGoogle.mockResolvedValue('abc123');
+      mockExchangeCodeForSession.mockResolvedValue({
+        data: { session: null },
+        error: new Error('invalid grant'),
+      });
+
+      const { getByText } = render(<SignInScreen />);
+      fireEvent.press(getByText('Continue with Google'));
+
+      await waitFor(() => {
+        expect(
+          getByText("Couldn't sign in. Check your connection and try again.")
+        ).toBeTruthy();
+      });
+    });
+  });
+
+  describe('authError search param', () => {
+    it('shows the network error copy immediately when arriving with ?authError=1', () => {
+      mockSearchParams = { authError: '1' };
+
+      const { getByText } = render(<SignInScreen />);
+
+      expect(
+        getByText("Couldn't sign in. Check your connection and try again.")
+      ).toBeTruthy();
     });
   });
 });

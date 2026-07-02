@@ -22,18 +22,24 @@ function GuardComponent() {
   const sessionValue = useSession();
   const session = sessionValue?.session ?? null;
   const loading = sessionValue?.loading ?? true;
+  const suppressGuardRedirect = sessionValue?.suppressGuardRedirect ?? false;
   const router = useRouter();
   const segments = useSegments();
 
   // Effect 1: redirect guard based on session state
+  //
+  // Skips when suppressGuardRedirect is set — screens that create a session as a
+  // side effect of an in-flight multi-step flow (e.g. sign-up's updateProfile call
+  // after signUp()) raise this flag so this effect doesn't race their own explicit
+  // navigation/error handling (WU-02-T4 review finding).
   useEffect(() => {
-    if (loading) return;
+    if (loading || suppressGuardRedirect) return;
     const route = nextRoute(segments as string[], !!session);
     if (route !== null) {
       // as never required: expo-router replace type is strict about known routes
       router.replace(route as never);
     }
-  }, [loading, session, segments, router]);
+  }, [loading, suppressGuardRedirect, session, segments, router]);
 
   // Effect 2: PASSWORD_RECOVERY deep-link handler (separate subscription)
   useEffect(() => {

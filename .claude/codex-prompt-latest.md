@@ -1,4 +1,4 @@
-# Codex Review Request — Gotta Go
+# Codex Review Request - Gotta Go
 
 ## Your Role
 # Codex Role Guide
@@ -14,10 +14,12 @@ Claude remains the default implementation agent. Codex may implement when the hu
 For every Codex review:
 1. Read `.claude/codex-prompt-latest.md`; if it is missing, stop and say the review scope is missing.
 2. Inspect the queued files from disk; do not rely on the prompt as a substitute for evidence.
-3. Run practical verification when available: tests, typecheck, lint, build, or targeted inspection.
-4. Put findings first, with exact `file:line` references and required fixes.
-5. Do not approve uninspected code or unverifiable safety claims.
-6. Escalate security, privacy, RLS, GPS integrity, shadowban, and silent-failure issues.
+3. Do a call-path pass: inspect the nearest callers, callees, provider/layout effects, route guards, RPCs, policies, and lifecycle boundaries that can change the reviewed behavior.
+4. Check whether tests or mocks hide the real runtime boundary, especially parent layouts, auth/session events, router behavior, Supabase constraints, RLS, GPS, and network failures.
+5. Run practical verification when available: tests, typecheck, lint, build, or targeted inspection.
+6. Put findings first, with exact `file:line` references and required fixes.
+7. Do not approve uninspected code or unverifiable safety claims.
+8. Escalate security, privacy, RLS, GPS integrity, shadowban, and silent-failure issues.
 
 ## Project Context
 
@@ -60,6 +62,8 @@ Before returning any Codex review, Codex must read `.claude/codex-prompt-latest.
 
 Codex must:
 - Read the relevant implementation, tests, migrations, and calling code before judging
+- Trace cross-file state transitions for auth, routing, GPS, Supabase writes, RLS-sensitive reads, and async UI flows; do not stop at the edited file when a provider, guard, hook, or RPC decides the real behavior
+- Compare test mocks against production wiring and call out when screen-level or unit tests bypass the boundary that can fail in the app
 - Check for stale project instructions when the change touches docs, prompts, migrations, generated types, dependencies, launch assumptions, or review workflow
 - Look for both direct bugs and missing enforcement at the correct layer
 - Check that client code does not become the security boundary
@@ -71,6 +75,7 @@ Codex must:
 
 Codex must not:
 - Approve code based only on a task description
+- Approve a UI or screen change solely because isolated component tests pass when parent layout, provider, auth-event, navigation, database, or RLS behavior is mocked away
 - Treat client filtering as sufficient for trust, RLS, GPS, or shadowban rules
 - Ignore missing error handling around writes or security-sensitive reads
 - Recommend broad rewrites when a localized change solves the defect
@@ -165,6 +170,9 @@ Use this format:
 ### Verification
 - Commands run and results, or why verification was not run.
 
+### Runtime Boundary Check
+- Mandatory whenever the review packet includes a "Dependency Call Chains" or "Runtime Boundary And Mock Audit" section (i.e. any multi-file or cross-boundary change). State the call-path traced, which tests mock which boundaries, and whether any mock could hide production behavior. If the packet omitted this context, say so explicitly instead of skipping the section.
+
 ### Approved
 - What is correct or ready to merge.
 ```
@@ -182,1100 +190,202 @@ If using the Codex app `/review` workflow or inline review comments instead of t
 - Copy or summarize the final verdict and findings into `.claude/codex-review-latest.md`.
 - Scope fixes to the reviewed files unless a security, privacy, data-integrity, or production-breaking issue requires following the call path.
 
-## Agent Coordination Rules
-# Gotta Go — Agent Roster
+## Agent Coordination Rules / Agent Harness (trimmed — unchanged since round 2)
 
-**Status:** Active. This file is the authoritative reference for every agent in this project.
-Every agent must read this file (and the documents listed below) before beginning any planning, implementation, or review work.
+Same roles, workflow, non-negotiables, and Minimum Commit Gate as round 2 (see `AGENTS_ROSTER.md`/`AGENTS.md`/`docs/agent-harness.md` if you want the full text — not repeated here since nothing about the process changed between rounds).
 
----
+## Verdict Definitions / Verification Commands
 
-## Required Reading — Load Before Any Work
-
-Every agent must read these documents in full before starting a session:
-
-| File | Purpose |
-|------|---------|
-| `AGENTS_ROSTER.md` | This file — agent identities, roles, invocation, workflow |
-| `AGENTS.md` | Agent coordination rules and non-negotiable constraints |
-| `docs/agent-harness.md` | Claude/Antigravity/Codex orchestration, handoffs, review artifacts, permission posture |
-| `SPEC.md` | Product scope, user flows, privacy, GPS, trust, shadowban, gamification |
-| `docs/schema-contract.md` | Supabase/PostGIS schema contract, RLS expectations, migration rules |
-| `docs/review-severity.md` | Shared APPROVE / REQUEST CHANGES / BLOCK verdict definitions |
-| `docs/verification.md` | Required verification commands and reporting format |
-| `docs/stale-info-scan.md` | Periodic stale-information scan cadence, severity, and artifact format |
-| `ANTIGRAVITY.md` | Antigravity's operating instructions (read by Antigravity before any review) |
-| `CODEX.md` | Codex's operating instructions (read by Codex before any review) |
-| `.claude/codex-prompt-latest.md` | Current Codex review scope and output contract (required for Codex review) |
-| `.planning/PROJECT.md` | Current roadmap, requirements, constraints, and key decisions |
-
-If any file listed above conflicts with another, flag the conflict for human resolution. Do not silently pick the easier interpretation.
-
-**If you are Antigravity:** also read `ANTIGRAVITY.md` before reviewing anything.
-**If you are Codex:** also read `CODEX.md` and the current `.claude/codex-prompt-latest.md` before reviewing anything. If the prompt file is missing for a review request, say so instead of guessing the scope.
+[Full docs/review-severity.md and docs/verification.md — see below]
 
 ---
 
-## Agent 1 — Claude (Claude Code CLI)
+## Round 2 Verdicts (both reviewed the SAME code — guard-suppression fix, no retry fix yet)
 
-**Role:** Primary Coder
-**Tool:** Claude Code CLI — invoked directly in the terminal
-**Persona:** Senior full-stack engineer; owns all implementation, testing, and GSD workflow execution
-
-### Responsibilities
-
-- Write all code, tests, migrations, and documentation for assigned phases
-- Execute the full GSD workflow: discuss → plan → implement → verify
-- Enforce TDD for all non-trivial behavior: red → green → refactor
-- Log every file written or edited to `.claude/review-queue.txt` (automated via PostToolUse hook)
-- Invoke Antigravity review and generate the Codex prompt after completing each task
-- Maintain `.claude/antigravity-review-latest.md`, `.claude/codex-prompt-latest.md`, and `.claude/codex-review-latest.md` as review artifacts
-- Run `/stale-info-scan` on the cadence in `docs/stale-info-scan.md` and maintain `.planning/stale-info-scan-latest.md`
-- Resolve all BLOCK and REQUEST CHANGES findings before committing
-- Commit only after both Antigravity and Codex have returned APPROVE (or all blocking findings are resolved and re-reviewed)
-
-### Entry Points (GSD Workflow)
-
-| Command | When to use |
-|---------|------------|
-| `/gsd-quick` | Small fixes, doc updates, one-off tasks |
-| `/gsd-discuss-phase` | Gather context and surface assumptions before planning |
-| `/gsd-plan-phase` | Create detailed PLAN.md for a phase |
-| `/gsd-execute-phase` | Execute all tasks in a phase's plan |
-| `/gsd-verify-work` | Verify phase goal was achieved |
-| `/gsd-debug` | Systematic bug investigation |
-| `/antigravity-review` | Invoke Antigravity CLI on queued files |
-| `/codex-prompt` | Generate Codex review prompt for queued files |
-| `/stale-info-scan` | Scan for stale docs, prompts, plans, schema, dependencies, and review artifacts |
-
-### Constraints
-
-- Claude does NOT self-approve. All non-trivial code is reviewed by both Antigravity and Codex before commit.
-- Claude does not make direct repo edits outside a GSD workflow unless the user explicitly says to bypass it.
-- Claude resolves Antigravity vs. Codex conflicts explicitly (see AGENTS.md § Conflict Resolution).
-
----
-
-## Agent 2 — Antigravity (Antigravity CLI)
-
-**Role:** Architectural Auditor & Lead Systems Reviewer
-**Tool:** Antigravity CLI — invoked via terminal
-**Persona:** Senior architect specializing in PostGIS, distributed trust systems, and database-layer security
-
-### Invocation
-
-```bash
-# Run /antigravity-review in Claude Code to invoke automatically on queued files.
-# Manual invocation:
-antigravity -p "$(cat ANTIGRAVITY.md AGENTS_ROSTER.md AGENTS.md docs/agent-harness.md SPEC.md docs/schema-contract.md docs/review-severity.md docs/verification.md); Review the following changed files and return your verdict:\n$(cat <file>)"
-```
-
-> Use `/antigravity-review` in Claude Code — it builds the full context prompt and calls Antigravity automatically.
-
-### Primary Focus Areas
-
-| Area | What Antigravity checks |
-|------|--------------------|
-| PostGIS correctness | `ST_DWithin` / `ST_Distance` meter semantics, SRID consistency, spatial indexes, geography vs geometry |
-| RLS policy placement | Shadowban + soft-delete filters at query/DB layer, not UI layer |
-| Trust & confidence math | Weighted verification logic, confidence decay formula, respect-signal aggregation |
-| Materialized view design | `respect_signal_90d` refresh strategy, CONCURRENTLY requirement, unique index |
-| Architecture | Component placement, tier boundaries, RPC security-definer patterns |
-| Data integrity | Foreign key correctness, append-only audit patterns, soft-delete consistency |
-| Edge cases | Null coordinates, expired flags, zero trust scores, deleted/shadowbanned records |
-
-### Output Format
-
-```md
-## Antigravity Review - [filename or change set]
-
-**VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
-
-### Issues
-- [CRITICAL/MAJOR/MINOR] file:line - Description, impact, required fix.
-
-### Concerns
-- Architectural or logic concerns that may need follow-up.
-
-### Verification
-- Commands run and results, or why verification was not run.
-
-### Approved
-- What is correct and ready.
-```
-
----
-
-## Agent 3 — Codex (Codex App)
-
-**Role:** Implementation Quality Reviewer & Security Auditor
-**Tool:** Codex app (GUI) — not CLI. Prompts are generated by Claude via `/codex-prompt` and pasted in by the human.
-**Persona:** Senior security and implementation reviewer; owns TypeScript quality, privacy, test coverage, and production-safety auditing
-
-### Invocation
+### Antigravity Round 2 — APPROVE
 
 ```
-Run /codex-prompt in Claude Code.
-Claude will write the full review prompt to .claude/codex-prompt-latest.md.
-Open that file, copy the contents, and paste into the Codex app.
+## Antigravity Review - Phase 2 Auth & Profiles Wave 2 (Task 4 - Round 2)
+
+**VERDICT: APPROVE**
+
+The critical race condition identified in the previous round has been resolved via
+suppressGuardRedirect. No blocking issues. Runtime Boundary Check assessed the
+mock-boundary gap as acceptable and the event-ordering as safe.
 ```
 
-> Codex is the only agent that requires a manual human step (paste). The prompt is always pre-built by Claude.
-> Codex must read `.claude/codex-prompt-latest.md` before returning a verdict, then inspect the actual files from disk. If the prompt file is missing for a review request, Codex must report that instead of guessing the scope. The prompt defines scope; it does not replace evidence-based review.
-> Claude should copy the returned Codex verdict to `.claude/codex-review-latest.md` before commit.
+**Note: this APPROVE did not catch the retry bug below** — Antigravity's round-2 pass didn't flag it. Not a contradiction with Codex; it's a miss worth being aware of when weighing the two verdicts.
 
-### Primary Focus Areas
+### Codex Round 2 — REQUEST CHANGES (MAJOR)
 
-| Area | What Codex checks |
-|------|-------------------|
-| Security & privacy | PII in logs, service-role key exposure, trust/shadowban enforced only on client, raw SQL in client code |
-| TypeScript correctness | Type errors, unsafe casts, naming, maintainability |
-| GPS & location integrity | PostGIS source-of-truth enforced, SRID, client-coordinate trust |
-| Supabase misuse | Missing error handling on writes, RLS not enabled, anon-accessible admin endpoints |
-| Test coverage | Security-sensitive behavior tested, not just happy paths; RLS tests present |
-| Frontend quality | Loading states, error states, empty states, accessibility, denied-permission flows |
-| API boundary safety | Server-validated inputs, no client-as-authority for trust/geo/shadowban decisions |
-| Dead/duplicate code | Unused imports, duplicated logic, stale feature flags |
+```
+## Codex Review - Phase 2 Plan 02-02 Task 4, Round 2
 
-### Review Priority Order
-
-1. Security and privacy
-2. Data integrity and database enforcement
-3. GPS/location correctness
-4. Abuse resistance and shadowban behavior
-5. Supabase/RLS correctness
-6. User-visible correctness and failure states
-7. Test coverage and verification quality
-8. Maintainability, naming, and style
-
-### Output Format
-
-```md
-## Codex Review - [filename or change set]
-
-**VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
+**VERDICT: REQUEST CHANGES**
 
 ### Findings
-- [CRITICAL/MAJOR/MINOR] file:line - Description, impact, required fix.
-
-### Open Questions
-- Questions only when the answer affects merge safety.
-
-### Verification
-- Commands run and results, or why verification was not run.
-
-### Approved
-- What is correct or ready to merge.
+- MAJOR app/src/app/(auth)/sign-up.tsx:100 - The guard race is suppressed, but the
+  post-signUp() failure path is still not recoverable. Once supabase.auth.signUp()
+  succeeds, the user has an auth session and the profile row exists with
+  display_name = null; if updateProfile(values.displayName) fails, the screen shows
+  an error and stays mounted, but a second press still goes through the same
+  signUp() call. For a taken-name race or transient RPC/network failure, the next
+  attempt should retry profile provisioning for the already-created/signed-in
+  account, not create the auth user again with the same email. Required fix: once
+  account creation succeeds, track that state/session and route subsequent submits
+  through updateProfile() only until profile provisioning succeeds, with tests
+  covering retry after both DISPLAY_NAME_TAKEN_MESSAGE and generic updateProfile
+  failure.
 ```
 
----
+## Task Goal — Round 3
 
-## Agent 4 — GSD (Get Stuff Done Orchestration)
+Fix Codex's MAJOR finding above. Added an `accountCreated` boolean state to `sign-up.tsx`. `onSubmit` now wraps Steps 1-2 (display-name pre-check + `signUp()`) in `if (!accountCreated)`, and sets `accountCreated = true` right after `signUp()` succeeds. Step 3 (`updateProfile`) runs unconditionally, whether this is the first submit or a retry. This means: first submit does the full flow; if `updateProfile` then fails, a second submit skips straight to `updateProfile()` with the (possibly edited) current display-name value — no re-check, no re-signUp.
 
-**Role:** Workflow Engine & Phase Lifecycle Manager
-**Tool:** GSD skill system — invoked via slash commands in Claude Code
-**Persona:** Project manager enforcing phase discipline, planning rigor, and verification gates
+This is a single-file change (`sign-up.tsx` + its test) — `SessionProvider.tsx`/`_layout.tsx`/`sign-in.tsx`/`callback.tsx` are unchanged since round 2 (already independently APPROVE-equivalent from both reviewers on those files; this round only asks you to re-confirm `sign-up.tsx` as a whole, since it changed again).
 
-### Responsibilities
+## Files In Scope (`.claude/review-queue.txt`, same 10 files — only these 2 changed this round)
 
-- Manage the full phase lifecycle: spec → discuss → plan → execute → verify → ship
-- Enforce planning artifacts exist before execution begins
-- Track open requirements, validated requirements, and out-of-scope items in `.planning/PROJECT.md`
-- Run verification checks that goal was achieved (not just tasks completed)
-- Coordinate parallel work streams where phases are independent
-- Maintain `.planning/` directory health
+- `app/src/app/(auth)/sign-up.tsx` — the fix
+- `app/src/app/__tests__/(auth)/sign-up.test.tsx` — 2 new tests in a `describe('retry after account already created')` block
 
-### Key Commands
+## Full File: app/src/app/(auth)/sign-up.tsx (onSubmit — the only changed function; rest of file identical to round 2)
 
-| Command | Purpose |
-|---------|---------|
-| `/gsd-discuss-phase` | Gather context, surface assumptions, prep for planning |
-| `/gsd-plan-phase` | Create PLAN.md with tasks, dependencies, verification criteria |
-| `/gsd-execute-phase` | Execute plan with atomic commits and deviation handling |
-| `/gsd-verify-work` | Goal-backward verification that phase delivered its promise |
-| `/gsd-quick` | Fast-path for trivial tasks (no subagents, no plan overhead) |
-| `/gsd-debug` | Scientific-method debugging with persistent state |
-| `/gsd-progress` | Check phase status, advance workflow, dispatch intent |
-| `/gsd-health` | Diagnose and repair `.planning/` directory |
+```tsx
+async function onSubmit(values: SignUpFormValues) {
+  // If a prior submit already created the auth account but updateProfile then
+  // failed (taken name, transient error), the account/session already exist —
+  // re-running checkDisplayNameAvailable/signUp would hit an "already registered"
+  // error instead of actually retrying. Skip straight to Step 3 (WU-02-T4 review
+  // finding, round 2).
+  if (!accountCreated) {
+    // Step 1: Check display name availability
+    try {
+      const available = await checkDisplayNameAvailable(values.displayName);
+      if (!available) {
+        setError('displayName', { message: DISPLAY_NAME_TAKEN_MESSAGE });
+        return;
+      }
+    } catch (e) {
+      if (isDisplayNameTakenError(e)) {
+        setError('displayName', { message: DISPLAY_NAME_TAKEN_MESSAGE });
+      } else {
+        setError('root', { message: GENERIC_ERROR_COPY });
+      }
+      return;
+    }
 
-### Build Order (Architecture-Derived)
+    // Step 2: Create account. Suppress the root guard first — signUp() creates a
+    // session as a side effect (email confirmation disabled), and the guard would
+    // otherwise be free to redirect away from this screen before Step 3 completes.
+    setAwaitingProfileProvisioning(true);
+    const { error } = await supabase.auth.signUp({
+      email: values.email,
+      password: values.password,
+      options: { data: { display_name: values.displayName } },
+    });
 
-GSD phase sequencing must respect the dependency tiers from `.planning/research/ARCHITECTURE.md`:
+    if (error) {
+      setError('root', { message: error.message || 'Something went wrong.' });
+      return;
+    }
 
-```
-Level 0 — Foundation (extensions, config, indexes, RLS)
-Level 1 — Read Path (search RPCs, auth wiring)
-Level 2 — Mutation Foundation (GpsService, submit RPC, GPS gate)
-Level 3 — Trust Engine (verify RPC, confidence triggers, publish gate)
-Level 4 — Decay + Aggregates (respect_signal_90d, confidence decay job)
-Level 5 — Reports, Flags, Moderation Inputs
-Level 6 — Moderation Surface (admin functions, Studio-first)
-Level 7 — Client UX (map, emergency mode, submit/verify flows, ratings)
-Level 8 — Operations / Hardening (App Attest, telemetry, migration tests)
-```
+    setAccountCreated(true);
+  }
 
-No phase should execute work from a higher level before all required lower-level components are complete and reviewed.
+  // Step 3: persist display_name (handle_new_user trigger only sets id+email)
+  try {
+    await updateProfile(values.displayName);
+  } catch (e) {
+    if (e instanceof Error && e.message === DISPLAY_NAME_TAKEN_MESSAGE) {
+      setError('displayName', { message: DISPLAY_NAME_TAKEN_MESSAGE });
+    } else {
+      setError('root', { message: GENERIC_ERROR_COPY });
+    }
+    return;
+  }
 
----
-
-## Review Workflow (Full Cycle)
-
-```
-Claude completes a task
-   │
-   ▼
-Tests pass (npm test, npm run typecheck, npm run lint)
-   │
-   ▼
-Files written auto-logged to .claude/review-queue.txt (PostToolUse hook)
-   │
-   ▼
-/antigravity-review  ──►  Antigravity CLI invoked with full context
-   │                 Returns APPROVE / REQUEST CHANGES / BLOCK
-   ▼
-/codex-prompt  ──►  Prompt generated → .claude/codex-prompt-latest.md
-   │                 Human pastes into Codex app
-   │                 Codex reads .claude/codex-prompt-latest.md and inspects files
-   │                 Codex returns APPROVE / REQUEST CHANGES / BLOCK
-   ▼
-All BLOCK + REQUEST CHANGES resolved?
-   │
-   ├─ No  ──►  Claude fixes → re-run affected reviewers → repeat
-   │
-   └─ Yes ──►  Commit with reviewer verdicts in commit message
-               Clear .claude/review-queue.txt
-               Advance GSD phase state
+  router.replace('/gps-consent' as never);
+}
 ```
 
----
+Also added: `const [accountCreated, setAccountCreated] = useState(false);` alongside the existing `passwordVisible`/`awaitingProfileProvisioning` state declarations. Nothing else in the file changed.
 
-## Non-Negotiable Rules (All Agents)
+## New Tests (full content)
 
-Reviewer artifacts must be preserved through the handoff: Antigravity output is saved to `.claude/antigravity-review-latest.md`, Codex input is saved to `.claude/codex-prompt-latest.md`, and Codex output is saved to `.claude/codex-review-latest.md` when available. These artifacts support traceability but do not replace inspecting the actual files.
+```tsx
+describe('retry after account already created', () => {
+  it('a second submit after an updateProfile failure retries updateProfile without calling signUp or checkDisplayNameAvailable again', async () => {
+    mockCheckDisplayNameAvailable.mockResolvedValue(true);
+    mockSignUp.mockResolvedValue({ data: { user: {} }, error: null });
+    mockUpdateProfile.mockRejectedValueOnce(new Error('That display name is already taken.'));
 
-The latest stale-information scan is saved to `.planning/stale-info-scan-latest.md`. Any finding that affects the current task must be resolved or explicitly deferred before commit, milestone close, phase transition, or release.
+    const { getByPlaceholderText, getByText, findByText } = render(<SignUpScreen />);
+    fireEvent.changeText(getByPlaceholderText('Display Name'), 'TakenOnce');
+    fireEvent.changeText(getByPlaceholderText('Email'), 'retry@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+    fireEvent.press(getByText('Create Account'));
 
-1. Never commit with a BLOCK verdict outstanding.
-2. Never bypass shadowban, trust, GPS verification, or RLS checks for convenience.
-3. Never store coordinates outside PostGIS `geography/geometry` columns.
-4. Never log PII (email, user_id, precise coordinates) in client-visible contexts.
-5. Never skip tests or verification to ship faster.
-6. Never approve code based only on intent — inspect the actual implementation.
-7. Never let an Antigravity vs. Codex conflict be silently resolved — document it.
-8. Never write a migration that creates a user-owned or public-facing table without RLS enabled.
-9. Never put the Supabase service-role key anywhere the client can access it.
-10. Never trust the client for trust math, GPS authority, shadowban decisions, or RLS enforcement.
-# Agent Roles & Coordination
+    expect(await findByText('That display name is already taken.')).toBeTruthy();
+    expect(mockSignUp).toHaveBeenCalledTimes(1);
+    expect(mockCheckDisplayNameAvailable).toHaveBeenCalledTimes(1);
 
-## Project Source Of Truth
+    mockUpdateProfile.mockResolvedValueOnce(undefined);
+    fireEvent.changeText(getByPlaceholderText('Display Name'), 'AvailableNow');
+    fireEvent.press(getByText('Create Account'));
 
-All agents should read these documents before major planning, implementation, or review:
-- `SPEC.md` - product scope, user flows, privacy requirements, GPS verification, trust, confidence, shadowban, and gamification expectations
-- `docs/schema-contract.md` - provisional Supabase/PostGIS data model, RLS expectations, and migration review rules
-- `docs/review-severity.md` - shared APPROVE / REQUEST CHANGES / BLOCK definitions and severity examples
-- `docs/verification.md` - expected verification commands and reporting format
-- `docs/agent-harness.md` - Claude/Antigravity/Codex orchestration, handoff artifacts, permission posture, and commit gates
-- `docs/stale-info-scan.md` - periodic stale-information scan cadence, severity, and artifact format
-- `ANTIGRAVITY.md` - detailed Antigravity role guide and architectural review standard
-- `CODEX.md` - detailed Codex role guide and review operating standard
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenLastCalledWith('AvailableNow');
+      expect(mockReplace).toHaveBeenCalledWith('/gps-consent');
+    });
 
-If implementation conflicts with these docs, agents must either update the docs in the same change or explicitly flag the conflict for human review.
+    expect(mockSignUp).toHaveBeenCalledTimes(1);
+    expect(mockCheckDisplayNameAvailable).toHaveBeenCalledTimes(1);
+  });
 
-## Primary Coder - Claude (Claude Code)
+  it('a second submit after a generic updateProfile failure also retries updateProfile only', async () => {
+    mockCheckDisplayNameAvailable.mockResolvedValue(true);
+    mockSignUp.mockResolvedValue({ data: { user: {} }, error: null });
+    mockUpdateProfile.mockRejectedValueOnce(new Error('network down'));
 
-Claude is the default implementation agent. Responsibilities:
-- Writing code, tests, migrations, and documentation for assigned GSD tasks
-- Executing the GSD workflow: spec -> plan -> implement -> verify
-- Enforcing TDD for non-trivial behavior: red -> green -> refactor
-- Logging changed files to `.claude/review-queue.txt`
-- Maintaining review artifacts defined in `docs/agent-harness.md`
-- Running `/stale-info-scan` on the cadence in `docs/stale-info-scan.md` and keeping `.planning/stale-info-scan-latest.md` current
-- Committing only after both Antigravity and Codex have returned APPROVE or all REQUEST CHANGES/BLOCK feedback has been resolved
+    const { getByPlaceholderText, getByText, findByText } = render(<SignUpScreen />);
+    fireEvent.changeText(getByPlaceholderText('Display Name'), 'NewUser3');
+    fireEvent.changeText(getByPlaceholderText('Email'), 'new3@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+    fireEvent.press(getByText('Create Account'));
 
-Claude does not self-approve. All non-trivial code passes through both reviewers (Antigravity and Codex) before commit.
+    expect(await findByText('Something went wrong. Try again.')).toBeTruthy();
 
----
+    mockUpdateProfile.mockResolvedValueOnce(undefined);
+    fireEvent.press(getByText('Create Account'));
 
-## Code Reviewer 1 - Antigravity (Antigravity CLI)
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/gps-consent');
+    });
 
-Focus: correctness, logic, architecture, data integrity, PostGIS queries, and RLS policy placement.
-
-Antigravity acts as the senior architectural auditor for system-level reasoning:
-- PostGIS geometry correctness, SRID consistency, and geospatial query performance
-- Trust/reputation math, confidence decay, and respect-signal calculations
-- RLS policy placement and shadowban enforcement at the database/query layer
-- Materialized view design and refresh strategy
-- Cross-feature data integrity and edge cases
-
-**Invoke from terminal:**
-```bash
-antigravity -p "$(Get-Content ANTIGRAVITY.md; Get-Content docs/agent-harness.md); Review this file: $(Get-Content <file>)"
+    expect(mockSignUp).toHaveBeenCalledTimes(1);
+    expect(mockCheckDisplayNameAvailable).toHaveBeenCalledTimes(1);
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(2);
+  });
+});
 ```
 
-Or open Antigravity CLI in this project. `ANTIGRAVITY.md` loads automatically.
+## Runtime Boundary And Mock Audit
 
----
+**Call path unchanged from round 2** except within `onSubmit` itself: `accountCreated` is plain component state, read/written synchronously inside the same function, no new provider/guard/RPC boundary introduced. `setAccountCreated(true)` happens strictly after `supabase.auth.signUp()` resolves without error, so it can't be set prematurely.
 
-## Code Reviewer 2 - Codex (OpenAI Codex)
+**Mock-boundary note:** the two new tests drive TWO sequential `fireEvent.press` calls against the SAME rendered instance (not a fresh mount), which is what actually exercises the retry path — `mockSignUp`/`mockCheckDisplayNameAvailable` call-count assertions (`toHaveBeenCalledTimes(1)`) after the second submit are the direct proof that Step 1/2 were skipped. This is real behavioral proof, not a mock hiding anything — the component state (`accountCreated`) driving the branch is the actual production mechanism, not a test double.
 
-Codex is the senior implementation-quality reviewer and escalation engineer for this project. Codex should use its strongest available coding, analysis, and tool-use capabilities to find real defects, verify claims with evidence, and propose or apply precise fixes when explicitly assigned.
+**One thing to explicitly ask both reviewers:** is `accountCreated` (component state, reset to `false` on remount) the right lifetime for this flag, or should it survive longer (e.g., derived from `session` existing) in case the user navigates away and back to `/sign-up` while still authenticated with an incomplete profile? Current behavior: if the screen unmounts (guard suppression also clears then) and the user somehow returns to sign-up while still holding a session with `display_name = null`, `accountCreated` would be `false` again and the flow would attempt `signUp()` a second time, likely hitting an "already registered" error with no special handling. Please assess whether this residual edge case is worth blocking on given how the guard/redirect logic makes it unlikely to occur in normal navigation (an authenticated user in the `(auth)` group gets redirected to `/(tabs)` by the guard once `suppressGuardRedirect` clears) — or whether it's acceptable given it requires a fairly contrived path to reach.
 
-For full Codex operating instructions, read `CODEX.md`. Keep detailed Codex guardrails there so this auto-loaded file stays small and does not drift from the authoritative review standard.
+## Verification Evidence
 
-Codex owns review depth for:
-- TypeScript/JavaScript correctness, implementation quality, dependency/config risk, and test quality
-- Security, privacy, unsafe client trust, Supabase misuse, and user-visible failure states
-- Practical production risk: what breaks for a user even if the happy path passes
+- `cd app && npm run typecheck` — 0 errors.
+- `cd app && npm run test:coverage` — 20 suites / 153 tests, 100% coverage on `src/features/**`.
+- `cd app && npm run lint` — 0 errors, 27 pre-existing unrelated warnings.
+- `git status --short` confirms only `sign-up.tsx` + its test changed since round 2 (plus the untracked process/doc changes noted in round 2's packet, unrelated to this review).
 
-Codex must not approve without reading `.claude/codex-prompt-latest.md`, inspecting the actual queued files from disk, and reporting findings with exact file/line references. If the prompt file is missing, Codex must say so instead of guessing the scope.
-
-Open the Codex app in this project. `AGENTS.md` loads automatically as Codex context; `CODEX.md` contains the detailed review format, verdict rules, guardrails, and implementation-mode instructions.
-
----
-
-## Review Workflow
-
-1. Claude completes a task and verifies all relevant tests pass
-2. Files written are logged to `.claude/review-queue.txt` automatically
-3. Claude invokes Antigravity review on queued files and saves the result to `.claude/antigravity-review-latest.md`
-4. Claude generates `.claude/codex-prompt-latest.md`; Codex reads that prompt, then reviews the actual queued files from disk
-5. Claude addresses all BLOCK and REQUEST CHANGES feedback
-6. Antigravity and Codex re-review affected files when needed
-7. Claude copies the latest Codex verdict to `.claude/codex-review-latest.md` when available
-8. Claude resolves or explicitly defers any stale-information scan findings that affect the current task
-9. Claude commits with a summary of reviewer verdicts and resolutions
-10. Claude clears `.claude/review-queue.txt` after the commit
-11. Move to the next GSD task
-
-## Conflict Resolution
-
-If Antigravity and Codex give contradictory feedback, Claude must not silently choose the easier path. Claude should document:
-- The conflict
-- Which recommendation was followed
-- Why that choice is safer for the project
-- Whether the decision needs human review
-
-Security, privacy, RLS, GPS integrity, and data-loss concerns should default to the stricter interpretation until resolved.
-
-## User Advocacy Standard (Premortem Gate)
-
-Every review — code, plan, or architecture — must include a user advocacy check. This is not optional. The target users are people who cannot wait: IBS/Crohn's/colitis sufferers, wheelchair users, parents with infants needing changing tables.
-
-**The premortem question every agent must ask before approving:**
-> "Does this decision serve someone with 60 seconds before an emergency?"
-
-Specific checks:
-- Does a threshold change make results less available to the most vulnerable users? Flag it.
-- Could this code path produce a blank screen, empty map, or "no results" during an emergency? Block it or require a fallback.
-- Does this flow add friction for a user who is in pain, stressed, or physically limited? Request changes.
-- Is a tradeoff between data quality and data availability documented with explicit reasoning? If not, require it.
-
-Antigravity owns the **accuracy vs. availability** tradeoff for geospatial and trust algorithms.
-Codex owns the **friction and silent failure** audit for UI flows and API error handling.
-
-User advocacy findings use the same severity scale as correctness findings. A design that harms high-urgency users is not a "minor concern."
-
-## Non-Negotiable Rules
-
-- Never commit with a BLOCK verdict outstanding
-- Never bypass shadowban, trust, GPS verification, or RLS checks for convenience
-- Never store coordinates outside approved PostGIS geometry/geography fields
-- Never log PII or precise location data in client-visible contexts
-- Never skip tests or verification to ship faster
-- Never approve code based only on intent; inspect the actual implementation
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
-
-### Rules
-
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-
-## Session Completion
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
-# Agent Harness
-
-Status: active project contract.
-Last reviewed: 2026-05-20.
-
-This document defines how Claude, Antigravity, and Codex work together on Gotta Go. It is the harness contract: role boundaries, handoff artifacts, review gates, permissions posture, and failure handling.
-
-## Research Basis
-
-The harness follows current primary-source guidance from agentic coding platforms:
-
-- OpenAI Codex can read project instructions from `AGENTS.md`, review code through the Codex app review pane, and use repository rules to control commands outside the sandbox. Codex review quality depends on clear prompts, constraints, exact file citations, and reviewable outputs. See:
-  - https://developers.openai.com/codex/guides/agents-md
-  - https://developers.openai.com/codex/app/review
-  - https://developers.openai.com/codex/rules
-- OpenAI recommends explicit orchestration decisions for specialist agents, including handoffs, guardrails, human review, and traces/evaluation loops. See:
-  - https://developers.openai.com/api/docs/guides/agents
-  - https://openai.github.io/openai-agents-python/handoffs/
-  - https://openai.github.io/openai-agents-python/guardrails/
-  - https://openai.github.io/openai-agents-python/tracing/
-- Codex internet access should stay limited because external content can introduce prompt injection, exfiltration, malware, vulnerable dependencies, or license risk. See:
-  - https://developers.openai.com/codex/cloud/internet-access
-- Claude Code project instructions belong in version-controlled project memory, and specialized work should be routed through focused subagents/skills/commands with explicit tool limits and clear descriptions. Hooks can enforce or observe workflow events, but hook scripts must be treated as executable code and kept conservative. See:
-  - https://code.claude.com/docs/en/memory
-  - https://code.claude.com/docs/en/sub-agents
-  - https://code.claude.com/docs/en/slash-commands
-  - https://code.claude.com/docs/en/hooks
-- Antigravity is strongest when used with planning mode, review policies, implementation artifacts, walkthroughs, diffs, and user feedback loops. Its browser and terminal autonomy should be permissioned deliberately. See:
-  - https://developers.google.com/antigravity/guides/agents-md
-  - https://developers.google.com/antigravity/rules
-  - https://developers.google.com/antigravity/cli/review
-
-## Harness Principles
-
-1. Claude is the orchestrator and default implementer.
-   Claude owns GSD workflow execution, TDD, file edits, verification commands, reviewer invocation, fixing findings, and final commit preparation.
-
-2. Antigravity and Codex are independent reviewers.
-   Antigravity owns architecture, PostGIS, RLS placement, trust math, confidence decay, aggregate correctness, and system-level data integrity. Codex owns implementation quality, security/privacy, TypeScript correctness, test quality, user-visible failure states, and practical production risk.
-
-3. Review is artifact-driven.
-   No reviewer approves from intent alone. Every review must have a concrete artifact bundle: scope, context, changed files, exact file contents or diff, verification evidence, and requested output format.
-
-4. Handoffs are explicit.
-   Claude must state what is being handed off, which files are in scope, what verdict is requested, and what evidence the reviewer should inspect. Reviewers must not silently expand into unrelated changes unless they uncover a security, privacy, data-integrity, or production-breaking risk.
-
-5. Guardrails beat speed.
-   Any BLOCK verdict stops the line. Any REQUEST CHANGES verdict requires a fix and re-review. Conflicts between Antigravity and Codex are resolved by documenting the conflict and taking the stricter interpretation for security, privacy, RLS, GPS integrity, and data-loss concerns.
-
-6. Permissions stay narrow.
-   Agents should run with the least authority needed. Avoid unrestricted internet, destructive shell commands, broad filesystem writes, and hidden credential access. Browser/network access is allowed only when the task needs it and the source is trusted.
-
-7. Verification is part of the artifact.
-   A review is incomplete without the commands run, results observed, and commands not run with reasons. Test, typecheck, lint, build, Supabase, and browser verification should be run when configured and relevant.
-
-8. Reviewer independence is preserved.
-   Claude cannot self-approve. Antigravity and Codex do not approve changes they did not inspect. Codex must read `.claude/codex-prompt-latest.md` before returning a Codex review. Antigravity must read `.claude/antigravity-prompt-latest.md` before returning an Antigravity review.
-
-## Required Review Artifacts
-
-Claude maintains these artifacts during every non-trivial task:
-
-- `.claude/review-queue.txt`: newline-delimited files written or edited by Claude. This is the queue for reviewer scope.
-- `.claude/antigravity-prompt-latest.md`: the full Antigravity review packet (scope, context, prior results, focus, output format). Antigravity reads this file before reviewing.
-- `.claude/antigravity-review-latest.md`: the latest Antigravity verdict and findings, saved after Antigravity returns a review.
-- `.claude/codex-prompt-latest.md`: the full Codex review packet (scope, context, prior results, focus, output format). Codex reads this file before reviewing.
-- `.claude/codex-review-latest.md`: the latest Codex verdict and findings, saved after Codex returns a review.
-- `.planning/stale-info-scan-latest.md`: the latest stale-information scan report, generated by `/stale-info-scan`.
-
-These files are coordination artifacts. They do not replace inspecting the actual files from disk.
-
-## Periodic Stale-Information Scans
-
-Claude must run `/stale-info-scan` on the cadence defined in `docs/stale-info-scan.md`: every 30 days while active, before phase transitions, before milestone close, after dependency/tool/schema/harness changes, and before release or new-market launch.
-
-The scan is a project-control artifact, not a substitute for review. BLOCKING STALE INFO and UPDATE REQUIRED findings must be fixed or explicitly deferred before the related phase, milestone, release, or commit closes. Antigravity and Codex may request a scan when stale context could affect review safety.
-
-## Standard Flow
-
-1. Claude reads startup context.
-   Required reading list is canonical in `AGENTS_ROSTER.md` § "Required Reading — Load Before Any Work" — read it there, not duplicated here.
-
-2. Claude implements through GSD.
-   Use `/gsd-quick`, `/gsd-debug`, or `/gsd-execute-phase` unless the human explicitly bypasses GSD. All non-trivial behavior uses TDD when practical.
-
-3. Claude verifies locally.
-   Run configured checks before reviewer handoff. If a check cannot run, record the exact blocker.
-
-4. Claude invokes Antigravity.
-   Run `/antigravity-review` first. Claude writes the review packet to `.claude/antigravity-prompt-latest.md` (scope, context, changed files, prior results, verification notes, output format). Antigravity reads this file, inspects files on disk, and returns a verdict. Save the result to `.claude/antigravity-review-latest.md`.
-
-5. Claude generates the Codex packet.
-   Run `/codex-prompt` after Antigravity. The prompt must include context, changed files, Antigravity result or summary, verification evidence, and requested Codex output format.
-
-6. Codex reviews independently.
-   Codex reads `.claude/codex-prompt-latest.md`, inspects actual files from disk, runs practical verification, and returns a verdict. Copy the returned verdict to `.claude/codex-review-latest.md` when available.
-
-7. Claude resolves findings.
-   BLOCK and REQUEST CHANGES items are fixed before commit. Affected files re-enter the queue and both relevant reviewers re-review them.
-
-8. Claude commits only after both reviewers approve.
-   The commit message must summarize verification and reviewer verdicts. Clear `.claude/review-queue.txt` only after commit.
-
-## Scope Rules
-
-- Small docs-only changes may use `/gsd-quick`, but still require reviewer approval if they alter security, schema, workflow, review gates, product scope, or launch constraints.
-- Schema, RLS, GPS verification, trust/confidence, shadowban, privacy, auth, and service-role handling always require both Antigravity and Codex review.
-- Frontend-only UI changes still require Codex review when they affect location permission, map behavior, error states, user identity, privacy, or Supabase calls.
-- Reviewer prompts should include exact files and line numbers where practical. Do not ask reviewers to infer scope from chat history.
-
-## Prompt Packet Requirements
-
-Every reviewer packet must include:
-
-- Task goal and phase.
-- Changed files from `.claude/review-queue.txt`.
-- Relevant project context and constraints.
-- Actual file contents or an explicit diff.
-- Verification commands already run and their outcomes.
-- Known caveats, failed commands, or missing tooling.
-- Required output format and verdict definitions.
-
-Do not include secrets, service-role keys, auth tokens, private `.env` values, or precise user location data in reviewer prompts.
-
-## Permission Posture
-
-Claude hooks and commands should prefer:
-
-- Read-only inspection before writes.
-- Explicit approval for destructive or external actions.
-- Project-relative paths.
-- Narrow command allowlists.
-- No broad network access unless needed for current-source research or dependency installation.
-
-Antigravity should use review-driven settings for this project: planning artifacts and code diffs should be reviewed by the human or Claude before proceeding with risky changes.
-
-Codex should treat external web content as untrusted unless it is official documentation needed for the task. For OpenAI product behavior, use official OpenAI documentation. For Claude Code behavior, use official Claude Code documentation. For Antigravity behavior, use official Google/Antigravity documentation.
-
-## Failure Handling
-
-- Missing reviewer prompt: stop and generate the missing artifact.
-- Missing reviewer tool: provide the exact manual prompt and do not claim review completed.
-- Failed verification: report the command and failure; do not approve or commit.
-- Conflicting reviewer findings: document the conflict, choose the stricter safety interpretation, and ask for human review when both paths have meaningful tradeoffs.
-- Scope drift: stop and update the task, plan, or review queue before continuing.
-
-## Minimum Commit Gate
-
-A commit is allowed only when all are true:
-
-- `.claude/review-queue.txt` contains the files actually changed for the task.
-- Local verification has been run or explicitly reported as blocked.
-- Stale-information scan findings that affect the current task have been resolved or explicitly deferred.
-- Antigravity verdict is APPROVE for architecture/data-integrity concerns.
-- Codex verdict is APPROVE for implementation/security/test-quality concerns.
-- Any reviewer conflicts have been documented and resolved.
-- The commit message records reviewer verdicts and verification.
-
-## Superpowers Skill Discipline (Claude Code)
-
-Every session, every task. No exceptions. Invoke the Skill tool BEFORE taking action — not after.
-
-| Trigger | Required Skill |
-|---|---|
-| Session start / resuming project | `superpowers:using-superpowers` (auto-loaded by hook, but invoke explicitly if starting a task immediately) |
-| Any build failure, test failure, unexpected behavior | `superpowers:systematic-debugging` — invoke BEFORE investigating |
-| Implementing any feature, fix, or config change | `superpowers:test-driven-development` — invoke BEFORE writing code |
-| Before finishing any task or declaring it done | `superpowers:verification-before-completion` |
-| After each task in a plan, before moving to the next | `superpowers:requesting-code-review` |
-| Running any code review gate | `superpowers:requesting-code-review` — then immediately run `/review-gate` (chains GSD → Antigravity → Codex automatically) |
-| Working on parallel tasks with subagents | `superpowers:dispatching-parallel-agents` |
-| Following or executing a written plan | `superpowers:executing-plans` |
-
-**Red flags that mean you skipped a skill:**
-- "This is a simple fix" → still invoke `superpowers:test-driven-development`
-- "I already know how to debug this" → still invoke `superpowers:systematic-debugging`
-- "The task is done" → still invoke `superpowers:verification-before-completion`
-- "I'll review at the end" → invoke `superpowers:requesting-code-review` after EACH task
-
-## TDD Guard — Scope & Enforcement
-
-TDD Guard runs as a pre-commit hook via `npx tdd-guard@latest` (resolves to v1.6.9+). Never bypass it without explicit user approval and a recorded reason (see CLAUDE.md's non-negotiables).
-
-### Scope Table
-
-| Path | TDD Guard | Reason |
-|------|-----------|--------|
-| `app/src/**` | ON — required | All source code must have tests |
-| `app/__tests__/**` | ON — required | Tests must be valid |
-| `app/src/lib/__tests__/**` | ON — required | Integration tests |
-| `app/android/` | OFF | Generated by Expo — never edit manually |
-| `app/assets/` | OFF | Non-behavioral (images, fonts) |
-| `.planning/` | OFF | Planning docs, not code |
-| `app/jest.config.js` | OFF | Test runner config |
-| `app/tsconfig.json` | OFF | Compiler config |
-| `app/eas.json` | OFF | EAS build config |
-| `app/app.config.ts` | OFF | Expo app config |
-| `supabase/migrations/**` | OFF | Raw SQL — reviewed by Antigravity instead |
-| `*.md` | OFF | Documentation |
-
-### Enforcement Rules
-
-1. **EVERY new `src/` file gets a test file before implementation begins** — TDD order: test → fail → implement → pass.
-2. **Coverage threshold:** 100% lines/branches/functions/statements for all `src/` code (enforced by `.coverage-thresholds.json` if Metaswarm creates it, or manually via `npm run test:coverage` from `app/`).
-3. **Test command:** `cd app && npm test`
-4. **Coverage command:** `cd app && npm run test:coverage`
-5. **Hook bypass (`--no-verify`) is FORBIDDEN** without explicit user approval and a recorded reason.
-6. **jest@29.7.0 is PINNED** — do not upgrade for any reason until `jest-expo@56` explicitly supports jest@30. Upgrading will break the test suite.
-
-### TDD Guard Jest Integration — BLOCKED
-
-`tdd-guard-jest@0.1.4` requires `jest@>=30.0.5`. Project uses jest@29.7.0. Cannot install until jest-expo@56.
-
-**Current mode:** Hook-only (AI-assisted pattern validation). TDD discipline is enforced by these rules + the Superpowers TDD skill above, not the jest reporter. The guard's own chat-command toggle (`tdd-guard on` / `tdd-guard off`, exact-match on the full prompt text) can be used to temporarily disable it for a specific work unit when this blocked state creates a false-positive gate — always re-enable after that work unit commits.
-
-**Custom instructions file** (create when BEADS is installed): `.claude/tdd-guard/data/instructions.md`
-Include rules for:
-- GPS distance tests: all `verification_events` writes must test `distance_from_location_meters` boundary (< 100m threshold)
-- Trust score delta tests: all `trust_events` writes must assert `delta` sign matches `action_type`
-- PostGIS geometry tests: never test raw lat/lon — always test through the geometry column
-- RLS tests: any new table or policy change requires a test that asserts unauthorized access returns 0 rows
-
-## Product Spec
-# Gotta Go Product Spec
-
-Status: provisional project contract. This document captures the intended product and safety rules before implementation exists. Update it when actual product decisions change.
-
-## Product Summary
-
-Gotta Go is a crowdsourced bathroom finder built under the [Watch the Gap](docs/watch-the-gap.md) human-infrastructure studio. The product focuses on providing **certainty under urgency** while protecting contributor privacy and resisting abuse.
-
-Public restroom access is treated like a minor inconvenience until urgency turns it into humiliation. Gotta Go treats that gap as missing human infrastructure: a basic access problem that can be made visible, verified, and navigable.
-
-The product must balance:
-- Fast discovery for users who urgently need a bathroom
-- Accurate location data
-- Privacy around exact user movement and identity
-- Abuse resistance against fake locations, spam, harassment, and manipulation
-- Respectful handling of businesses, public facilities, and community-maintained information
-
-## Primary Users
-
-- Person searching for a nearby bathroom
-- Contributor adding or verifying bathroom information while physically present
-- Trusted contributor whose history increases influence on confidence signals
-- Moderator or admin handling abuse, reports, and suppression
-
-## Core User Flows
-
-### Find A Bathroom
-
-Users should be able to:
-- Grant or deny location permission
-- Search near their current location or a selected area
-- View nearby bathrooms ranked by distance, confidence, availability, and respect signal
-- See enough information to decide quickly without exposing private contributor data
-- Handle offline, denied-location, and no-results states
-
-Search results must exclude:
-- Deleted locations
-- Shadowbanned locations
-- Locations suppressed by moderation
-- Expired temporary availability claims
-- Records blocked by RLS or visibility rules
-
-### Add A Bathroom
-
-Contributors should be able to add a bathroom only when required validation passes.
-
-Required concepts:
-- Physical presence check when GPS verification is required
-- Server-side validation of submitted location data
-- PostGIS-backed location storage
-- Abuse and spam controls
-- Clear error states for denied location permission, low GPS accuracy, stale GPS reading, duplicate location, and failed write
-
-### Verify A Bathroom
-
-Verification should capture whether a location still exists and whether relevant attributes are current.
-
-Verification must consider:
-- GPS freshness
-- GPS accuracy
-- Distance from claimed location
-- Contributor trust
-- Shadowban status
-- Duplicate or suspicious patterns
-
-### Report A Problem
-
-Users should be able to report:
-- Bathroom no longer exists
-- Access denied or restricted
-- Incorrect hours or availability
-- Unsafe, inappropriate, or spam content
-- Duplicate location
-
-Reports should feed moderation and confidence calculations without revealing reporter identity publicly.
-
-### Moderation
-
-Moderators or automated systems may:
-- Shadowban users
-- Shadowban or suppress locations
-- Soft delete records
-- Resolve reports
-- Review suspicious contribution patterns
-
-Moderation decisions must be enforced below the UI layer.
-
-## Core Data Concepts
-
-Expected entities:
-- `users`: public-safe user profile metadata and trust state (live table name — not `profiles`)
-- `locations`: canonical bathroom records with PostGIS coordinates column (live table name — not `bathroom_locations`)
-- `location_attributes`: amenities, access type, hours, cleanliness/accessibility facts, or equivalent normalized structure
-- `verification_events`: GPS-verified checks by users
-- `availability_flags`: temporary or expiring availability/access signals
-- `reports`: abuse, duplicate, closure, and correction reports
-- `trust_events`: audit trail for trust changes
-- `respect_signal_90d`: materialized view or derived aggregate for recent quality/respect signal
-
-Actual table names may change, but the responsibilities must remain explicit and reviewable.
-
-## Privacy Requirements
-
-The system must not expose or log:
-- Email addresses in client-visible contexts
-- Precise contributor coordinates outside approved storage and minimal map behavior
-- Raw user IDs in client logs, analytics, or public UI
-- Auth tokens, refresh tokens, or service-role credentials
-- Hidden moderation status to unauthorized users
-
-Contributor identity should not be publicly linked to sensitive location behavior unless the product explicitly decides otherwise and updates this spec.
-
-## GPS Verification Requirements
-
-GPS verification should use:
-- Fresh readings
-- Accuracy thresholds
-- Radius checks against the location
-- Server-side validation or database-backed verification rules where practical
-- Rejection or downgrade of stale, inaccurate, mocked, or implausible submissions
-
-The client may collect GPS data, but the client must not be the final authority for trust, proximity, shadowban eligibility, or moderation-sensitive decisions.
-
-## Trust And Confidence
-
-Trust/reputation should affect influence, not direct access to bypass rules.
-
-Trust logic must handle:
-- New users
-- Zero trust scores
-- Negative or penalized users
-- Shadowbanned users
-- Stale contributors
-- Deleted users or profiles
-- Conflicting verification events
-
-Confidence should decay when a location has not been freshly verified. Decay math must be deterministic, testable, and documented before production use.
-
-## Shadowban Requirements
-
-Shadowbanning is an abuse-control mechanism for users and locations.
-
-Rules:
-- Shadowbanned users must not influence public trust, confidence, leaderboards, or visible contribution counts
-- Shadowbanned locations must not appear in public search results
-- Shadowban filtering must happen at query/database/service boundaries (e.g., via Antigravity-audited RLS), not only in UI rendering
-- Hidden status must not leak to shadowbanned users through obvious error differences unless intentionally designed
-
-## Gamification Requirements
-
-Gamification may include:
-- Points
-- Leaderboards
-- GPS-verified contribution count
-- Badges or streaks
-
-Gamification must not reward spam, unsafe behavior, fake verification, precise-location leakage, or bypassing moderation. Leaderboards must exclude shadowbanned users and deleted/suppressed contributions.
-
-## Non-Goals For Early Implementation
-
-Until explicitly added, do not assume:
-- Real-time chat
-- Public contributor profiles tied to exact bathroom visits
-- Payment processing
-- Social graph features
-- Admin actions exposed to normal clients
-- Permanent storage of every raw GPS sample
-
-## Open Product Decisions
-
-These must be resolved before production:
-- Exact GPS radius and accuracy thresholds
-- Whether anonymous contribution is allowed
-- What bathroom attributes are MVP versus later
-- Moderator tooling surface
-- Confidence decay formula
-- Trust score formula and caps
-- Respect signal formula
-- Retention policy for sensitive location-related data
-
-## Schema Contract
-# Schema Contract
-
-Status: aligned with live schema as of 2026-06-24. Migrations in `supabase/migrations/` are the authoritative source of truth. This document is a reviewer reference for field names, types, and RLS intent.
-
-## Database Principles
-
-- PostgreSQL with PostGIS is the source of truth for persisted bathroom coordinates.
-- RLS must be enabled for user-owned, moderation-sensitive, and public-facing contribution tables.
-- Soft-deleted, shadowbanned, expired, and suppressed records must be filtered below the UI layer.
-- Client code must not hold service-role keys or perform admin/moderation writes directly.
-- Sensitive audit data should be queryable only by authorized service/admin paths.
-
-## Required Extensions
-
-Expected extensions:
-- `postgis`
-- `pgcrypto` or equivalent UUID generation support
-
-## Required Coordinate Handling
-
-Bathroom coordinates must use PostGIS:
-- Prefer `geography(Point, 4326)` for meter-based distance queries, or `geometry(Point, 4326)` with explicit geography casts for meters.
-- All writes must set SRID 4326.
-- Distance search must use meter-safe functions and indexes.
-- Plain `latitude` and `longitude` columns must not be the canonical persisted location. If used for generated display or migration compatibility, they must be derived and not independently trusted.
-
-Reviewers should reject:
-- App-owned canonical `lat`/`lng` fields without PostGIS source of truth
-- Distance math in degrees
-- Missing spatial indexes on public search paths
-- Inconsistent SRID handling
-
-## Live Tables
-
-These are the confirmed live table names in Supabase project `ebmzhjmmtmldhrojkdqw`. Use these names exactly in all code, queries, and migrations.
-
-### `users`
-
-Purpose: user profile and trust state.
-
-Actual fields (as of live schema / migrations):
-- `id uuid primary key references auth.users(id) on delete cascade`
-- `email text`
-- `display_name text`
-- `gps_consent boolean` — GDPR GPS consent flag
-- `gps_consent_at timestamptz`
-- `gamification_points integer default 0`
-- `trust_score integer default 9` — ⚠ integer, not numeric; default 9 (Phase 5 must align trust calc with this scale)
-- `trust_multiplier numeric default 0.5` — ⚠ default 0.5, not 1.0 (Phase 5 must document intended range)
-- `gps_verified_contribution_count integer default 0`
-- `leaderboard_position integer`
-- `shadowban_status boolean default false` — column name is `shadowban_status`, NOT `is_shadowbanned`
-- `admin_override boolean default false`
-- `family_mode boolean default false`
-- `created_at timestamptz default now()`
-- `updated_at timestamptz default now()`
-
-Rules:
-- Public reads must not expose email, admin_override, or shadowban_status.
-- Users may read/update only safe profile fields (display_name, family_mode, gps_consent, gps_consent_at) via SECURITY DEFINER RPC — no direct UPDATE policy.
-- trust_score, trust_multiplier, shadowban_status, admin_override are writable only by service/admin paths.
-
-### `locations`
-
-Purpose: canonical bathroom/place record.
-
-Actual fields (as of live schema / migrations):
-- `id uuid primary key default gen_random_uuid()`
-- `name text not null`
-- `address text`
-- `coordinates geography not null` — PostGIS geography(Point,4326); write with `ST_Point(lng,lat)::geography`
-- `policy_tag text` — "chill_spot", "purchase_required", "code_required", "public_facility"
-- `access_sensitivity text`
-- `hours jsonb`
-- `is_open_now boolean`
-- `data_source text not null default 'community'`
-- `confidence_score text` — ⚠ stored as text tier label ('High'/'Medium'/'Low'), NOT a numeric
-- `confidence_tier text`
-- `verification_count integer default 0`
-- `last_verified_at timestamptz`
-- `decay_tier text`
-- `respect_signal_score numeric default 0`
-- `chill_spot boolean default false`
-- `failure_event_count integer default 0`
-- `access_instructions text`
-- `shadowban_status boolean default false` — column name is `shadowban_status`, NOT `is_shadowbanned`
-- `deleted_at timestamptz` — soft delete flag
-- `suppressed_at timestamptz` — set by auto-suppress trigger (Phase 7) when same-type report count exceeds threshold, or by admin moderation. NULL means not suppressed. Public search RPCs must filter `suppressed_at IS NULL`. Cleared by `unsuppress_location` admin function. ⚠ Column may not exist in live schema yet — Phase 3 plan (03-01) must add a migration if absent before RPCs reference it.
-- `timezone text not null default 'America/Los_Angeles'`
-- `created_at timestamptz default now()`
-- `updated_at timestamptz default now()`
-
-Rules:
-- Public searches must exclude: `deleted_at IS NOT NULL`, `shadowban_status = true`, and `suppressed_at IS NOT NULL`.
-- Inserts must validate coordinate shape and SRID (use PostGIS geography type, not raw lat/lng).
-- Client code must NOT insert directly to locations — go through `submissions` + verification gate.
-- Public queries must not expose contributor identity.
-
-### `verification_events`
-
-Purpose: record GPS-verified user checks for a bathroom.
-
-Actual fields (as of live schema / migrations):
-- `id uuid primary key default gen_random_uuid()`
-- `location_id uuid not null references locations(id)`
-- `user_id uuid not null references users(id)`
-- `gps_location geography(Point,4326)` — PostGIS point of user GPS at verification time
-- `distance_from_location_meters numeric not null` — distance from user to location at time of event
-- `weight numeric not null` — verification weight (NOT `weighted_value`)
-- `event_type text not null` — type of verification event (NOT `result`)
-- `timestamp timestamptz default now()` — event time (NOT `verified_at`)
-
-Note: `gps_accuracy_meters` column was in early design but is not in the live schema. GPS accuracy
-validation is enforced via app_config thresholds (max_accuracy_m) at the RPC layer.
-
-Rules:
-- Public reads must expose only aggregate effects, not raw user GPS history.
-- Writes must reject shadowbanned users' events from affecting public aggregate state (shadowbanned verifications set weight=0).
-- Writes must validate GPS freshness (max_gps_age_s), accuracy (max_accuracy_m), and proximity (verify_radius_m) via server-side RPC.
-- distance_from_location_meters must be computed server-side via PostGIS, not trusted from client.
-
-### `availability_flags`
-
-Purpose: temporary availability/accessibility state.
-
-Actual fields (as of live schema / migrations):
-- `id uuid primary key default gen_random_uuid()`
-- `location_id uuid not null references locations(id)`
-- `reporter_id uuid not null references users(id)` — column is `reporter_id`, NOT `reported_by`
-- `type text not null` — column is `type`, NOT `flag_type`; values: 'currently_closed', 'inaccessible'
-- `created_at timestamptz default now()`
-- `expires_at timestamptz not null default (now() + interval '24 hours')`
-
-Public access: via `availability_flags_public` view (migration 030000). Direct base-table SELECT
-is revoked from anon/authenticated; the view excludes reporter_id and applies expiry + shadowban filters.
-
-Rules:
-- Public reads must use the `availability_flags_public` view — base table is not directly readable.
-- Expired flags (expires_at <= now()) must not influence active availability.
-- Shadowbanned reporters must not influence public state (enforced in the security-definer view).
-
-### `reports`
-
-Purpose: abuse, duplicate, correction, closure, and safety reports.
-
-Actual fields (as of live schema / migrations):
-- `id uuid primary key default gen_random_uuid()`
-- `location_id uuid not null references locations(id)`
-- `user_id uuid not null references users(id)` — column is `user_id`, NOT `reported_by`
-- `report_type text not null` — values: 'permanently_closed', 'moved_relocated', 'currently_locked', 'now_requires_purchase', 'staff_pushed_back', 'access_tightened', 'dirty_unsafe', 'changing_station_unusable', 'inaccurate_information'
-- `trust_weight numeric not null default 1.0`
-- `geographic_distance_meters numeric`
-- `details text`
-- `created_at timestamptz default now()`
-
-Note: `status` and `resolved_at` columns are NOT in the live schema. Moderation state is handled
-via `suppressed_at` on locations (set by auto-suppress trigger when report thresholds exceeded).
-Phase 7 may add explicit report status tracking if needed.
-
-Rules:
-- Reporter identity (user_id) is not public — `reports_select_own` policy restricts reads to own rows.
-- Users can create reports (reports_insert_auth) and read only their own.
-- Auto-suppress trigger fires when same-type report count exceeds app_config.report_suppress_threshold.
-
-### `trust_events`
-
-Purpose: audit trail for trust/reputation changes.
-
-Actual fields (as of live schema / migrations):
-- `id uuid primary key default gen_random_uuid()`
-- `user_id uuid not null references users(id)`
-- `action_type text not null` — column is `action_type`, NOT `event_type`
-- `delta integer not null` — column is `delta`, NOT `score_delta`; integer not numeric
-- `context_ref text` — column is `context_ref`, NOT `reason`
-- `timestamp timestamptz default now()` — column is `timestamp`, NOT `created_at`
-
-Rules:
-- Not public — trust_events_select_own restricts to own rows; writes require service_role.
-- Written by service-role or SECURITY DEFINER RPCs only (trust_events_service_insert policy).
-- Must be auditable: delta sign must match action_type (e.g., negative delta for penalizing action types).
-- TDD rule: all trust_events writes must assert delta sign matches action_type in tests.
-
-### `respect_signal_log`
-
-Purpose: raw log of respect signals per location (user behaviors that signal community respect).
-
-Actual fields:
-- `id uuid primary key default gen_random_uuid()`
-- `location_id uuid not null references locations(id)`
-- `event_type text not null`
-- `weight numeric not null`
-- `timestamp timestamptz default now()`
-
-Rules:
-- Written by service-role/RPC triggers only.
-- Public reads expose only aggregates (via respect_signal_90d view).
-
-### `respect_signal_90d`
-
-Purpose: rolling 90-day aggregate of respect signals per location (VIEW).
-
-Actual shape (from migration 20260624000000_block_fixes.sql):
-- `location_id uuid`
-- `total_weight numeric` — sum of weights over last 90 days
-- `event_count bigint` — count of signal events over last 90 days
-
-Phase 6 upgrades this to a MATERIALIZED VIEW with CONCURRENT refresh (requires unique index).
-Until Phase 6, this is a regular view queried on demand.
-
-Rules:
-- Source data must exclude deleted, suppressed, and shadowbanned contributions (enforced at write time into respect_signal_log).
-- Public access exposes only aggregate values — no individual event identity.
-- Concurrent refresh (Phase 6) must use a unique index on location_id to support CONCURRENTLY.
-
-## RLS Expectations
-
-Every table should state:
-- Is RLS enabled?
-- Who can select?
-- Who can insert?
-- Who can update?
-- Who can delete?
-- Which writes require service/admin authority?
-
-Minimum expectation:
-- Public search uses a constrained view/RPC rather than broad table access where practical.
-- Users cannot mutate trust, confidence, moderation, or shadowban fields directly.
-- Users cannot read raw verification history for other users.
-- Admin-only data has explicit policies or is isolated from client access.
-
-## Required Review Checks For Migrations
-
-Reviewers should check:
-- PostGIS extension exists before spatial columns/functions
-- Spatial indexes exist for search queries
-- Foreign keys are present and intentional
-- Soft-delete filters are reflected in public views/RPCs
-- RLS is enabled before client access
-- Policies are tested
-- Security-definer functions set `search_path` safely
-- No migration stores sensitive GPS samples without a retention decision
+## Files To Review (all 10, full content — unchanged files included for completeness/re-confirmation)
 
 # Review Severity Rules
 
@@ -1391,7 +501,7 @@ APPROVE examples:
 
 # Verification Commands
 
-Status: provisional. Update this file when the actual stack is scaffolded.
+Status: active. Update this file when the stack or host tooling changes.
 
 ## Goal
 
@@ -1399,16 +509,22 @@ Every non-trivial change should have a clear verification signal before commit. 
 
 ## Expected Command Categories
 
-Once the project has a Node/TypeScript app, expected commands should include:
+For the Expo/TypeScript app, expected commands include:
 
 ```bash
-npm test
-npm run typecheck
-npm run lint
-npm run build
+cd app && npm.cmd test -- --runInBand
+cd app && npm.cmd run typecheck
+cd app && npm.cmd run lint
+cd app && npm.cmd run test:coverage -- --runInBand
 ```
 
-If the project uses a different package manager, replace these with the project-standard commands.
+On this Windows host, use `npm.cmd` rather than `npm` from PowerShell. The `.ps1` shims can be blocked by execution policy.
+
+For focused Jest runs against Expo Router paths containing literal parentheses, use `--runTestsByPath` so Jest does not treat `(auth)` as a regular-expression group:
+
+```bash
+cd app && npm.cmd test -- --runInBand --runTestsByPath "src/app/__tests__/(auth)/sign-in.test.tsx"
+```
 
 ## Supabase And Database Verification
 
@@ -1433,6 +549,8 @@ For user-facing UI changes, verify:
 - Slow or failed network calls
 - Keyboard accessibility for controls
 - No PII or precise coordinates in visible logs/debug UI
+- Parent layout, provider, route guard, and async event behavior when those boundaries can change the screen outcome
+- Whether screen tests mock production boundaries such as router, auth session, Supabase RPCs, GPS, network, or RLS behavior
 
 When a dev server exists, run it and inspect the affected route in a browser if practical.
 
@@ -1448,6 +566,8 @@ Minimum evidence to look for:
 - Tests for GPS radius, freshness, and accuracy rules
 - No sensitive values in logs
 
+For auth, routing, Supabase writes, GPS, trust/shadowban, RLS-sensitive reads, and async UI flows, reviewers should include a call-path and mock-boundary check in addition to test results. Passing isolated unit or screen tests is not sufficient when those tests replace the provider, route guard, database, policy, or external callback that decides production behavior.
+
 ## Review Reporting
 
 Reviewers should include a verification section:
@@ -1460,28 +580,2053 @@ Reviewers should include a verification section:
 ```
 
 If a command fails, report the failing command and the relevant failure. Do not hide failed verification behind an approval.
+### === FILE: app/src/app/(auth)/sign-in.tsx ===
+```tsx
+﻿/**
+ * Sign-In Screen
+ *
+ * Error display rule (T-02-01):
+ *   ONE code path for ALL auth failures. Only distinction:
+ *   (auth error with status) vs (network/fetch error without status).
+ *
+ * RED phase was confirmed by test output showing:
+ *   Tests: 2 failed - renders Email/Password fields, renders Forgot password link
+ */
+
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ActivityIndicator,
+  StyleSheet,
+  useColorScheme,
+  Platform,
+} from 'react-native';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Colors } from '../../../constants/Colors';
+import { spacing } from '../../constants/spacing';
+import { typography } from '../../constants/typography';
+import { radius } from '../../constants/radius';
+import { signInSchema } from '../../features/auth/validation';
+import { signInWithGoogle } from '../../features/auth/oauth';
+import { supabase } from '../../lib/supabase';
+
+type SignInFormValues = {
+  email: string;
+  password: string;
+};
+
+const AUTH_ERROR_COPY = 'Invalid email or password.';
+const NETWORK_ERROR_COPY = "Couldn't sign in. Check your connection and try again.";
+
+export default function SignInScreen() {
+  const router = useRouter();
+  const { authError } = useLocalSearchParams<{ authError?: string }>();
+  const colorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const colors = Colors[colorScheme];
+
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    authError ? NETWORK_ERROR_COPY : null
+  );
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const {
+    control,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = useForm<SignInFormValues>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: { email: '', password: '' },
+  });
+
+  async function onSubmit(values: SignInFormValues) {
+    setErrorMessage(null);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
+      if (error) {
+        setErrorMessage(AUTH_ERROR_COPY);
+      }
+    } catch {
+      setErrorMessage(NETWORK_ERROR_COPY);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setErrorMessage(null);
+    setGoogleLoading(true);
+    try {
+      const code = await signInWithGoogle();
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          setErrorMessage(NETWORK_ERROR_COPY);
+        }
+      }
+    } catch {
+      setErrorMessage(NETWORK_ERROR_COPY);
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: spacing.base,
+      justifyContent: 'center',
+    },
+    heading: {
+      ...typography.h1,
+      color: colors.textPrimary,
+      marginBottom: spacing.xxl,
+      textAlign: 'center',
+    },
+    input: {
+      height: spacing.giant - spacing.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.base,
+      ...typography.body,
+      color: colors.textPrimary,
+      backgroundColor: colors.surface,
+      marginBottom: spacing.md,
+    },
+    passwordRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.sm,
+      backgroundColor: colors.surface,
+      marginBottom: spacing.md,
+    },
+    passwordInput: {
+      flex: 1,
+      height: spacing.giant - spacing.xs,
+      paddingHorizontal: spacing.base,
+      ...typography.body,
+      color: colors.textPrimary,
+    },
+    eyeButton: {
+      paddingHorizontal: spacing.base,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    eyeButtonText: {
+      ...typography.caption,
+      color: colors.textLink,
+    },
+    submitButton: {
+      height: spacing.giant - spacing.xs,
+      backgroundColor: colors.primary,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+    },
+    submitButtonDisabled: {
+      opacity: 0.6,
+    },
+    submitButtonText: {
+      ...typography.bodyMedium,
+      color: colors.textInverse,
+    },
+    forgotLink: {
+      alignItems: 'center',
+      marginBottom: spacing.xl,
+    },
+    forgotLinkText: {
+      ...typography.subhead,
+      color: colors.textLink,
+    },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: spacing.xl,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.divider,
+    },
+    dividerText: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginHorizontal: spacing.sm,
+    },
+    createAccountLink: {
+      alignItems: 'center',
+      marginTop: spacing.sm,
+    },
+    createAccountLinkText: {
+      ...typography.subhead,
+      color: colors.textLink,
+    },
+    errorContainer: {
+      backgroundColor: colors.primarySurface,
+      borderRadius: radius.sm,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    errorText: {
+      ...typography.subhead,
+      color: colors.errorRed,
+    },
+    secondaryButton: {
+      height: spacing.giant - spacing.md,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.xl,
+    },
+    secondaryButtonText: {
+      ...typography.bodyMedium,
+      color: colors.primary,
+    },
+    appleStub: {
+      height: spacing.giant - spacing.md,
+      borderWidth: 1.5,
+      borderColor: colors.textDisabled,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.xl,
+    },
+    appleStubText: {
+      ...typography.bodyMedium,
+      color: colors.textDisabled,
+    },
+  });
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.heading}>Welcome back</Text>
+
+      {errorMessage !== null && (
+        <View style={styles.errorContainer} accessibilityLiveRegion="assertive">
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        </View>
+      )}
+
+      <Controller
+        control={control}
+        name="email"
+        render={({ field: { onChange, value } }) => (
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor={colors.textDisabled}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={value}
+            onChangeText={onChange}
+          />
+        )}
+      />
+
+      <View style={styles.passwordRow}>
+        <Controller
+          control={control}
+          name="password"
+          render={({ field: { onChange, value } }) => (
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Password"
+              placeholderTextColor={colors.textDisabled}
+              secureTextEntry={!passwordVisible}
+              value={value}
+              onChangeText={onChange}
+            />
+          )}
+        />
+        <Pressable
+          style={styles.eyeButton}
+          onPress={() => setPasswordVisible((v) => !v)}
+          accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+        >
+          <Text style={styles.eyeButtonText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
+        </Pressable>
+      </View>
+
+      <Pressable
+        style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+        onPress={handleSubmit(onSubmit)}
+        disabled={isSubmitting}
+        accessibilityRole="button"
+        accessibilityLabel="Sign In"
+      >
+        {isSubmitting ? (
+          <ActivityIndicator color={colors.textInverse} />
+        ) : (
+          <Text style={styles.submitButtonText}>Sign In</Text>
+        )}
+      </Pressable>
+
+      <Pressable
+        style={styles.forgotLink}
+        onPress={() => router.push('/(auth)/forgot-password' as never)}
+        accessibilityRole="link"
+      >
+        <Text style={styles.forgotLinkText}>Forgot password?</Text>
+      </Pressable>
+
+      <View style={styles.dividerRow}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>or</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
+      {Platform.OS === 'android' ? (
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={handleGoogleSignIn}
+          disabled={googleLoading}
+          accessibilityRole="button"
+          accessibilityLabel="Continue with Google"
+          accessibilityHint="Sign in with your Google account"
+        >
+          {googleLoading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <Text style={styles.secondaryButtonText}>Continue with Google</Text>
+          )}
+        </Pressable>
+      ) : (
+        <View
+          style={styles.appleStub}
+          accessibilityRole="button"
+          accessibilityLabel="Sign in with Apple — coming soon"
+          accessibilityState={{ disabled: true }}
+        >
+          <Text style={styles.appleStubText}>Sign in with Apple — coming soon</Text>
+        </View>
+      )}
+
+      <Pressable
+        style={styles.createAccountLink}
+        onPress={() => router.push('/(auth)/sign-up')}
+        accessibilityRole="link"
+      >
+        <Text style={styles.createAccountLinkText}>Create account</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+```
+
+### === FILE: app/src/app/__tests__/(auth)/sign-in.test.tsx ===
+```tsx
+﻿/**
+ * Thin render + behavior tests for app/src/app/(auth)/sign-in.tsx (Sign-In Screen).
+ *
+ * src/app/** is excluded from coverage collection — these tests exist for
+ * TDD Guard compliance and behavioral verification only, not coverage metrics.
+ */
+
+import React from 'react';
+import { Platform } from 'react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+
+const mockPush = jest.fn();
+const mockReplace = jest.fn();
+let mockSearchParams: Record<string, string> = {};
+jest.mock('expo-router', () => ({
+  useRouter: jest.fn(() => ({ push: mockPush, replace: mockReplace })),
+  useSegments: jest.fn(() => []),
+  useLocalSearchParams: jest.fn(() => mockSearchParams),
+}));
+
+const mockSignInWithPassword = jest.fn();
+const mockExchangeCodeForSession = jest.fn();
+jest.mock('../../../lib/supabase', () => ({
+  supabase: {
+    auth: {
+      signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
+      exchangeCodeForSession: (...args: unknown[]) => mockExchangeCodeForSession(...args),
+    },
+  },
+}));
+
+const mockSignInWithGoogle = jest.fn();
+jest.mock('../../../features/auth/oauth', () => ({
+  signInWithGoogle: (...args: unknown[]) => mockSignInWithGoogle(...args),
+}));
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockSearchParams = {};
+  Platform.OS = 'android';
+});
+
+import SignInScreen from '../../(auth)/sign-in';
+
+describe('SignInScreen', () => {
+  it('renders Email and Password fields and Sign In button', () => {
+    const { getByPlaceholderText, getByText } = render(<SignInScreen />);
+    expect(getByPlaceholderText('Email')).toBeTruthy();
+    expect(getByPlaceholderText('Password')).toBeTruthy();
+    expect(getByText('Sign In')).toBeTruthy();
+  });
+
+  it('renders "Forgot password?" link', () => {
+    const { getByText } = render(<SignInScreen />);
+    expect(getByText('Forgot password?')).toBeTruthy();
+  });
+
+  it('wrong-password auth error shows "Invalid email or password."', async () => {
+    mockSignInWithPassword.mockResolvedValue({
+      error: { status: 400, message: 'Invalid login credentials' },
+    });
+
+    const { getByPlaceholderText, getByText } = render(<SignInScreen />);
+    fireEvent.changeText(getByPlaceholderText('Email'), 'test@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'wrongpassword');
+    fireEvent.press(getByText('Sign In'));
+
+    await waitFor(() => {
+      expect(getByText('Invalid email or password.')).toBeTruthy();
+    });
+  });
+
+  it('unregistered-email auth error shows "Invalid email or password."', async () => {
+    mockSignInWithPassword.mockResolvedValue({
+      error: { status: 400, message: 'Email not confirmed' },
+    });
+
+    const { getByPlaceholderText, getByText } = render(<SignInScreen />);
+    fireEvent.changeText(getByPlaceholderText('Email'), 'unknown@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'somepassword');
+    fireEvent.press(getByText('Sign In'));
+
+    await waitFor(() => {
+      expect(getByText('Invalid email or password.')).toBeTruthy();
+    });
+  });
+
+  it('generic server error shows "Invalid email or password."', async () => {
+    mockSignInWithPassword.mockResolvedValue({
+      error: { status: 500, message: 'Internal server error' },
+    });
+
+    const { getByPlaceholderText, getByText } = render(<SignInScreen />);
+    fireEvent.changeText(getByPlaceholderText('Email'), 'test@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+    fireEvent.press(getByText('Sign In'));
+
+    await waitFor(() => {
+      expect(getByText('Invalid email or password.')).toBeTruthy();
+    });
+  });
+
+  it("network error shows \"Couldn't sign in. Check your connection and try again.\"", async () => {
+    mockSignInWithPassword.mockRejectedValue(new TypeError('Network request failed'));
+
+    const { getByPlaceholderText, getByText } = render(<SignInScreen />);
+    fireEvent.changeText(getByPlaceholderText('Email'), 'test@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+    fireEvent.press(getByText('Sign In'));
+
+    await waitFor(() => {
+      expect(
+        getByText("Couldn't sign in. Check your connection and try again.")
+      ).toBeTruthy();
+    });
+  });
+
+  it('successful sign-in calls signInWithPassword with correct credentials', async () => {
+    mockSignInWithPassword.mockResolvedValue({ data: { session: {} }, error: null });
+
+    const { getByPlaceholderText, getByText } = render(<SignInScreen />);
+    fireEvent.changeText(getByPlaceholderText('Email'), 'user@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+    fireEvent.press(getByText('Sign In'));
+
+    await waitFor(() => {
+      expect(mockSignInWithPassword).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        password: 'password123',
+      });
+    });
+  });
+
+  describe('platform-gated OAuth row', () => {
+    it('shows "Continue with Google" and no Apple stub on Android', () => {
+      Platform.OS = 'android';
+
+      const { getByText, queryByText } = render(<SignInScreen />);
+
+      expect(getByText('Continue with Google')).toBeTruthy();
+      expect(queryByText('Sign in with Apple — coming soon')).toBeNull();
+    });
+
+    it('shows the disabled Apple stub and no Google button on iOS', () => {
+      Platform.OS = 'ios';
+
+      const { getByText, queryByText } = render(<SignInScreen />);
+
+      expect(getByText('Sign in with Apple — coming soon')).toBeTruthy();
+      expect(queryByText('Continue with Google')).toBeNull();
+    });
+
+    it('the Apple stub reports accessibilityState disabled', () => {
+      Platform.OS = 'ios';
+
+      const { getByLabelText } = render(<SignInScreen />);
+      const stub = getByLabelText('Sign in with Apple — coming soon');
+
+      expect(stub.props.accessibilityState).toEqual({ disabled: true });
+    });
+
+    it('tapping "Continue with Google" calls signInWithGoogle', async () => {
+      Platform.OS = 'android';
+      mockSignInWithGoogle.mockResolvedValue(null);
+
+      const { getByText } = render(<SignInScreen />);
+      fireEvent.press(getByText('Continue with Google'));
+
+      await waitFor(() => {
+        expect(mockSignInWithGoogle).toHaveBeenCalled();
+      });
+    });
+
+    it('exchanges the returned code for a session when signInWithGoogle resolves with a code', async () => {
+      Platform.OS = 'android';
+      mockSignInWithGoogle.mockResolvedValue('abc123');
+      mockExchangeCodeForSession.mockResolvedValue({ data: { session: {} }, error: null });
+
+      const { getByText } = render(<SignInScreen />);
+      fireEvent.press(getByText('Continue with Google'));
+
+      await waitFor(() => {
+        expect(mockExchangeCodeForSession).toHaveBeenCalledWith('abc123');
+      });
+    });
+
+    it('does not attempt an exchange when signInWithGoogle resolves null (cancel/dismiss)', async () => {
+      Platform.OS = 'android';
+      mockSignInWithGoogle.mockResolvedValue(null);
+
+      const { getByText } = render(<SignInScreen />);
+      fireEvent.press(getByText('Continue with Google'));
+
+      await waitFor(() => {
+        expect(mockSignInWithGoogle).toHaveBeenCalled();
+      });
+      expect(mockExchangeCodeForSession).not.toHaveBeenCalled();
+    });
+
+    it('shows the network error copy when signInWithGoogle throws', async () => {
+      Platform.OS = 'android';
+      mockSignInWithGoogle.mockRejectedValue(new Error('provider not enabled'));
+
+      const { getByText } = render(<SignInScreen />);
+      fireEvent.press(getByText('Continue with Google'));
+
+      await waitFor(() => {
+        expect(
+          getByText("Couldn't sign in. Check your connection and try again.")
+        ).toBeTruthy();
+      });
+    });
+
+    it('shows the network error copy when exchangeCodeForSession returns an error', async () => {
+      Platform.OS = 'android';
+      mockSignInWithGoogle.mockResolvedValue('abc123');
+      mockExchangeCodeForSession.mockResolvedValue({
+        data: { session: null },
+        error: new Error('invalid grant'),
+      });
+
+      const { getByText } = render(<SignInScreen />);
+      fireEvent.press(getByText('Continue with Google'));
+
+      await waitFor(() => {
+        expect(
+          getByText("Couldn't sign in. Check your connection and try again.")
+        ).toBeTruthy();
+      });
+    });
+  });
+
+  describe('authError search param', () => {
+    it('shows the network error copy immediately when arriving with ?authError=1', () => {
+      mockSearchParams = { authError: '1' };
+
+      const { getByText } = render(<SignInScreen />);
+
+      expect(
+        getByText("Couldn't sign in. Check your connection and try again.")
+      ).toBeTruthy();
+    });
+  });
+});
+```
+
+### === FILE: app/src/app/(auth)/sign-up.tsx ===
+```tsx
+﻿/**
+ * Sign-Up Screen
+ *
+ * Form with display name + email + password. Calls checkDisplayNameAvailable
+ * before supabase.auth.signUp. On success, navigates to /gps-consent.
+ */
+
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ActivityIndicator,
+  StyleSheet,
+  useColorScheme,
+} from 'react-native';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
+import { Colors } from '../../../constants/Colors';
+import { spacing } from '../../constants/spacing';
+import { typography } from '../../constants/typography';
+import { radius } from '../../constants/radius';
+import { signUpSchema } from '../../features/auth/validation';
+import {
+  checkDisplayNameAvailable,
+  isDisplayNameTakenError,
+} from '../../features/auth/displayName';
+import { updateProfile, DISPLAY_NAME_TAKEN_MESSAGE } from '../../features/profile/updateProfile';
+import { useSession } from '../../features/auth/useSession';
+import { supabase } from '../../lib/supabase';
+import { LEGAL_URLS } from '../../constants/legal';
+
+type SignUpFormValues = {
+  displayName: string;
+  email: string;
+  password: string;
+};
+
+const GENERIC_ERROR_COPY = 'Something went wrong. Try again.';
+
+export default function SignUpScreen() {
+  const router = useRouter();
+  const sessionCtx = useSession();
+  const colorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const colors = Colors[colorScheme];
+
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [awaitingProfileProvisioning, setAwaitingProfileProvisioning] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
+
+  // Suppresses the root guard's auto-redirect while this screen is completing
+  // post-signUp provisioning (updateProfile) — signUp() creates a session immediately
+  // (email confirmation disabled), so without this the guard can race this screen's
+  // own error handling / navigation and silently strand the user on /(tabs) with no
+  // display_name and no visible error (WU-02-T4 review finding). Cleared on unmount
+  // (i.e. once this screen is actually navigated away from), not on every branch
+  // return, so a visible updateProfile error also keeps the guard suppressed until
+  // the user leaves this screen.
+  useEffect(() => {
+    if (!awaitingProfileProvisioning) return;
+    sessionCtx?.setSuppressGuardRedirect(true);
+    return () => {
+      sessionCtx?.setSuppressGuardRedirect(false);
+    };
+  }, [awaitingProfileProvisioning, sessionCtx]);
+
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { isSubmitting, errors },
+  } = useForm<SignUpFormValues>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: { displayName: '', email: '', password: '' },
+  });
+
+  async function onSubmit(values: SignUpFormValues) {
+    // If a prior submit already created the auth account but updateProfile then
+    // failed (taken name, transient error), the account/session already exist —
+    // re-running checkDisplayNameAvailable/signUp would hit an "already registered"
+    // error instead of actually retrying. Skip straight to Step 3 (WU-02-T4 review
+    // finding, round 2).
+    if (!accountCreated) {
+      // Step 1: Check display name availability
+      try {
+        const available = await checkDisplayNameAvailable(values.displayName);
+        if (!available) {
+          setError('displayName', { message: DISPLAY_NAME_TAKEN_MESSAGE });
+          return;
+        }
+      } catch (e) {
+        if (isDisplayNameTakenError(e)) {
+          setError('displayName', { message: DISPLAY_NAME_TAKEN_MESSAGE });
+        } else {
+          setError('root', { message: GENERIC_ERROR_COPY });
+        }
+        return;
+      }
+
+      // Step 2: Create account. Suppress the root guard first — signUp() creates a
+      // session as a side effect (email confirmation disabled), and the guard would
+      // otherwise be free to redirect away from this screen before Step 3 completes.
+      setAwaitingProfileProvisioning(true);
+      const { error } = await supabase.auth.signUp({
+        email: values.email,
+        password: values.password,
+        options: { data: { display_name: values.displayName } },
+      });
+
+      if (error) {
+        setError('root', { message: error.message || 'Something went wrong.' });
+        return;
+      }
+
+      setAccountCreated(true);
+    }
+
+    // Step 3: persist display_name (handle_new_user trigger only sets id+email)
+    try {
+      await updateProfile(values.displayName);
+    } catch (e) {
+      if (e instanceof Error && e.message === DISPLAY_NAME_TAKEN_MESSAGE) {
+        setError('displayName', { message: DISPLAY_NAME_TAKEN_MESSAGE });
+      } else {
+        setError('root', { message: GENERIC_ERROR_COPY });
+      }
+      return;
+    }
+
+    router.replace('/gps-consent' as never);
+  }
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: spacing.base,
+      justifyContent: 'center',
+    },
+    heading: {
+      ...typography.h1,
+      color: colors.textPrimary,
+      marginBottom: spacing.xxl,
+      textAlign: 'center',
+    },
+    input: {
+      height: spacing.giant - spacing.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.base,
+      ...typography.body,
+      color: colors.textPrimary,
+      backgroundColor: colors.surface,
+      marginBottom: spacing.xs,
+    },
+    fieldError: {
+      ...typography.caption,
+      color: colors.errorRed,
+      marginBottom: spacing.sm,
+    },
+    passwordRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.sm,
+      backgroundColor: colors.surface,
+      marginBottom: spacing.xs,
+    },
+    passwordInput: {
+      flex: 1,
+      height: spacing.giant - spacing.xs,
+      paddingHorizontal: spacing.base,
+      ...typography.body,
+      color: colors.textPrimary,
+    },
+    eyeButton: {
+      paddingHorizontal: spacing.base,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    eyeButtonText: {
+      ...typography.caption,
+      color: colors.textLink,
+    },
+    submitButton: {
+      height: spacing.giant - spacing.xs,
+      backgroundColor: colors.primary,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+      marginTop: spacing.md,
+    },
+    submitButtonDisabled: {
+      opacity: 0.6,
+    },
+    submitButtonText: {
+      ...typography.bodyMedium,
+      color: colors.textInverse,
+    },
+    rootErrorContainer: {
+      backgroundColor: colors.primarySurface,
+      borderRadius: radius.sm,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    rootErrorText: {
+      ...typography.subhead,
+      color: colors.errorRed,
+    },
+    tosContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      marginTop: spacing.sm,
+    },
+    tosText: {
+      ...typography.subhead,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    tosLink: {
+      ...typography.subhead,
+      color: colors.textLink,
+    },
+  });
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.heading}>Join Gotta Go</Text>
+
+      {errors.root?.message && (
+        <View style={styles.rootErrorContainer} accessibilityLiveRegion="assertive">
+          <Text style={styles.rootErrorText}>{errors.root.message}</Text>
+        </View>
+      )}
+
+      <Controller
+        control={control}
+        name="displayName"
+        render={({ field: { onChange, value } }) => (
+          <TextInput
+            style={styles.input}
+            placeholder="Display Name"
+            placeholderTextColor={colors.textDisabled}
+            autoCapitalize="none"
+            value={value}
+            onChangeText={onChange}
+          />
+        )}
+      />
+      {errors.displayName?.message && (
+        <Text style={styles.fieldError}>{errors.displayName.message}</Text>
+      )}
+
+      <Controller
+        control={control}
+        name="email"
+        render={({ field: { onChange, value } }) => (
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor={colors.textDisabled}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={value}
+            onChangeText={onChange}
+          />
+        )}
+      />
+      {errors.email?.message && (
+        <Text style={styles.fieldError}>{errors.email.message}</Text>
+      )}
+
+      <View style={styles.passwordRow}>
+        <Controller
+          control={control}
+          name="password"
+          render={({ field: { onChange, value } }) => (
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Password"
+              placeholderTextColor={colors.textDisabled}
+              secureTextEntry={!passwordVisible}
+              value={value}
+              onChangeText={onChange}
+            />
+          )}
+        />
+        <Pressable
+          style={styles.eyeButton}
+          onPress={() => setPasswordVisible((v) => !v)}
+          accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+        >
+          <Text style={styles.eyeButtonText}>{passwordVisible ? 'Hide' : 'Show'}</Text>
+        </Pressable>
+      </View>
+      {errors.password?.message && (
+        <Text style={styles.fieldError}>{errors.password.message}</Text>
+      )}
+
+      <Pressable
+        style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+        onPress={handleSubmit(onSubmit)}
+        disabled={isSubmitting}
+        accessibilityRole="button"
+        accessibilityLabel="Create Account"
+      >
+        {isSubmitting ? (
+          <ActivityIndicator color={colors.textInverse} />
+        ) : (
+          <Text style={styles.submitButtonText}>Create Account</Text>
+        )}
+      </Pressable>
+
+      <View style={styles.tosContainer}>
+        <Text style={styles.tosText}>By continuing, you agree to our </Text>
+        <Text
+          style={styles.tosLink}
+          onPress={() => Linking.openURL(LEGAL_URLS.termsOfService)}
+        >
+          Terms of Service
+        </Text>
+        <Text style={styles.tosText}> and </Text>
+        <Text
+          style={styles.tosLink}
+          onPress={() => Linking.openURL(LEGAL_URLS.privacyPolicy)}
+        >
+          Privacy Policy
+        </Text>
+        <Text style={styles.tosText}>.</Text>
+      </View>
+    </View>
+  );
+}
+
+```
+
+### === FILE: app/src/app/__tests__/(auth)/sign-up.test.tsx ===
+```tsx
+﻿/**
+ * Thin render + behavior tests for app/src/app/(auth)/sign-up.tsx (Sign-Up Screen).
+ *
+ * src/app/** is excluded from coverage collection — these tests exist for
+ * TDD Guard compliance and behavioral verification only, not coverage metrics.
+ */
+
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+
+const mockPush = jest.fn();
+const mockReplace = jest.fn();
+jest.mock('expo-router', () => ({
+  useRouter: jest.fn(() => ({ push: mockPush, replace: mockReplace })),
+  useSegments: jest.fn(() => []),
+}));
+
+const mockCheckDisplayNameAvailable = jest.fn();
+const mockIsDisplayNameTakenError = jest.fn();
+jest.mock('../../../features/auth/displayName', () => ({
+  checkDisplayNameAvailable: (...args: unknown[]) =>
+    mockCheckDisplayNameAvailable(...args),
+  isDisplayNameTakenError: (...args: unknown[]) =>
+    mockIsDisplayNameTakenError(...args),
+}));
+
+const mockSignUp = jest.fn();
+jest.mock('../../../lib/supabase', () => ({
+  supabase: {
+    auth: {
+      signUp: (...args: unknown[]) => mockSignUp(...args),
+    },
+  },
+}));
+
+const mockUpdateProfile = jest.fn();
+jest.mock('../../../features/profile/updateProfile', () => ({
+  updateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
+  DISPLAY_NAME_TAKEN_MESSAGE: 'That display name is already taken.',
+}));
+
+const mockSetSuppressGuardRedirect = jest.fn();
+jest.mock('../../../features/auth/useSession', () => ({
+  useSession: () => ({ setSuppressGuardRedirect: mockSetSuppressGuardRedirect }),
+}));
+
+const mockOpenURL = jest.fn();
+jest.mock('expo-linking', () => ({
+  openURL: (...args: unknown[]) => mockOpenURL(...args),
+}));
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockIsDisplayNameTakenError.mockReturnValue(false);
+  mockUpdateProfile.mockResolvedValue(undefined);
+});
+
+import SignUpScreen from '../../(auth)/sign-up';
+
+describe('SignUpScreen', () => {
+  it('renders Display Name, Email, and Password fields', () => {
+    const { getByPlaceholderText } = render(<SignUpScreen />);
+    expect(getByPlaceholderText('Display Name')).toBeTruthy();
+    expect(getByPlaceholderText('Email')).toBeTruthy();
+    expect(getByPlaceholderText('Password')).toBeTruthy();
+  });
+
+  it('checkDisplayNameAvailable returns false shows "That display name is already taken."', async () => {
+    mockCheckDisplayNameAvailable.mockResolvedValue(false);
+
+    const { getByPlaceholderText, getByText, findByText } = render(<SignUpScreen />);
+    fireEvent.changeText(getByPlaceholderText('Display Name'), 'TakenName');
+    fireEvent.changeText(getByPlaceholderText('Email'), 'test@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+    fireEvent.press(getByText('Create Account'));
+
+    expect(await findByText('That display name is already taken.')).toBeTruthy();
+  });
+
+  it('successful signUp calls updateProfile then router.replace with /gps-consent', async () => {
+    mockCheckDisplayNameAvailable.mockResolvedValue(true);
+    mockSignUp.mockResolvedValue({ data: { user: {} }, error: null });
+
+    const { getByPlaceholderText, getByText } = render(<SignUpScreen />);
+    fireEvent.changeText(getByPlaceholderText('Display Name'), 'NewUser');
+    fireEvent.changeText(getByPlaceholderText('Email'), 'new@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+    fireEvent.press(getByText('Create Account'));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith('NewUser');
+      expect(mockReplace).toHaveBeenCalledWith('/gps-consent');
+    });
+  });
+
+  it('updateProfile rejecting with the taken-name message shows the friendly error and does not navigate', async () => {
+    mockCheckDisplayNameAvailable.mockResolvedValue(true);
+    mockSignUp.mockResolvedValue({ data: { user: {} }, error: null });
+    mockUpdateProfile.mockRejectedValue(new Error('That display name is already taken.'));
+
+    const { getByPlaceholderText, getByText, findByText } = render(<SignUpScreen />);
+    fireEvent.changeText(getByPlaceholderText('Display Name'), 'RaceConditionName');
+    fireEvent.changeText(getByPlaceholderText('Email'), 'race@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+    fireEvent.press(getByText('Create Account'));
+
+    expect(await findByText('That display name is already taken.')).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('updateProfile rejecting with any other error shows the generic error and does not navigate', async () => {
+    mockCheckDisplayNameAvailable.mockResolvedValue(true);
+    mockSignUp.mockResolvedValue({ data: { user: {} }, error: null });
+    mockUpdateProfile.mockRejectedValue(new Error('network down'));
+
+    const { getByPlaceholderText, getByText, findByText } = render(<SignUpScreen />);
+    fireEvent.changeText(getByPlaceholderText('Display Name'), 'NewUser2');
+    fireEvent.changeText(getByPlaceholderText('Email'), 'new2@example.com');
+    fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+    fireEvent.press(getByText('Create Account'));
+
+    expect(await findByText('Something went wrong. Try again.')).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('TOS text contains "Terms of Service" and "Privacy Policy"', () => {
+    const { getByText } = render(<SignUpScreen />);
+    expect(getByText('Terms of Service')).toBeTruthy();
+    expect(getByText('Privacy Policy')).toBeTruthy();
+  });
+
+  describe('guard suppression during post-signup provisioning', () => {
+    it('suppresses the root guard before signUp/updateProfile run', async () => {
+      mockCheckDisplayNameAvailable.mockResolvedValue(true);
+      mockSignUp.mockResolvedValue({ data: { user: {} }, error: null });
+
+      const { getByPlaceholderText, getByText } = render(<SignUpScreen />);
+      fireEvent.changeText(getByPlaceholderText('Display Name'), 'NewUser');
+      fireEvent.changeText(getByPlaceholderText('Email'), 'new@example.com');
+      fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+      fireEvent.press(getByText('Create Account'));
+
+      await waitFor(() => {
+        expect(mockSetSuppressGuardRedirect).toHaveBeenCalledWith(true);
+        expect(mockReplace).toHaveBeenCalledWith('/gps-consent');
+      });
+    });
+
+    it('does not clear guard suppression when updateProfile fails, so the guard cannot race the error away', async () => {
+      mockCheckDisplayNameAvailable.mockResolvedValue(true);
+      mockSignUp.mockResolvedValue({ data: { user: {} }, error: null });
+      mockUpdateProfile.mockRejectedValue(new Error('That display name is already taken.'));
+
+      const { getByPlaceholderText, getByText, findByText } = render(<SignUpScreen />);
+      fireEvent.changeText(getByPlaceholderText('Display Name'), 'RaceConditionName');
+      fireEvent.changeText(getByPlaceholderText('Email'), 'race@example.com');
+      fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+      fireEvent.press(getByText('Create Account'));
+
+      expect(await findByText('That display name is already taken.')).toBeTruthy();
+      expect(mockSetSuppressGuardRedirect).toHaveBeenCalledWith(true);
+      expect(mockSetSuppressGuardRedirect).not.toHaveBeenCalledWith(false);
+    });
+
+    it('clears guard suppression when the screen unmounts', async () => {
+      mockCheckDisplayNameAvailable.mockResolvedValue(true);
+      mockSignUp.mockResolvedValue({ data: { user: {} }, error: null });
+
+      const { getByPlaceholderText, getByText, unmount } = render(<SignUpScreen />);
+      fireEvent.changeText(getByPlaceholderText('Display Name'), 'NewUser');
+      fireEvent.changeText(getByPlaceholderText('Email'), 'new@example.com');
+      fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+      fireEvent.press(getByText('Create Account'));
+
+      await waitFor(() => {
+        expect(mockReplace).toHaveBeenCalledWith('/gps-consent');
+      });
+
+      unmount();
+
+      expect(mockSetSuppressGuardRedirect).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('retry after account already created', () => {
+    it('a second submit after an updateProfile failure retries updateProfile without calling signUp or checkDisplayNameAvailable again', async () => {
+      mockCheckDisplayNameAvailable.mockResolvedValue(true);
+      mockSignUp.mockResolvedValue({ data: { user: {} }, error: null });
+      mockUpdateProfile.mockRejectedValueOnce(new Error('That display name is already taken.'));
+
+      const { getByPlaceholderText, getByText, findByText } = render(<SignUpScreen />);
+      fireEvent.changeText(getByPlaceholderText('Display Name'), 'TakenOnce');
+      fireEvent.changeText(getByPlaceholderText('Email'), 'retry@example.com');
+      fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+      fireEvent.press(getByText('Create Account'));
+
+      expect(await findByText('That display name is already taken.')).toBeTruthy();
+      expect(mockSignUp).toHaveBeenCalledTimes(1);
+      expect(mockCheckDisplayNameAvailable).toHaveBeenCalledTimes(1);
+
+      mockUpdateProfile.mockResolvedValueOnce(undefined);
+      fireEvent.changeText(getByPlaceholderText('Display Name'), 'AvailableNow');
+      fireEvent.press(getByText('Create Account'));
+
+      await waitFor(() => {
+        expect(mockUpdateProfile).toHaveBeenLastCalledWith('AvailableNow');
+        expect(mockReplace).toHaveBeenCalledWith('/gps-consent');
+      });
+
+      expect(mockSignUp).toHaveBeenCalledTimes(1);
+      expect(mockCheckDisplayNameAvailable).toHaveBeenCalledTimes(1);
+    });
+
+    it('a second submit after a generic updateProfile failure also retries updateProfile only', async () => {
+      mockCheckDisplayNameAvailable.mockResolvedValue(true);
+      mockSignUp.mockResolvedValue({ data: { user: {} }, error: null });
+      mockUpdateProfile.mockRejectedValueOnce(new Error('network down'));
+
+      const { getByPlaceholderText, getByText, findByText } = render(<SignUpScreen />);
+      fireEvent.changeText(getByPlaceholderText('Display Name'), 'NewUser3');
+      fireEvent.changeText(getByPlaceholderText('Email'), 'new3@example.com');
+      fireEvent.changeText(getByPlaceholderText('Password'), 'password123');
+      fireEvent.press(getByText('Create Account'));
+
+      expect(await findByText('Something went wrong. Try again.')).toBeTruthy();
+
+      mockUpdateProfile.mockResolvedValueOnce(undefined);
+      fireEvent.press(getByText('Create Account'));
+
+      await waitFor(() => {
+        expect(mockReplace).toHaveBeenCalledWith('/gps-consent');
+      });
+
+      expect(mockSignUp).toHaveBeenCalledTimes(1);
+      expect(mockCheckDisplayNameAvailable).toHaveBeenCalledTimes(1);
+      expect(mockUpdateProfile).toHaveBeenCalledTimes(2);
+    });
+  });
+});
+```
+
+### === FILE: app/src/app/auth/callback.tsx ===
+```tsx
+/**
+ * Auth Callback Screen
+ *
+ * Deep-link target for gotta-go://auth/callback (OAuth escapes + password recovery).
+ * Reads the incoming URL, exchanges the PKCE code for a session via handleAuthCallback.
+ *
+ * This route sits outside the (auth) group, so the root layout's session guard
+ * (redirect.ts nextRoute) does not fire for it — navigation on success/failure is
+ * explicit here, matching the convention already used by reset-password.tsx and
+ * sign-up.tsx for routes outside (auth)/(tabs).
+ */
+
+import React, { useEffect, useRef } from 'react';
+import { View, ActivityIndicator, StyleSheet, useColorScheme } from 'react-native';
+import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
+import { Colors } from '../../../constants/Colors';
+import { handleAuthCallback } from '../../features/auth/oauth';
+
+export default function AuthCallbackScreen() {
+  const router = useRouter();
+  const url = Linking.useURL();
+  const colorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const colors = Colors[colorScheme];
+  const handled = useRef(false);
+
+  useEffect(() => {
+    if (!url || handled.current) return;
+    handled.current = true;
+
+    handleAuthCallback(url)
+      .then(() => {
+        router.replace('/(tabs)');
+      })
+      .catch(() => {
+        router.replace({ pathname: '/(auth)/sign-in', params: { authError: '1' } });
+      });
+  }, [url, router]);
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+  });
+
+  return (
+    <View style={styles.container}>
+      <ActivityIndicator testID="auth-callback-loading" color={colors.primary} />
+    </View>
+  );
+}
+```
+
+### === FILE: app/src/app/__tests__/auth/callback.test.tsx ===
+```tsx
+/**
+ * Thin render + behavior tests for app/src/app/auth/callback.tsx (deep-link OAuth +
+ * password-recovery target route).
+ *
+ * src/app/** is excluded from coverage collection — these tests exist for
+ * TDD Guard compliance and behavioral verification only, not coverage metrics.
+ */
+
+import React from 'react';
+import { render, waitFor } from '@testing-library/react-native';
+
+const mockReplace = jest.fn();
+jest.mock('expo-router', () => ({
+  useRouter: jest.fn(() => ({ replace: mockReplace })),
+  useSegments: jest.fn(() => []),
+}));
+
+const mockUseURL = jest.fn();
+jest.mock('expo-linking', () => ({
+  useURL: () => mockUseURL(),
+}));
+
+const mockHandleAuthCallback = jest.fn();
+jest.mock('../../../features/auth/oauth', () => ({
+  handleAuthCallback: (...args: unknown[]) => mockHandleAuthCallback(...args),
+}));
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
+import AuthCallbackScreen from '../../auth/callback';
+
+describe('AuthCallbackScreen', () => {
+  it('renders a loading indicator', () => {
+    mockUseURL.mockReturnValue(null);
+
+    const { getByTestId } = render(<AuthCallbackScreen />);
+
+    expect(getByTestId('auth-callback-loading')).toBeTruthy();
+  });
+
+  it('does not call handleAuthCallback when there is no incoming URL yet', () => {
+    mockUseURL.mockReturnValue(null);
+
+    render(<AuthCallbackScreen />);
+
+    expect(mockHandleAuthCallback).not.toHaveBeenCalled();
+  });
+
+  it('calls handleAuthCallback with the incoming URL and replaces to /(tabs) on success', async () => {
+    mockUseURL.mockReturnValue('gotta-go://auth/callback?code=abc123');
+    mockHandleAuthCallback.mockResolvedValue({ access_token: 'x' });
+
+    render(<AuthCallbackScreen />);
+
+    await waitFor(() => {
+      expect(mockHandleAuthCallback).toHaveBeenCalledWith(
+        'gotta-go://auth/callback?code=abc123'
+      );
+      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+    });
+  });
+
+  it('replaces to sign-in with an authError param when handleAuthCallback fails', async () => {
+    mockUseURL.mockReturnValue('gotta-go://auth/callback?code=bad');
+    mockHandleAuthCallback.mockRejectedValue(new Error('invalid grant'));
+
+    render(<AuthCallbackScreen />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith({
+        pathname: '/(auth)/sign-in',
+        params: { authError: '1' },
+      });
+    });
+  });
+});
+```
+
+### === FILE: app/src/features/auth/SessionProvider.tsx ===
+```tsx
+﻿import React, { createContext, useState, useEffect } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '../../lib/supabase';
+
+/**
+ * Shape of the session context value.
+ * session: the active Supabase auth session, or null if unauthenticated
+ * loading: true until the first auth event fires (blank-splash gate — decision #5)
+ * signOut: calls supabase.auth.signOut()
+ * suppressGuardRedirect: when true, the root layout guard's auto-redirect effect
+ *   (redirect.ts nextRoute) is skipped. Set by screens that create a session as a
+ *   side effect of an in-flight multi-step flow (e.g. sign-up: signUp() creates a
+ *   session immediately since email confirmation is disabled, but the screen still
+ *   has to call updateProfile() and show/handle its error before it's safe to let
+ *   the guard route the user elsewhere) — WU-02-T4 review finding.
+ */
+export interface SessionContextValue {
+  session: Session | null;
+  loading: boolean;
+  signOut: () => Promise<void>;
+  suppressGuardRedirect: boolean;
+  setSuppressGuardRedirect: (value: boolean) => void;
+}
+
+/**
+ * React context for auth session. Exported so useSession.ts can consume it
+ * and tests can provide a custom value via Context.Provider.
+ */
+export const SessionContext = createContext<SessionContextValue | null>(null);
+
+interface SessionProviderProps {
+  children: React.ReactNode;
+}
+
+/**
+ * SessionProvider wraps the root layout and provides the auth session to all
+ * descendants via SessionContext.
+ *
+ * On mount:
+ *   - Calls getSession() to hydrate from AsyncStorage-persisted session
+ *   - Subscribes to onAuthStateChange for all subsequent auth events
+ *
+ * On unmount:
+ *   - Unsubscribes to prevent memory leaks
+ *
+ * Events handled (RESEARCH §Pattern 1):
+ *   INITIAL_SESSION, SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED,
+ *   PASSWORD_RECOVERY, USER_UPDATED
+ *
+ * Does NOT fetch the public.users profile row — that is done lazily via
+ * TanStack Query per CONTEXT §1 decision #3.
+ */
+export function SessionProvider({ children }: SessionProviderProps) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [suppressGuardRedirect, setSuppressGuardRedirect] = useState(false);
+
+  useEffect(() => {
+    // Hydrate session from AsyncStorage on cold start
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+
+    // Subscribe to all auth state changes
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setLoading(false);
+    });
+
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  return (
+    <SessionContext.Provider
+      value={{ session, loading, signOut, suppressGuardRedirect, setSuppressGuardRedirect }}
+    >
+      {children}
+    </SessionContext.Provider>
+  );
+}
+```
+
+### === FILE: app/src/features/auth/__tests__/SessionProvider.test.tsx ===
+```tsx
+﻿import React from 'react';
+import { render, act, waitFor } from '@testing-library/react-native';
+import { Text } from 'react-native';
+
+// jest.mock is hoisted. We define the mock fns inside the factory using jest.fn()
+// then retrieve them via jest.requireMock() after the import section.
+jest.mock('../../../lib/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: jest.fn(),
+      onAuthStateChange: jest.fn(),
+      signOut: jest.fn(),
+    },
+  },
+}));
+
+import { SessionProvider, SessionContext } from '../SessionProvider';
+
+// Retrieve mock handles after the jest.mock factory has run
+const mockSupabase = jest.requireMock('../../../lib/supabase').supabase as {
+  auth: {
+    getSession: jest.Mock;
+    onAuthStateChange: jest.Mock;
+    signOut: jest.Mock;
+  };
+};
+
+const mockUnsubscribe = jest.fn();
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } });
+  mockSupabase.auth.onAuthStateChange.mockReturnValue({
+    data: { subscription: { unsubscribe: mockUnsubscribe } },
+  });
+  mockSupabase.auth.signOut.mockResolvedValue({});
+});
+
+// Helper consumer component that reads the context
+function TestConsumer() {
+  const ctx = React.useContext(SessionContext);
+  if (!ctx) return <Text testID="no-ctx">no context</Text>;
+  return (
+    <>
+      <Text testID="loading">{String(ctx.loading)}</Text>
+      <Text testID="session">{ctx.session ? 'has-session' : 'no-session'}</Text>
+    </>
+  );
+}
+
+describe('SessionProvider', () => {
+  it('starts with loading=true before getSession resolves', async () => {
+    let resolveGetSession!: (val: { data: { session: null } }) => void;
+    mockSupabase.auth.getSession.mockReturnValue(
+      new Promise<{ data: { session: null } }>((resolve) => {
+        resolveGetSession = resolve;
+      })
+    );
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <TestConsumer />
+      </SessionProvider>
+    );
+
+    expect(getByTestId('loading').props.children).toBe('true');
+
+    // Resolve to avoid async leaks
+    await act(async () => {
+      resolveGetSession({ data: { session: null } });
+    });
+  });
+
+  it('sets loading=false after getSession resolves with no session', async () => {
+    const { getByTestId } = render(
+      <SessionProvider>
+        <TestConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(getByTestId('loading').props.children).toBe('false');
+    });
+    expect(getByTestId('session').props.children).toBe('no-session');
+  });
+
+  it('subscribes to onAuthStateChange on mount', async () => {
+    render(
+      <SessionProvider>
+        <TestConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('updates session on SIGNED_IN event', async () => {
+    const fakeSession = { user: { id: 'abc', email: 'user@example.com' } };
+    let authChangeCallback!: (event: string, session: unknown) => void;
+
+    mockSupabase.auth.onAuthStateChange.mockImplementation(
+      (cb: (event: string, session: unknown) => void) => {
+        authChangeCallback = cb;
+        return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
+      }
+    );
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <TestConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      authChangeCallback('SIGNED_IN', fakeSession);
+    });
+
+    expect(getByTestId('session').props.children).toBe('has-session');
+    expect(getByTestId('loading').props.children).toBe('false');
+  });
+
+  it('clears session on SIGNED_OUT event', async () => {
+    const fakeSession = { user: { id: 'abc', email: 'user@example.com' } };
+    let authChangeCallback!: (event: string, session: unknown) => void;
+
+    mockSupabase.auth.onAuthStateChange.mockImplementation(
+      (cb: (event: string, session: unknown) => void) => {
+        authChangeCallback = cb;
+        return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
+      }
+    );
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <TestConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      authChangeCallback('SIGNED_IN', fakeSession);
+    });
+
+    expect(getByTestId('session').props.children).toBe('has-session');
+
+    await act(async () => {
+      authChangeCallback('SIGNED_OUT', null);
+    });
+
+    expect(getByTestId('session').props.children).toBe('no-session');
+  });
+
+  it('handles PASSWORD_RECOVERY event without crashing', async () => {
+    let authChangeCallback!: (event: string, session: unknown) => void;
+
+    mockSupabase.auth.onAuthStateChange.mockImplementation(
+      (cb: (event: string, session: unknown) => void) => {
+        authChangeCallback = cb;
+        return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
+      }
+    );
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <TestConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      authChangeCallback('PASSWORD_RECOVERY', null);
+    });
+
+    expect(getByTestId('loading').props.children).toBe('false');
+  });
+
+  it('handles TOKEN_REFRESHED event and updates session', async () => {
+    const refreshedSession = { user: { id: 'abc', email: 'user@example.com' } };
+    let authChangeCallback!: (event: string, session: unknown) => void;
+
+    mockSupabase.auth.onAuthStateChange.mockImplementation(
+      (cb: (event: string, session: unknown) => void) => {
+        authChangeCallback = cb;
+        return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
+      }
+    );
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <TestConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      authChangeCallback('TOKEN_REFRESHED', refreshedSession);
+    });
+
+    expect(getByTestId('session').props.children).toBe('has-session');
+  });
+
+  it('handles USER_UPDATED event and updates session', async () => {
+    const updatedSession = { user: { id: 'abc', email: 'new@example.com' } };
+    let authChangeCallback!: (event: string, session: unknown) => void;
+
+    mockSupabase.auth.onAuthStateChange.mockImplementation(
+      (cb: (event: string, session: unknown) => void) => {
+        authChangeCallback = cb;
+        return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
+      }
+    );
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <TestConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      authChangeCallback('USER_UPDATED', updatedSession);
+    });
+
+    expect(getByTestId('session').props.children).toBe('has-session');
+  });
+
+  it('unsubscribes from auth state changes on unmount', async () => {
+    const { unmount } = render(
+      <SessionProvider>
+        <TestConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled();
+    });
+
+    unmount();
+
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes suppressGuardRedirect=false by default', async () => {
+    function SuppressConsumer() {
+      const ctx = React.useContext(SessionContext);
+      return <Text testID="suppress">{String(ctx?.suppressGuardRedirect)}</Text>;
+    }
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <SuppressConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(getByTestId('suppress').props.children).toBe('false');
+    });
+  });
+
+  it('setSuppressGuardRedirect updates the context value', async () => {
+    function SuppressToggleConsumer() {
+      const ctx = React.useContext(SessionContext);
+      return (
+        <Text
+          testID="suppress"
+          onPress={() => ctx?.setSuppressGuardRedirect(true)}
+        >
+          {String(ctx?.suppressGuardRedirect)}
+        </Text>
+      );
+    }
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <SuppressToggleConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(getByTestId('suppress').props.children).toBe('false');
+    });
+
+    await act(async () => {
+      getByTestId('suppress').props.onPress();
+    });
+
+    expect(getByTestId('suppress').props.children).toBe('true');
+  });
+
+  it('calls supabase.auth.signOut when signOut is invoked', async () => {
+    function SignOutConsumer() {
+      const ctx = React.useContext(SessionContext);
+      return (
+        <Text
+          testID="sign-out-btn"
+          onPress={() => ctx?.signOut()}
+        >
+          sign out
+        </Text>
+      );
+    }
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <SignOutConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(mockSupabase.auth.onAuthStateChange).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      getByTestId('sign-out-btn').props.onPress();
+    });
+
+    expect(mockSupabase.auth.signOut).toHaveBeenCalledTimes(1);
+  });
+});
+```
+
+### === FILE: app/src/app/_layout.tsx ===
+```tsx
+﻿import React, { useEffect } from 'react';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SessionProvider } from '../features/auth/SessionProvider';
+import { useSession } from '../features/auth/useSession';
+import { nextRoute } from '../features/auth/redirect';
+import { supabase } from '../lib/supabase';
+
+/**
+ * Guard component - reads session state and performs route-level redirects.
+ *
+ * Two effects:
+ *   1. Session guard: calls nextRoute() whenever loading/session/segments change.
+ *      If loading, does nothing. Otherwise redirects as needed.
+ *   2. PASSWORD_RECOVERY: separate supabase.auth.onAuthStateChange subscription
+ *      that watches for the PASSWORD_RECOVERY event and navigates to /reset-password.
+ *      Unsubscribes on unmount.
+ *
+ * When loading is true, renders null (blank splash) per CONTEXT section 1.
+ */
+function GuardComponent() {
+  const sessionValue = useSession();
+  const session = sessionValue?.session ?? null;
+  const loading = sessionValue?.loading ?? true;
+  const suppressGuardRedirect = sessionValue?.suppressGuardRedirect ?? false;
+  const router = useRouter();
+  const segments = useSegments();
+
+  // Effect 1: redirect guard based on session state
+  //
+  // Skips when suppressGuardRedirect is set — screens that create a session as a
+  // side effect of an in-flight multi-step flow (e.g. sign-up's updateProfile call
+  // after signUp()) raise this flag so this effect doesn't race their own explicit
+  // navigation/error handling (WU-02-T4 review finding).
+  useEffect(() => {
+    if (loading || suppressGuardRedirect) return;
+    const route = nextRoute(segments as string[], !!session);
+    if (route !== null) {
+      // as never required: expo-router replace type is strict about known routes
+      router.replace(route as never);
+    }
+  }, [loading, suppressGuardRedirect, session, segments, router]);
+
+  // Effect 2: PASSWORD_RECOVERY deep-link handler (separate subscription)
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        router.replace('/reset-password' as never);
+      }
+    });
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, [router]);
+
+  if (loading) {
+    return null;
+  }
+
+  return <Stack />;
+}
+
+/**
+ * RootLayout - entry point for Expo Router.
+ *
+ * Wraps the entire navigation tree in:
+ *   1. GestureHandlerRootView - required by react-native-gesture-handler
+ *   2. SessionProvider - provides auth session context to all descendants
+ *   3. GuardComponent - handles route protection and PASSWORD_RECOVERY redirects
+ */
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SessionProvider>
+        <GuardComponent />
+      </SessionProvider>
+    </GestureHandlerRootView>
+  );
+}
+```
+
+### === FILE: app/src/app/__tests__/_layout.test.tsx ===
+```tsx
+﻿/**
+ * Thin render tests for app/src/app/_layout.tsx (Root Layout).
+ *
+ * src/app/** is excluded from coverage collection — these tests exist for
+ * TDD Guard compliance and behavioral verification only, not coverage metrics.
+ */
+
+import React from 'react';
+import { render, act, waitFor } from '@testing-library/react-native';
+
+// Mock SessionProvider so we control the context value
+jest.mock('../../features/auth/SessionProvider', () => {
+  const React = require('react');
+  const mockContext = React.createContext(null);
+  return {
+    SessionProvider: ({ children }: { children: React.ReactNode }) => {
+      const value = (global as Record<string, unknown>).__sessionContextValue ?? {
+        session: null,
+        loading: false,
+        signOut: jest.fn(),
+      };
+      return React.createElement(mockContext.Provider, { value }, children);
+    },
+    SessionContext: mockContext,
+  };
+});
+
+jest.mock('../../features/auth/useSession', () => ({
+  useSession: () =>
+    (global as Record<string, unknown>).__sessionContextValue ?? {
+      session: null,
+      loading: false,
+      signOut: jest.fn(),
+    },
+}));
+
+const mockNextRoute = jest.fn(() => null as string | null);
+jest.mock('../../features/auth/redirect', () => ({
+  nextRoute: (...args: unknown[]) => mockNextRoute(...args),
+}));
+
+const mockOnAuthStateChange = jest.fn();
+const mockUnsubscribe = jest.fn();
+jest.mock('../../lib/supabase', () => ({
+  supabase: {
+    auth: {
+      onAuthStateChange: (...args: unknown[]) => mockOnAuthStateChange(...args),
+    },
+  },
+}));
+
+jest.mock('react-native-gesture-handler', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    GestureHandlerRootView: ({ children, style }: { children: React.ReactNode; style?: unknown }) =>
+      React.createElement(View, { style }, children),
+  };
+});
+
+jest.mock('expo-router', () => ({
+  Stack: () => {
+    const React = require('react');
+    const { View } = require('react-native');
+    return React.createElement(View, { testID: 'stack' });
+  },
+  useSegments: jest.fn(() => []),
+  useRouter: jest.fn(() => ({ replace: jest.fn() })),
+}));
+
+import RootLayout from '../_layout';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const g = global as any;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockNextRoute.mockReturnValue(null);
+  mockOnAuthStateChange.mockReturnValue({
+    data: { subscription: { unsubscribe: mockUnsubscribe } },
+  });
+  delete g.__sessionContextValue;
+});
+
+describe('RootLayout', () => {
+  it('renders null (blank splash) when loading is true', () => {
+    g.__sessionContextValue = { session: null, loading: true, signOut: jest.fn() };
+
+    const { queryByTestId } = render(<RootLayout />);
+
+    // When loading, the Guard renders null — the Stack must not be present
+    expect(queryByTestId('stack')).toBeNull();
+  });
+
+  it('does NOT call router.replace when loading is true', async () => {
+    const { useRouter } = require('expo-router');
+    const mockReplace = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ replace: mockReplace });
+
+    g.__sessionContextValue = { session: null, loading: true, signOut: jest.fn() };
+
+    render(<RootLayout />);
+
+    await act(async () => {});
+
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('calls router.replace with the route returned by nextRoute when not loading', async () => {
+    const { useRouter } = require('expo-router');
+    const mockReplace = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ replace: mockReplace });
+
+    mockNextRoute.mockReturnValue('/(auth)/sign-in');
+    g.__sessionContextValue = { session: null, loading: false, signOut: jest.fn() };
+
+    render(<RootLayout />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/(auth)/sign-in');
+    });
+  });
+
+  it('does NOT call router.replace when suppressGuardRedirect is true, even if nextRoute would redirect', async () => {
+    const { useRouter } = require('expo-router');
+    const mockReplace = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ replace: mockReplace });
+
+    mockNextRoute.mockReturnValue('/(tabs)');
+    g.__sessionContextValue = {
+      session: { user: { id: 'u1' } },
+      loading: false,
+      signOut: jest.fn(),
+      suppressGuardRedirect: true,
+    };
+
+    render(<RootLayout />);
+
+    await act(async () => {});
+
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call router.replace when nextRoute returns null', async () => {
+    const { useRouter } = require('expo-router');
+    const mockReplace = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ replace: mockReplace });
+
+    mockNextRoute.mockReturnValue(null);
+    g.__sessionContextValue = { session: null, loading: false, signOut: jest.fn() };
+
+    render(<RootLayout />);
+
+    await act(async () => {});
+
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('calls router.replace with /reset-password on PASSWORD_RECOVERY event', async () => {
+    const { useRouter } = require('expo-router');
+    const mockReplace = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ replace: mockReplace });
+
+    let capturedCallback: ((event: string, session: unknown) => void) | null = null;
+    mockOnAuthStateChange.mockImplementation(
+      (cb: (event: string, session: unknown) => void) => {
+        capturedCallback = cb;
+        return { data: { subscription: { unsubscribe: mockUnsubscribe } } };
+      }
+    );
+
+    g.__sessionContextValue = { session: null, loading: false, signOut: jest.fn() };
+
+    render(<RootLayout />);
+
+    await waitFor(() => {
+      expect(capturedCallback).not.toBeNull();
+    });
+
+    await act(async () => {
+      capturedCallback!('PASSWORD_RECOVERY', null);
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith('/reset-password');
+  });
+
+  it('unsubscribes from supabase.auth.onAuthStateChange on unmount', async () => {
+    g.__sessionContextValue = { session: null, loading: false, signOut: jest.fn() };
+
+    const { unmount } = render(<RootLayout />);
+
+    await waitFor(() => {
+      expect(mockOnAuthStateChange).toHaveBeenCalled();
+    });
+
+    unmount();
+
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
+  });
+});
+```
 
 
 ---
 
-<review_request>
+## Your Task
 
-<task>
-Narrow re-confirmation only, not a new review. Round 2 (`.claude/codex-review-latest.md`) returned REQUEST CHANGES with exactly one MAJOR finding: the local migration filename `20260627000005_profile_stats_rpc.sql` did not match the version Supabase actually recorded live (`20260701211135`), because the Supabase MCP `apply_migration` tool assigns its own timestamp version on apply rather than honoring the local file's version prefix. All of round 2's other findings ("Approved" section) already confirmed the RPC logic, auth.uid() scoping, the `as unknown as` cast, and test coverage were correct — those do not need re-review.
-</task>
+This is round 3, scoped narrowly to the retry-path fix above. Antigravity: please also explicitly note whether you'd have caught this on round 2 with the current runtime-boundary/mock-audit framing, or whether it's a genuinely new class of check worth adding to your standing review focus. Codex: please confirm the fix matches what you asked for and address the residual edge-case question above.
 
-<fix_applied>
-Renamed the local file from `supabase/migrations/20260627000005_profile_stats_rpc.sql` to `supabase/migrations/20260701211135_profile_stats_rpc.sql`. SQL content is byte-for-byte unchanged. A fresh `list_migrations` call against project `ebmzhjmmtmldhrojkdqw` confirms the live version is `20260701211135` (`profile_stats_rpc`), matching the new local filename exactly.
-</fix_applied>
-
-<verification_focus>
-1. Confirm the renamed file's content is unchanged from what you reviewed in round 2.
-2. Confirm the local filename now matches the live-recorded version, closing the drift finding.
-3. No other findings from round 2 need re-litigating — this is a filename-only change.
-</verification_focus>
-
-<output_format>
-Return a short confirmation in the standard format (`## Codex Review - ...`, `VERDICT: APPROVE / REQUEST CHANGES / BLOCK`). Save to `.claude/codex-review-latest.md` (overwrites round 2 — expected, since round 2's finding is now resolved).
-</output_format>
-
-</review_request>
+Return your verdict in the standard format. Save to the appropriate `-review-latest.md` file — this overwrites round 2's saved verdict; that is intentional.

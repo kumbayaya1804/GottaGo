@@ -5,7 +5,7 @@
  * before supabase.auth.signUp. On success, navigates to /gps-consent.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,8 @@ import {
   checkDisplayNameAvailable,
   isDisplayNameTakenError,
 } from '../../features/auth/displayName';
+import { updateProfile, DISPLAY_NAME_TAKEN_MESSAGE } from '../../features/profile/updateProfile';
+import { useSession } from '../../features/auth/useSession';
 import { supabase } from '../../lib/supabase';
 import { LEGAL_URLS } from '../../constants/legal';
 
@@ -37,15 +39,33 @@ type SignUpFormValues = {
   password: string;
 };
 
-const DISPLAY_NAME_TAKEN_COPY = 'That display name is already taken.';
 const GENERIC_ERROR_COPY = 'Something went wrong. Try again.';
 
 export default function SignUpScreen() {
   const router = useRouter();
+  const sessionCtx = useSession();
   const colorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = Colors[colorScheme];
 
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [awaitingProfileProvisioning, setAwaitingProfileProvisioning] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
+
+  // Suppresses the root guard's auto-redirect while this screen is completing
+  // post-signUp provisioning (updateProfile) — signUp() creates a session immediately
+  // (email confirmation disabled), so without this the guard can race this screen's
+  // own error handling / navigation and silently strand the user on /(tabs) with no
+  // display_name and no visible error (WU-02-T4 review finding). Cleared on unmount
+  // (i.e. once this screen is actually navigated away from), not on every branch
+  // return, so a visible updateProfile error also keeps the guard suppressed until
+  // the user leaves this screen.
+  useEffect(() => {
+    if (!awaitingProfileProvisioning) return;
+    sessionCtx?.setSuppressGuardRedirect(true);
+    return () => {
+      sessionCtx?.setSuppressGuardRedirect(false);
+    };
+  }, [awaitingProfileProvisioning, sessionCtx]);
 
   const {
     control,
@@ -58,31 +78,55 @@ export default function SignUpScreen() {
   });
 
   async function onSubmit(values: SignUpFormValues) {
-    // Step 1: Check display name availability
-    try {
-      const available = await checkDisplayNameAvailable(values.displayName);
-      if (!available) {
-        setError('displayName', { message: DISPLAY_NAME_TAKEN_COPY });
+    // If a prior submit already created the auth account but updateProfile then
+    // failed (taken name, transient error), the account/session already exist —
+    // re-running checkDisplayNameAvailable/signUp would hit an "already registered"
+    // error instead of actually retrying. Skip straight to Step 3 (WU-02-T4 review
+    // finding, round 2).
+    if (!accountCreated) {
+      // Step 1: Check display name availability
+      try {
+        const available = await checkDisplayNameAvailable(values.displayName);
+        if (!available) {
+          setError('displayName', { message: DISPLAY_NAME_TAKEN_MESSAGE });
+          return;
+        }
+      } catch (e) {
+        if (isDisplayNameTakenError(e)) {
+          setError('displayName', { message: DISPLAY_NAME_TAKEN_MESSAGE });
+        } else {
+          setError('root', { message: GENERIC_ERROR_COPY });
+        }
         return;
       }
+
+      // Step 2: Create account. Suppress the root guard first — signUp() creates a
+      // session as a side effect (email confirmation disabled), and the guard would
+      // otherwise be free to redirect away from this screen before Step 3 completes.
+      setAwaitingProfileProvisioning(true);
+      const { error } = await supabase.auth.signUp({
+        email: values.email,
+        password: values.password,
+        options: { data: { display_name: values.displayName } },
+      });
+
+      if (error) {
+        setError('root', { message: error.message || 'Something went wrong.' });
+        return;
+      }
+
+      setAccountCreated(true);
+    }
+
+    // Step 3: persist display_name (handle_new_user trigger only sets id+email)
+    try {
+      await updateProfile(values.displayName);
     } catch (e) {
-      if (isDisplayNameTakenError(e)) {
-        setError('displayName', { message: DISPLAY_NAME_TAKEN_COPY });
+      if (e instanceof Error && e.message === DISPLAY_NAME_TAKEN_MESSAGE) {
+        setError('displayName', { message: DISPLAY_NAME_TAKEN_MESSAGE });
       } else {
         setError('root', { message: GENERIC_ERROR_COPY });
       }
-      return;
-    }
-
-    // Step 2: Create account
-    const { error } = await supabase.auth.signUp({
-      email: values.email,
-      password: values.password,
-      options: { data: { display_name: values.displayName } },
-    });
-
-    if (error) {
-      setError('root', { message: error.message || 'Something went wrong.' });
       return;
     }
 

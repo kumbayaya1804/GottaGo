@@ -258,6 +258,53 @@ describe('SessionProvider', () => {
     expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
   });
 
+  it('exposes suppressGuardRedirect=false by default', async () => {
+    function SuppressConsumer() {
+      const ctx = React.useContext(SessionContext);
+      return <Text testID="suppress">{String(ctx?.suppressGuardRedirect)}</Text>;
+    }
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <SuppressConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(getByTestId('suppress').props.children).toBe('false');
+    });
+  });
+
+  it('setSuppressGuardRedirect updates the context value', async () => {
+    function SuppressToggleConsumer() {
+      const ctx = React.useContext(SessionContext);
+      return (
+        <Text
+          testID="suppress"
+          onPress={() => ctx?.setSuppressGuardRedirect(true)}
+        >
+          {String(ctx?.suppressGuardRedirect)}
+        </Text>
+      );
+    }
+
+    const { getByTestId } = render(
+      <SessionProvider>
+        <SuppressToggleConsumer />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(getByTestId('suppress').props.children).toBe('false');
+    });
+
+    await act(async () => {
+      getByTestId('suppress').props.onPress();
+    });
+
+    expect(getByTestId('suppress').props.children).toBe('true');
+  });
+
   it('calls supabase.auth.signOut when signOut is invoked', async () => {
     function SignOutConsumer() {
       const ctx = React.useContext(SessionContext);

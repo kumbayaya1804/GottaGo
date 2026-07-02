@@ -121,6 +121,26 @@ describe('RootLayout', () => {
     });
   });
 
+  it('does NOT call router.replace when suppressGuardRedirect is true, even if nextRoute would redirect', async () => {
+    const { useRouter } = require('expo-router');
+    const mockReplace = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ replace: mockReplace });
+
+    mockNextRoute.mockReturnValue('/(tabs)');
+    g.__sessionContextValue = {
+      session: { user: { id: 'u1' } },
+      loading: false,
+      signOut: jest.fn(),
+      suppressGuardRedirect: true,
+    };
+
+    render(<RootLayout />);
+
+    await act(async () => {});
+
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
   it('does NOT call router.replace when nextRoute returns null', async () => {
     const { useRouter } = require('expo-router');
     const mockReplace = jest.fn();

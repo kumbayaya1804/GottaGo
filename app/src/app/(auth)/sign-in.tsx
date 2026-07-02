@@ -18,15 +18,17 @@ import {
   ActivityIndicator,
   StyleSheet,
   useColorScheme,
+  Platform,
 } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../../constants/Colors';
 import { spacing } from '../../constants/spacing';
 import { typography } from '../../constants/typography';
 import { radius } from '../../constants/radius';
 import { signInSchema } from '../../features/auth/validation';
+import { signInWithGoogle } from '../../features/auth/oauth';
 import { supabase } from '../../lib/supabase';
 
 type SignInFormValues = {
@@ -39,11 +41,15 @@ const NETWORK_ERROR_COPY = "Couldn't sign in. Check your connection and try agai
 
 export default function SignInScreen() {
   const router = useRouter();
+  const { authError } = useLocalSearchParams<{ authError?: string }>();
   const colorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = Colors[colorScheme];
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    authError ? NETWORK_ERROR_COPY : null
+  );
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const {
     control,
@@ -66,6 +72,24 @@ export default function SignInScreen() {
       }
     } catch {
       setErrorMessage(NETWORK_ERROR_COPY);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setErrorMessage(null);
+    setGoogleLoading(true);
+    try {
+      const code = await signInWithGoogle();
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          setErrorMessage(NETWORK_ERROR_COPY);
+        }
+      }
+    } catch {
+      setErrorMessage(NETWORK_ERROR_COPY);
+    } finally {
+      setGoogleLoading(false);
     }
   }
 
@@ -174,6 +198,32 @@ export default function SignInScreen() {
       ...typography.subhead,
       color: colors.errorRed,
     },
+    secondaryButton: {
+      height: spacing.giant - spacing.md,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.xl,
+    },
+    secondaryButtonText: {
+      ...typography.bodyMedium,
+      color: colors.primary,
+    },
+    appleStub: {
+      height: spacing.giant - spacing.md,
+      borderWidth: 1.5,
+      borderColor: colors.textDisabled,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.xl,
+    },
+    appleStubText: {
+      ...typography.bodyMedium,
+      color: colors.textDisabled,
+    },
   });
 
   return (
@@ -254,7 +304,31 @@ export default function SignInScreen() {
         <View style={styles.dividerLine} />
       </View>
 
-      {/* TODO(02-02): OAuth/Apple buttons go here */}
+      {Platform.OS === 'android' ? (
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={handleGoogleSignIn}
+          disabled={googleLoading}
+          accessibilityRole="button"
+          accessibilityLabel="Continue with Google"
+          accessibilityHint="Sign in with your Google account"
+        >
+          {googleLoading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <Text style={styles.secondaryButtonText}>Continue with Google</Text>
+          )}
+        </Pressable>
+      ) : (
+        <View
+          style={styles.appleStub}
+          accessibilityRole="button"
+          accessibilityLabel="Sign in with Apple — coming soon"
+          accessibilityState={{ disabled: true }}
+        >
+          <Text style={styles.appleStubText}>Sign in with Apple — coming soon</Text>
+        </View>
+      )}
 
       <Pressable
         style={styles.createAccountLink}
