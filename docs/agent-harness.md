@@ -1,7 +1,7 @@
 # Agent Harness
 
 Status: active project contract.
-Last reviewed: 2026-05-20.
+Last reviewed: 2026-07-03.
 
 This document defines how Claude, Antigravity, and Codex work together on Gotta Go. It is the harness contract: role boundaries, handoff artifacts, review gates, permissions posture, and failure handling.
 

@@ -132,7 +132,7 @@ Gotta Go is a crowdsourced mobile app that helps people find usable bathrooms wh
 - **Maps**: `@rnmapbox/maps` with Mapbox SDK 11.20.1 — download token via EAS secret only, never hardcoded
 - **Auth storage**: AsyncStorage + `detectSessionInUrl: false` (required for React Native)
 - **Testing**: `jest@29.7.0` + `jest-expo@55` — jest@30 is incompatible with jest-expo@55
-- **TypeScript**: Strict; `@/*` → `./src/*`; old Expo template `components/`+`constants/` excluded from compilation
+- **TypeScript**: Strict; `@/*` → `./src/*` (old Expo template `components/`/`constants/` dirs deleted in audit 2026-07-03; `Colors.ts` now lives in `src/constants/` with the other design tokens)
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
@@ -144,6 +144,12 @@ Gotta Go is a crowdsourced mobile app that helps people find usable bathrooms wh
 - Root layout uses plain `<View>` in Phase 1 — `react-native-gesture-handler` added in Phase 2
 - Review gate: log files to `.claude/review-queue.txt` → `/review-gate` (chains GSD review → `/antigravity-review` → `/codex-prompt` automatically) → resolve BLOCKs → commit
 - **User advocacy premortem** is a required review dimension — see AGENTS.md and ANTIGRAVITY.md
+
+**Accepted structural patterns (audit 2026-07-03 — do not re-flag):**
+- `src/app/(components)/` intentionally uses Expo Router route-group syntax as a non-route component folder for screen-adjacent modals — accepted, do not relocate
+- `reset-password.tsx` and `auth/callback.tsx` intentionally live outside the `(auth)/` group: the redirect guard only auto-redirects the literal `(auth)` route group, and these routes must handle their own navigation
+- Untested `(tabs)` screens (`nearby`, `submit`, `index`) and `location/[id]` are 8–11-line Phase 3/4 stubs, intentionally excluded from the coverage gate until implemented
+- `.coverage-thresholds.json` exists at BOTH repo root (orchestrator-facing) and `app/` (jest-facing, with scope/exclusions) — paired files, threshold values must stay identical
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->

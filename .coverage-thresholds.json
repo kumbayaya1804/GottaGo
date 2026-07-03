@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "Coverage thresholds for orchestrator agents and CI. Portable across projects — adjust values per-repo.",
+  "$comment": "Coverage thresholds for orchestrator agents and CI. Portable across projects — adjust values per-repo. PAIRED FILE: app/.coverage-thresholds.json carries the jest-facing scope/exclusions for the same gate; threshold values in both files MUST stay identical (audit 2026-07-03).",
   "thresholds": {
     "lines": 100,
     "branches": 100,

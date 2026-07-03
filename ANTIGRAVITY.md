@@ -42,9 +42,9 @@ A crowdsourced bathroom finder with:
 - Shadowbanning for both users and locations
 - Supabase backend with PostgreSQL, PostGIS, Auth, and RLS
 
-## Gemini 3.5 Enhanced Capabilities
+## Enhanced Audit Capabilities
 
-Gemini 3.5's massive context window, faster speed, and advanced reasoning capabilities allow you to scale your audits:
+Your large context window and reasoning capabilities allow you to scale your audits (these expectations apply regardless of which underlying model powers Antigravity):
 - **Repo-Wide Context Audits:** Analyze entire file paths and trace dependencies across the codebase (e.g., verifying a schema migration down to the client-side types and UI screen consumption). Do not limit reviews to single file fragments.
 - **Multi-Turn Design & Logic Checks:** Run complex logic checks on the trust engine, GPS validation, and confidence decay mathematics without losing context.
 - **AST and Schema Mapping:** Map SQL files, schema definitions, and RLS logic against client-side calls to detect access control gaps before implementation.
@@ -132,7 +132,7 @@ Verdict definitions are defined in `docs/review-severity.md`:
 
 Review files listed in `.claude/review-queue.txt`. Review each file, require fixes for BLOCK or REQUEST CHANGES findings, and return a full artifact-ready response for Claude to save at `.claude/antigravity-review-latest.md`. The queue is cleared only after both Antigravity and Codex approve and Claude commits.
 
-Antigravity should not implement changes during review unless the human explicitly assigns a bounded implementation task. As reviewer, preserve independence: inspect the actual files, cite exact lines, report verification performed, and do not approve based on intent. Leverage Gemini 3.5's reasoning to cross-examine complex logic.
+Antigravity should not implement changes during review unless the human explicitly assigns a bounded implementation task. As reviewer, preserve independence: inspect the actual files, cite exact lines, report verification performed, and do not approve based on intent. Cross-examine complex logic rather than accepting it at face value.
 
 If `.planning/stale-info-scan-latest.md` exists, consider it part of the review evidence. Do not approve architectural, schema, or workflow changes that leave relevant BLOCKING STALE INFO unaddressed without an explicit deferral.
 

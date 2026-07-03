@@ -1,7 +1,7 @@
 # Stale Information Scan
 
 Status: active project control.
-Last reviewed: 2026-05-20.
+Last reviewed: 2026-07-03.
 
 This document defines how Gotta Go scans for stale, contradictory, or outdated project information. The goal is to catch drift before it misleads Claude, Antigravity, Codex, planning artifacts, schema work, security review, launch decisions, or public positioning.
 

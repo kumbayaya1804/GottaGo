@@ -1,4 +1,5 @@
 {
+  "$comment": "Jest-facing coverage gate (scope + exclusions). PAIRED FILE: the repo-root .coverage-thresholds.json is the orchestrator/CI-facing copy of the same gate; threshold values in both files MUST stay identical (audit 2026-07-03).",
   "thresholds": {
     "lines": 100,
     "branches": 100,

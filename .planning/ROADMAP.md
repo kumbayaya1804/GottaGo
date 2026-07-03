@@ -91,9 +91,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01a-PLAN.md — Wave 0 infrastructure: react-native-gesture-handler + babel config, Supabase config alignment, jest harness mocks, design token files (Colors/typography/spacing/radius/legal), and Wave 0 migrations (handle_new_user trigger, display_name unique index, check_display_name_available + set_gps_consent RPCs) + supabase db push
-- [ ] 02-01b-PLAN.md — Auth-logic modules (validation, redirect, SessionProvider, displayName, gpsConsent) at 100% coverage + root layout (SessionProvider + guard) + Welcome screen + navigation shell + auth forms (Sign-In/Sign-Up/Forgot-Password/Reset-Password/GPS-Consent) — depends_on: 02-01a
-- [ ] 02-02-PLAN.md — Nullable-FK migration + update_profile/delete_account RPCs, Google OAuth (Android-only) + Apple stub (iOS) + deep-link callback, Profile/Settings stub, Delete + Auth-Required modals, profile-trigger verification, onboarding privacy/ToS links — depends_on: 02-01b
+- [x] 02-01a-PLAN.md — Wave 0 infrastructure: react-native-gesture-handler + babel config, Supabase config alignment, jest harness mocks, design token files (Colors/typography/spacing/radius/legal), and Wave 0 migrations (handle_new_user trigger, display_name unique index, check_display_name_available + set_gps_consent RPCs) + supabase db push
+- [x] 02-01b-PLAN.md — Auth-logic modules (validation, redirect, SessionProvider, displayName, gpsConsent) at 100% coverage + root layout (SessionProvider + guard) + Welcome screen + navigation shell + auth forms (Sign-In/Sign-Up/Forgot-Password/Reset-Password/GPS-Consent) — depends_on: 02-01a
+- [x] 02-02-PLAN.md — Nullable-FK migration + update_profile/delete_account RPCs, Google OAuth (Android-only) + Apple stub (iOS) + deep-link callback, Profile/Settings stub, Delete + Auth-Required modals, profile-trigger verification, onboarding privacy/ToS links — depends_on: 02-01b
 
 ---
 
@@ -311,7 +311,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation & Scaffold | 2/2 | Complete | 2026-06-24 |
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
-| 2. Auth & Profiles | 0/3 | Plans complete | - |
+| 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
 | 3. Read Path & Map | 0/3 | Not started | - |
 | 4. GPS Service & Submission | 0/2 | Not started | - |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
