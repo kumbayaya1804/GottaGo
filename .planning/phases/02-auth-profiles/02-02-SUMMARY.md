@@ -1,6 +1,6 @@
 # Phase 2 — Plan 02-02 Summary (IN PROGRESS)
-<!-- save point: 2026-07-02 -->
-<!-- status: T1 COMPLETE, T2 COMPLETE, T3 COMPLETE, T4 COMPLETE, T5 COMPLETE, T6 NEXT -->
+<!-- save point: 2026-07-03 -->
+<!-- status: T1 COMPLETE, T2 COMPLETE, T3 COMPLETE, T4 COMPLETE, T5 COMPLETE, T6 IN PROGRESS (implemented + self-reviewed, not yet committed) -->
 
 ---
 
@@ -119,18 +119,31 @@ Applied live. Two SECURITY DEFINER functions (revoke public + anon; grant authen
 
 ---
 
-## T6 — Profile-Trigger Provisioning Test (NEXT)
+## T6 — Profile-Trigger Provisioning Test (IN PROGRESS — implemented, not yet committed)
 
-| Task | BD ID | Scope | Blocked By |
-|------|-------|-------|------------|
-| T6 — Profile-trigger provisioning test | gotta-go-ntn | features/profile/__tests__/profileTrigger.test.ts | none — T5 complete |
+| Task | BD ID | Scope | Status |
+|------|-------|-------|--------|
+| T6 — Profile-trigger provisioning test | gotta-go-ntn | `app/src/features/profile/__tests__/profileTrigger.test.ts` | Implemented + GSD-reviewed; Antigravity/Codex review + commit still pending |
 
-Scope (from beads): TDD test asserting that after `signUp()` the `users` row exists with `id`+`email`; no client-side INSERT to `users`; `display_name` initially null (set later by `update_profile`). Closes SC-3.
+**No production code changed** — test-only addition, per plan Task 6. Two tests (a third, tautological mock-only test was removed during review — see below):
+1. A source-scan test that walks all of `app/src` at test time (`fs`/`path`, not mocking) and asserts no `.ts`/`.tsx` file contains `.from('users').insert(` or `.from('users').upsert(` — i.e. provisioning is trigger-only, never client-side. Closes SC-3's "no client-side INSERT to users" requirement.
+2. A test reading the actual `handle_new_user` migration SQL from disk and asserting the function body (scoped specifically to that named function, not the file's explanatory comments) only sets `id`+`email`, never `display_name` — locks 02-CONTEXT.md §10's contract.
+
+**GSD code review (Claude, standard depth):** 0 Critical, 2 Warning, 3 Info — all fixed:
+- WR-01 — a third test drove the *mocked* supabase client directly and asserted it returned what it was told to return (including `expect(mockInsert).not.toHaveBeenCalled()`, which was unconditionally true since nothing in that test's own execution path ever called `.insert`). It exercised no production code and couldn't catch a real regression. Removed — tests 1 and 2 already lock the contract from real, non-tautological angles.
+- WR-02 — the source-scan regex only matched `.insert(`, missing `.upsert(` (which creates rows identically when none exists — the same bypass this test exists to prevent). Verified via a scratch offender file that the original regex missed it (RED), then widened the pattern to `.(insert|upsert)\(` and confirmed it now catches the offender (GREEN) before removing the scratch file.
+- IN-01 — documented the regex's known "presence check, not exhaustive" limitations (template-literal/variable table names) inline.
+- IN-02 — the migration function-body extraction now scopes specifically to `create or replace function public.handle_new_user()...begin...end;` rather than the first `begin...end;` in the whole file, so it can't silently validate the wrong function if a second one is ever added.
+- IN-03 — added a comment explaining the hardcoded migration path/filename will throw `ENOENT` (not silently pass) if the migration is ever renamed.
+
+**Verification (local, pre-review-gate):** 25 suites / 200 tests, 100% coverage on `src/features/**`, 0 typecheck errors, 0 lint errors.
+
+**Next on resume:** run the Antigravity + Codex review gate on `profileTrigger.test.ts`, resolve any findings, then commit.
 
 ---
 
-## Test Suite State (as of commit `254af27`)
-- **24 suites, 198 tests, 100% coverage** on all `src/features/**`. typecheck clean, lint clean (27 pre-existing unrelated `unicode-bom` warnings).
+## Test Suite State (as of last local run, uncommitted)
+- **25 suites, 200 tests, 100% coverage** on all `src/features/**`. typecheck clean, lint clean (27 pre-existing unrelated `unicode-bom` warnings). Last committed state (`254af27`): 24 suites, 198 tests.
 
 ---
 

@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-07-02T00:00:00.000Z"
+last_updated: "2026-07-03T00:00:00.000Z"
 progress:
   total_phases: 12
   completed_phases: 1
@@ -13,7 +13,7 @@ progress:
 current_plan: "02-02"
 current_task: "WU-02-T6"
 next_task: "WU-02-T6"
-resume_signal: "WU-02-T5 committed (254af27) and closed, both reviewers APPROVE (Codex required 2 rounds of fixes: profileStats query-key user scoping, then regression-test async cleanup). Next: ask user to confirm execution method, then start WU-02-T6 (profileTrigger.test.ts) per verbatim spec in .beads/context/execution-state.md."
+resume_signal: "WU-02-T6 (profileTrigger.test.ts) implementation complete, GSD code review findings fixed, all local verification green (25 suites/200 tests, 100% coverage, 0 typecheck/lint errors) — but NOT yet committed. Next: run the Antigravity + Codex review gate on profileTrigger.test.ts, resolve any findings, then commit. Beads issue gotta-go-ntn already claimed."
 ---
 
 ## Roadmap Evolution
