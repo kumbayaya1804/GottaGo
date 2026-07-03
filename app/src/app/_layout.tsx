@@ -1,10 +1,13 @@
 ﻿import React, { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SessionProvider } from '../features/auth/SessionProvider';
 import { useSession } from '../features/auth/useSession';
 import { nextRoute } from '../features/auth/redirect';
 import { supabase } from '../lib/supabase';
+
+const queryClient = new QueryClient();
 
 /**
  * Guard component - reads session state and performs route-level redirects.
@@ -65,15 +68,19 @@ function GuardComponent() {
  *
  * Wraps the entire navigation tree in:
  *   1. GestureHandlerRootView - required by react-native-gesture-handler
- *   2. SessionProvider - provides auth session context to all descendants
- *   3. GuardComponent - handles route protection and PASSWORD_RECOVERY redirects
+ *   2. QueryClientProvider - enables lazy TanStack Query fetches (e.g. profile.tsx
+ *      stats/display-name) per CONTEXT §1 decision #3 ("TanStack Query lazy elsewhere")
+ *   3. SessionProvider - provides auth session context to all descendants
+ *   4. GuardComponent - handles route protection and PASSWORD_RECOVERY redirects
  */
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SessionProvider>
-        <GuardComponent />
-      </SessionProvider>
+      <QueryClientProvider client={queryClient}>
+        <SessionProvider>
+          <GuardComponent />
+        </SessionProvider>
+      </QueryClientProvider>
     </GestureHandlerRootView>
   );
 }

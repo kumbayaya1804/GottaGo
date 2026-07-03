@@ -1,4 +1,12 @@
 import '@testing-library/jest-native/extend-expect';
+import { notifyManager } from '@tanstack/query-core';
+
+// TanStack Query schedules and batches state notifications via setTimeout(fn, 0) by
+// default, which fires after a test's act() block has already closed and produces
+// spurious "not wrapped in act(...)" warnings. Overriding both the scheduler and the
+// notify function to run synchronously is the library's documented test-environment fix.
+notifyManager.setScheduler((callback) => callback());
+notifyManager.setNotifyFunction((fn) => fn());
 
 // Required by supabase.ts requireEnv() at module load time
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
