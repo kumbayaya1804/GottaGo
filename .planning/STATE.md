@@ -11,9 +11,9 @@ progress:
   completed_plans: 6
   percent: 8
 current_plan: "02-02"
-current_task: "WU-02-T5"
+current_task: "WU-02-T6"
 next_task: "WU-02-T6"
-resume_signal: "WU-02-T4 committed (76c7375) and closed, all 3 review rounds APPROVE. Next: ask user to confirm execution method, then start WU-02-T5 (profile.tsx + DeleteAccountModal + AuthRequiredModal) per verbatim spec in .beads/context/execution-state.md."
+resume_signal: "WU-02-T5 committed (254af27) and closed, both reviewers APPROVE (Codex required 2 rounds of fixes: profileStats query-key user scoping, then regression-test async cleanup). Next: ask user to confirm execution method, then start WU-02-T6 (profileTrigger.test.ts) per verbatim spec in .beads/context/execution-state.md."
 ---
 
 ## Roadmap Evolution

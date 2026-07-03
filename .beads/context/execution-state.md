@@ -3,10 +3,10 @@
 
 ## Current Position
 - Active plan: 02-02 (OAuth + Profile + Deletion)
-- Last completed work unit: **WU-02-T4** (OAuth UI + deep-link callback + sign-up profile wiring) — COMMITTED `76c7375`
-- Next work unit: **WU-02-T5** (Profile screen + DeleteAccountModal + AuthRequiredModal) — see verbatim spec below
+- Last completed work unit: **WU-02-T5** (Profile screen + DeleteAccountModal + AuthRequiredModal + getMyProfile.ts + QueryClientProvider) — COMMITTED `254af27`
+- Next work unit: **WU-02-T6** (Profile-trigger provisioning test) — see verbatim scope below
 - Execution method in use for Phase 2 T-work: Metaswarm orchestrated (IMPLEMENT → VALIDATE → ADVERSARIAL REVIEW via Antigravity+Codex → COMMIT) — user-confirmed choice, re-confirm at the start of each new WU per project convention (don't auto-select).
-- TDD Guard: **ON** (re-enabled via literal chat message `tdd-guard on` after WU-02-T3 committed; was OFF only for that one WU).
+- TDD Guard: **ON**.
 
 ## Work Unit Status
 | WU | BD ID | Status | Commit |
@@ -23,46 +23,48 @@
 | WU-02-T2 | gotta-go-n1j | COMPLETE | fa63838 + dashboard/EAS config verified live 2026-07-01 (no code commit for dashboard side) |
 | WU-02-T3 | gotta-go-3ov | COMPLETE | 10e0f9e |
 | WU-02-T4 | gotta-go-wct | COMPLETE | 76c7375 |
-| WU-02-T5 | gotta-go-g1u | **NEXT** | — |
-| WU-02-T6 | gotta-go-ntn | PENDING (depends on T5) | — |
+| WU-02-T5 | gotta-go-g1u | COMPLETE | 254af27 |
+| WU-02-T6 | gotta-go-ntn | **NEXT** | — |
 
 Process/tooling (review-handoff standard + self-enforcing hook, not tied to a WU): COMMITTED `c2e1e33`.
 
-## Carry-Forward Patterns From T3/T4 (apply to T5+)
+## Carry-Forward Patterns From T3/T4/T5 (apply to T6+)
 
-- **Guard-race pattern:** any screen that calls `supabase.auth.signUp`/`signInWith*` (session created as a side effect) and then does further async work before navigating must raise `sessionCtx.setSuppressGuardRedirect(true)` first and only lower it via `useEffect` cleanup on unmount — not in a `finally` block (that only narrows the race, doesn't close it). See `app/src/app/(auth)/sign-up.tsx` for the reference implementation. T5's `DeleteAccountModal` calls `deleteAccount()` which triggers `SIGNED_OUT`, not a new session — this specific pattern likely doesn't apply there, but re-derive from first principles rather than assuming.
-- **Retry-after-partial-success pattern:** if a flow has two sequential server calls where the first succeeds and the second can fail independently, track that with explicit state (e.g. `accountCreated`) so a retry doesn't repeat the already-succeeded call. Relevant if T5/T6 introduce any multi-step server flow.
-- **Review packets now require, per `docs/agent-harness.md`/`CODEX.md`/`ANTIGRAVITY.md` (updated 2026-07-02):** a "Dependency Call Chains" section (nearest callers/callees/providers/guards/RPCs) and a "Runtime Boundary And Mock Audit" section (which tests mock which boundaries, explicit ask about production-vs-test divergence). Reviewer verdicts must include a "Runtime Boundary Check" section. **This is now self-enforced**: `.beads/hooks/pre-commit` → `node .claude/hooks/check-review-artifacts.js` blocks any commit that stages a file in `.claude/review-queue.txt` unless both prompt packets and both verdicts contain the required section headings. Presence check only, not a quality check. Verified end-to-end (no-op, block, and pass paths all confirmed against real commits this session).
-- **Packets should stay lean:** focused excerpts over full-document dumps; skip `SPEC.md`/`docs/schema-contract.md` entirely for pure client-UI tasks that don't touch PostGIS/GPS/trust/RLS (note in the packet why they're not relevant rather than pasting them).
+- **Guard-race pattern:** any screen that calls `supabase.auth.signUp`/`signInWith*` (session created as a side effect) and then does further async work before navigating must raise `sessionCtx.setSuppressGuardRedirect(true)` first and only lower it via `useEffect` cleanup on unmount — not in a `finally` block. See `app/src/app/(auth)/sign-up.tsx` for the reference implementation.
+- **Retry-after-partial-success pattern:** if a flow has two sequential server calls where the first succeeds and the second can fail independently, track that with explicit state so a retry doesn't repeat the already-succeeded call.
+- **Synchronous re-entrancy guard pattern (new from T5):** a React `state` check alone (`if (submitting) return`) does NOT prevent two synchronous event handlers dispatched before the first state update commits — both closures read the same stale value. Use a `useRef` mutated immediately instead. See `DeleteAccountModal.tsx`'s `submittingRef`.
+- **TanStack Query cache-key scoping pattern (new from T5, Codex MAJOR finding):** any `useQuery` whose data is user-scoped MUST include the user id in its `queryKey` if the `QueryClient` instance is app-lifetime (created once outside component tree, e.g. in `_layout.tsx`) — an unscoped key lets one user's cached data render for the next user who signs in during the same app runtime. Check every new `useQuery` call site against this before review.
+- **Async test cleanup (new from T5, Codex MAJOR finding, round 2):** a test simulating an "in-flight"/pending fetch with `new Promise(() => {})` (never resolves) leaves an open async handle that can hang `npm test`/`npm run test:coverage`, sometimes not until later in a full-suite run — misleadingly looking like environment/resource flakiness rather than a test bug. Always capture the `resolve` function and settle the promise before the test ends (see `profile.test.tsx`'s `CODEX-01` test for the pattern).
+- **Review packets require, per `docs/agent-harness.md`/`CODEX.md`/`ANTIGRAVITY.md`:** a "Runtime Boundary And Mock Audit" section in both prompt packets and a "Runtime Boundary Check" section in both verdicts. **Self-enforced** via `.beads/hooks/pre-commit` → `node .claude/hooks/check-review-artifacts.js` (presence check only) — this checks whatever is CURRENTLY on disk in `.claude/{antigravity,codex}-{prompt,review}-latest.md` at commit time, so if you send a narrow follow-up re-review prompt without the full original packet, that narrower prompt still needs its own "Runtime Boundary And Mock Audit" heading or the pre-commit hook blocks.
+- **Antigravity CLI invocation on this Windows host:** the documented `antigravity -p "$(...)"` PowerShell pattern hits Windows' ~32K command-line length limit for anything beyond a small prompt — pasting full context docs + file contents (as the literal `/antigravity-review` command script does) will fail with "The filename or extension is too long" silently leaving the review artifact stale/unwritten. Since `agy`/`antigravity` is itself an agentic CLI with filesystem read access, prefer a SHORT prompt (a few KB) that names file paths for it to read itself, rather than pasting full file contents inline. Codex (human-paste into a GUI app) has no such constraint — the documented full-packet approach is fine there.
+- **Packets should stay lean:** focused excerpts over full-document dumps; skip `SPEC.md`/`docs/schema-contract.md` entirely for pure client-UI tasks that don't touch PostGIS/GPS/trust/RLS.
 
-## Next Task — WU-02-T5 Verbatim Spec (from `.planning/phases/02-auth-profiles/02-02-PLAN.md` Task 5)
+## Next Task — WU-02-T6 Verbatim Spec (from `.planning/phases/02-auth-profiles/02-02-PLAN.md` Task 6)
 
-**Files:** `app/src/app/(tabs)/profile.tsx`, `app/src/app/(components)/DeleteAccountModal.tsx`, `app/src/app/(components)/AuthRequiredModal.tsx`, and colocated tests.
+**Files:** `app/src/features/profile/__tests__/profileTrigger.test.ts`
 
-**Read first:** `.planning/phases/02-auth-profiles/02-UI-SPEC.md` (Screen 5 Profile signed-in, Screen 6 unauthenticated, Screen 7 Auth-Required modal, Screen 9 Settings stub; Delete confirmation modal; Copywriting Contract; §20 Component Acceptance Checklist); `.planning/phases/02-auth-profiles/02-CONTEXT.md` (§6 deletion UX, §4 sign-out); current `app/src/app/(tabs)/profile.tsx` stub; `app/src/features/profile/deleteAccount.ts`, `profileStats.ts`; `app/src/features/auth/SessionProvider.tsx` (signOut); `app/src/constants/legal.ts` (LEGAL_URLS).
+**Read first:** `.planning/phases/02-auth-profiles/02-CONTEXT.md` (§10 handle_new_user body; §7 existing assets); `.planning/phases/02-auth-profiles/02-RESEARCH.md` (§Pitfall 4 trigger/INSERT policy; §Validation Architecture); `app/src/lib/__tests__/supabase.test.ts` (mock structure); `supabase/migrations/20260627000000_handle_new_user_trigger.sql` (from 02-01).
 
-**Action:**
-- `profile.tsx`: render conditionally on `useSession`. Signed-in shows avatar placeholder, `display_name`, masked email, a Stats section lazily loaded via `profileStats` (TanStack Query; skeleton while loading, "—" on error), and a Settings section with rows: Account (stub "Coming soon"), Privacy Policy → `Linking.openURL(LEGAL_URLS.privacyPolicy)`, Terms of Service → `Linking.openURL(LEGAL_URLS.termsOfService)`, Delete Account → opens `DeleteAccountModal`, Sign Out → `SessionProvider.signOut()` (→ `SIGNED_OUT` → Welcome), and a Location Permissions row with an "Open Settings" button → `Linking.openSettings()`. Unauthenticated shows "Sign in to contribute" CTA (Primary "Sign In" + Secondary "Create Account") + muted stats preview — **no `router.replace` redirect** (public route per Pattern 2, matches `redirect.ts`'s `isProtected` excluding `(tabs)/profile`).
-- `DeleteAccountModal.tsx`: title "Delete Account", verbatim body copy, "Type DELETE to confirm" input, Destructive "Delete Account" button **disabled until input equals exactly "DELETE"** (case-sensitive, T-02-03), calls `deleteAccount()`; on failure show "Couldn't delete your account. Check your connection and try again."; swipe-to-dismiss forbidden, explicit Cancel only.
-- `AuthRequiredModal.tsx`: ERR-10 inline slide-up (NOT a navigation redirect) with action-specific heading "Sign in to [verify/rate/report/submit/see access code]", Primary "Sign In" + Secondary "Create Account" + Ghost "Cancel"; reduced-motion instant appear.
-- Tokens only (no raw hex); touch targets ≥44pt, Primary ≥56pt.
+**Behavior to assert:**
+- The signup path leads to a `public.users` row keyed by the new auth user id with `email` populated and `display_name` initially unset by the trigger (set later by `update_profile`).
+- The client never performs a direct `INSERT` into `users` (provisioning is trigger-only; no INSERT RLS policy).
+
+**Action:** Add a covered TDD test that mocks `supabase.auth.signUp` + a `users` select and asserts the provisioning contract: after `signUp` the `users` row exists with `id`+`email` and no client-side INSERT was issued (the only write to `users` is via the SECURITY DEFINER trigger / `update_profile` RPC). This closes ROADMAP SC-3 ("User row is auto-created on signup, trigger confirmed"). If a live integration check is preferred over a mocked unit test, additionally use Supabase MCP to confirm the trigger fired for a throwaway test account and record the result in the SUMMARY (clean up the test account afterward).
 
 **Acceptance criteria:**
-- `cd app && npm test -- app/(tabs)/profile (components)/DeleteAccountModal (components)/AuthRequiredModal` exits 0 (use `--runTestsByPath` for the parenthesized paths per `docs/verification.md`).
-- `DeleteAccountModal` test asserts the Destructive button is disabled for empty input, "delete", and "Delete" — only exact "DELETE" enables it; tapping the enabled button calls `deleteAccount`.
-- `grep -n 'openSettings'`, `grep -n 'LEGAL_URLS'`, `grep -n 'signOut'` in `profile.tsx` all match.
-- `grep -n "Couldn.t delete your account"` in `DeleteAccountModal.tsx` matches; `grep -n 'router.replace'` in `AuthRequiredModal.tsx` returns nothing (it's a modal, not a redirect).
-- `grep -rn '#[0-9A-Fa-f]{6}'` across all three new files (excluding comments) returns nothing.
+- `cd app && npm test -- features/profile/profileTrigger.test.ts` exits 0.
+- The test asserts NO direct `from('users').insert(` is called by the client signup path.
+- SUMMARY records the trigger-confirmation evidence (mocked assertion and/or live MCP check output) satisfying SC-3.
 
-## Human Checkpoints For T5 (none currently known)
-- [ ] None identified yet — T5 is pure client UI + already-approved RPC calls (`deleteAccount`, `profileStats`), no new external service/credential dependency expected. Re-assess if scope changes during discuss/plan.
+## Human Checkpoints For T6 (none currently known)
+- [ ] None identified yet — re-assess during discuss/plan if scope requires live Supabase trigger inspection beyond what's already documented in `docs/schema-contract.md`.
 
 ## Recovery Instructions
 1. Read `.beads/plans/active-plan.md` (plan structure) and this file in full.
 2. Read `.beads/context/project-context.md` (tooling + patterns + newly-added services).
-3. Ask the user to confirm execution method for WU-02-T5 (Metaswarm orchestrated / Superpowers subagent-driven / parallel session) — do not assume continuation from T4.
-4. Start WU-02-T5 per the verbatim spec above.
+3. Ask the user to confirm execution method for WU-02-T6 (Metaswarm orchestrated / Superpowers subagent-driven / parallel session) — do not assume continuation from T5.
+4. Start WU-02-T6 per the scope above (may need a short discuss/plan pass first since no verbatim Task 6 spec has been located yet in `02-02-PLAN.md`).
 
-## Test Suite State (as of last commit, `76c7375`)
-- 20 suites, 153 tests, 100% coverage on all `src/features/**` (screens under `src/app/**` excluded from coverage collection per established convention, still behaviorally tested)
+## Test Suite State (as of last commit, `254af27`)
+- 24 suites, 198 tests, 100% coverage on all `src/features/**` (screens under `src/app/**` excluded from coverage collection per established convention, still behaviorally tested)
 - jest@29.7.0 pinned; 0 typecheck errors; 0 lint errors (27 pre-existing `unicode-bom` warnings, unrelated)

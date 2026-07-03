@@ -1,6 +1,6 @@
 # Phase 2 — Plan 02-02 Summary (IN PROGRESS)
 <!-- save point: 2026-07-02 -->
-<!-- status: T1 COMPLETE, T2 COMPLETE, T3 COMPLETE, T4 COMPLETE, T5 NEXT, T6 PENDING -->
+<!-- status: T1 COMPLETE, T2 COMPLETE, T3 COMPLETE, T4 COMPLETE, T5 COMPLETE, T6 NEXT -->
 
 ---
 
@@ -13,6 +13,7 @@
 | `10e0f9e` | feat(profile): OAuth + profile TDD modules with get_profile_stats RPC | T3 |
 | `76c7375` | feat(auth): OAuth UI, deep-link callback, and sign-up profile wiring | T4 |
 | `c2e1e33` | docs(review-gate): runtime-boundary/mock-boundary audit + self-enforcing hook (process, not a WU) | — |
+| `254af27` | feat(profile): Profile screen, Delete/AuthRequired modals, profile display-name fetch | T5 |
 
 ---
 
@@ -93,19 +94,43 @@ Applied live. Two SECURITY DEFINER functions (revoke public + anon; grant authen
 
 ---
 
-## T5–T6 (NOT STARTED)
+## T5 — Profile Screen + Delete/AuthRequired Modals + Profile Display-Name Fetch (COMPLETE — commit `254af27`)
 
-| Task | BD ID | Scope | Blocked By |
-|------|-------|-------|------------|
-| T5 — Profile + Settings + Delete/AuthRequired modals | gotta-go-g1u | (tabs)/profile.tsx, (components)/{DeleteAccountModal,AuthRequiredModal}.tsx | none — ready to start |
-| T6 — Profile-trigger provisioning test | gotta-go-ntn | features/profile/__tests__/profileTrigger.test.ts | T5 |
+**Files:** `app/src/app/(tabs)/profile.tsx`, `app/src/app/(components)/{DeleteAccountModal,AuthRequiredModal}.tsx` + tests, `app/src/features/profile/getMyProfile.ts` + test (new, out-of-plan), `app/src/app/_layout.tsx` (QueryClientProvider added, out-of-plan), `app/jest.setup.ts` (TanStack Query test-sync fix).
 
-Full verbatim spec for T5 is in `.beads/context/execution-state.md` § "Next Task — WU-02-T5 Verbatim Spec".
+**Two deviations from the plan's literal 3-file list**, both approved by Antigravity + Codex:
+1. `getMyProfile.ts` — new feature module fetching the signed-in user's `display_name` via a direct `public.users` SELECT. Safe under the `users_select_own` RLS policy (`auth.uid() = id`); no table-level REVOKE exists on `users` (unlike `ratings`).
+2. `_layout.tsx` gained `QueryClientProvider` — the first use of TanStack Query in the codebase (`profile.tsx`'s Stats section + display-name fetch use `useQuery`), required per `02-CONTEXT.md`'s "TanStack Query lazy elsewhere" decision.
+
+**GSD code review (Claude, standard depth):** 1 Critical + 3 Warning + 3 Info — all fixed via TDD before reviewer handoff (full report: `02-REVIEW.md`):
+- CR-01 — `DeleteAccountModal` didn't reset `confirmText`/`error`/`submitting` on reopen (component stays mounted, only `visible` toggles), defeating the T-02-03 fresh-confirmation gate. Fixed with a `useEffect` keyed on `visible`.
+- WR-01 — `handleDelete` had no synchronous re-entrancy guard; a plain `submitting` state check wouldn't actually stop two presses dispatched before the first re-render commits (both closures read the same stale value) — fixed with a `useRef`.
+- WR-02 / IN-03 — no fallback when `getMyProfile` fails or `display_name` is null; display name row rendered blank forever. Fixed: falls back to `'Profile'`.
+- WR-03 — delete-failure error text missing `accessibilityLiveRegion="assertive"`.
+- IN-02 — `AuthRequiredModal`'s `isReduceMotionEnabled()` had no `.catch()`/unmount guard (confirmed via an actual unhandled-rejection test failure).
+
+**Round 1:** Antigravity APPROVE (full 10-file scope). Codex REQUEST CHANGES — **MAJOR**: `profileStats`'s `queryKey: ['profileStats']` wasn't scoped by user id, but the `QueryClient` is app-lifetime (module-scope in `_layout.tsx`) — a sign-out/sign-in during the same app runtime could render user A's cached stats for user B. Fixed: `queryKey: ['profileStats', session?.user.id]` (the sibling `getMyProfile` query was already correctly scoped) + a new regression test (`CODEX-01`) sharing one `QueryClient` across two users' render/unmount cycles.
+
+**Round 2:** Antigravity re-review APPROVE (confirmed via repo-wide search: only two `useQuery` call sites exist, both now correctly scoped). Codex re-review REQUEST CHANGES — **MAJOR**: the regression test's `new Promise(() => {})` for user 2's in-flight fetch never resolved, leaving an open async handle (`npm test --runTestsByPath profile.test.tsx` hung past its own reported PASS). Fixed with a captured/settled deferred promise.
+
+**Round 3:** Codex APPROVE. Both reviewers APPROVE — committed `254af27`.
+
+**Debugging note:** the dangling promise from Codex's round-2 finding was also the root cause of several `npm run test:coverage --runInBand` hangs seen mid-session (initially misdiagnosed as environment resource pressure late in a long session) — worth remembering that a hanging aggregate test/coverage run can be a real async-cleanup bug in a *newly added* test, not just infra flakiness.
 
 ---
 
-## Test Suite State (as of commit `76c7375`)
-- **20 suites, 153 tests, 100% coverage** on all `src/features/**`. typecheck clean, lint clean (27 pre-existing unrelated `unicode-bom` warnings).
+## T6 — Profile-Trigger Provisioning Test (NEXT)
+
+| Task | BD ID | Scope | Blocked By |
+|------|-------|-------|------------|
+| T6 — Profile-trigger provisioning test | gotta-go-ntn | features/profile/__tests__/profileTrigger.test.ts | none — T5 complete |
+
+Scope (from beads): TDD test asserting that after `signUp()` the `users` row exists with `id`+`email`; no client-side INSERT to `users`; `display_name` initially null (set later by `update_profile`). Closes SC-3.
+
+---
+
+## Test Suite State (as of commit `254af27`)
+- **24 suites, 198 tests, 100% coverage** on all `src/features/**`. typecheck clean, lint clean (27 pre-existing unrelated `unicode-bom` warnings).
 
 ---
 
