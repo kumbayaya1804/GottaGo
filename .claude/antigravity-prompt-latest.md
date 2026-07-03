@@ -1,21 +1,43 @@
-You are Antigravity for the "Gotta Go" project. You already reviewed and APPROVED WU-02-T5 (Phase 2, Plan 02-02) in this same session. Since then, Codex (the other independent reviewer) found a real MAJOR issue in that same change that you did not catch, and Claude fixed it. Please re-review just this fix.
+You are Antigravity for the "Gotta Go" project. This is the review-gate request for **WU-02-T6**, the last work unit in Plan 02-02 (Phase 2, auth/profiles). Read your operating instructions from `ANTIGRAVITY.md` and `docs/agent-harness.md` if you need to refresh context, then read this file fresh from disk:
 
-Read your operating instructions from ANTIGRAVITY.md and docs/agent-harness.md if you need to refresh context, then read these files fresh from disk (do not rely on your memory of the earlier version):
-- app/src/app/(tabs)/profile.tsx
-- app/src/app/__tests__/(tabs)/profile.test.tsx
-- app/src/app/_layout.tsx (unchanged since your last review — just re-confirm the QueryClient it creates is the one whose scoping is at issue)
+- `app/src/features/profile/__tests__/profileTrigger.test.ts`
 
-Codex's finding (already fixed, please verify the fix is correct and sufficient):
-"profileStats is user-scoped data, but its TanStack Query key was the static ['profileStats'] while the root QueryClient is app-lifetime state created once in _layout.tsx. If user A signs out and user B signs in during the same app runtime, the profile screen could synchronously render user A's cached contribution counts for user B until the stale query refetches. Fix: key stats by the authenticated user, e.g. queryKey: ['profileStats', session.user.id]. Add a regression test using one QueryClient across a user switch."
+## What This Is
 
-Claude's fix: changed the queryKey to ['profileStats', session?.user.id] (see profile.tsx), and added a new test 'CODEX-01: does not leak a previous user's cached stats to a newly signed-in user' in profile.test.tsx that shares a single QueryClient across two render()/unmount() cycles for two different users and asserts the first user's cached value does not appear for the second user while their fetch is still in flight.
+A **test-only** addition — no production code created or modified. It locks the "profile provisioning is trigger-only" contract (T-02-PROV / ROADMAP SC-3): `public.users` has no client-facing INSERT policy, so the only legitimate way a row appears is the `handle_new_user` SECURITY DEFINER trigger firing on `auth.users` insert. Two tests enforce this:
 
-Also note the getMyProfile query (queryKey: ['myProfile', session?.user.id]) was ALREADY scoped by user id before this fix — only profileStats had the bug.
+1. A source-scan of all non-test `.ts`/`.tsx` files under `app/src` for any `.from('users').insert(` or `.from('users').upsert(` call — asserts none exist.
+2. A read of the real migration file `supabase/migrations/20260627000000_handle_new_user_trigger.sql`, asserting its `handle_new_user()` function body inserts only `id`+`email` and never sets `display_name` (locked per `02-CONTEXT.md` §10).
 
-Verification already run: npm test --runInBand -- 198/198 tests passing, 24 suites, 0 failures (includes the new regression test). npm run typecheck -- 0 errors. npm run lint -- 0 errors, only pre-existing unrelated warnings.
+## Prior Review Round (GSD self-review, already fixed — please verify)
 
-Please return your verdict in the Antigravity review format from ANTIGRAVITY.md, including a Runtime Boundary Check confirming whether this fix is complete (e.g. is there any OTHER query in this codebase with the same unscoped-cache-key risk you should flag, given this same QueryClient is shared app-wide) and whether the regression test actually proves the fix.
+An earlier draft of this file had two issues, both already fixed in the version now on disk:
+1. **Tautological test removed:** an earlier "Test 1" drove a fully-mocked Supabase client and asserted only about its own mock inputs — it exercised no application code and was deleted entirely.
+2. **Regex blind spot on `.upsert()` closed:** the write-detection pattern now matches both `.insert(` and `.upsert(` — `line 26`: `/\.from\(\s*['"]users['"]\s*\)\s*\.(insert|upsert)\(/`.
+
+A second, fresh GSD review pass on the current file found two more (now fixed) issues:
+3. **`functionBody` extraction truncation risk (line 67-69):** the old regex stopped at the first literal `end;`, which would silently truncate on a future nested `BEGIN...END` block (e.g. exception handling) and mask a real `display_name` regression. Fixed by anchoring to the `$$ ... $$` dollar-quote delimiters instead: `/create or replace function public\.handle_new_user\(\)[\s\S]*?as \$\$([\s\S]*?)\$\$;/i`. Verified against the live migration, which does use `as $$ ... $$;` dollar-quoting.
+4. **`srcRoot` had no sanity check (line 19-22):** a future file move would have silently narrowed the scan instead of failing loudly. Fixed by adding `expect(fs.existsSync(path.join(srcRoot, 'features'))).toBe(true)` and the same for `lib` before the walk begins.
+
+## Dependency Call Chains
+
+This test does not exercise any application module, provider, hook, route guard, RPC, or Supabase client call — it reads directly from the filesystem (`fs.readdirSync`/`fs.readFileSync`) against the real `app/src` tree and the real migration SQL file. There is no call chain through `sign-up.tsx`, `getMyProfile.ts`, `_layout.tsx`, or any Supabase-mocked boundary. The only "runtime" involved is Node's `fs` module operating on the actual repo tree at test time.
 
 ## Runtime Boundary And Mock Audit
 
-Nearest callers/callees/providers for this fix: `_layout.tsx` creates the single app-lifetime `QueryClient` and provides it via `QueryClientProvider`; `profile.tsx`'s `statsQuery`/`profileQuery` are the only two `useQuery` call sites in the codebase, both now keyed by `session?.user.id`. No RPC, migration, or policy changed in this fix — it is purely a client-side cache-key scoping correction. Mock boundary: `profile.test.tsx`'s `CODEX-01` regression test mocks `useSession()` and `profileStats()`/`getMyProfile()` at the feature-module boundary (not `supabase` itself) and shares one real `QueryClient` instance across two `render()`/`unmount()` cycles to reproduce the actual app-lifetime cache persistence — this is the boundary that matters for this specific bug (TanStack Query's cache, not RLS/Supabase), so mocking Supabase further out does not hide anything relevant to this finding.
+Nothing is mocked in this file — that is the point. Instead of testing behavior through a mocked Supabase client (which could hide a real client-side `.insert()`/`.upsert()` call behind a mock that always returns success), this test statically scans real source files and reads the real, committed migration SQL as the source of truth. The boundary that matters here — "does any client code path attempt to write to `users`, and does the trigger migration only set `id`+`email`" — is checked against the actual on-disk artifacts, not a test double, so there is no mock to audit for hiding production behavior.
+
+## Verification Already Run
+
+- `npx jest --testPathPattern=profileTrigger` — 2/2 tests passing (isolated run, post-fix)
+- Full suite: `npx jest` — 25 suites, 200 tests, 0 failures (post-fix, includes this file)
+- Manually confirmed: no file under `app/src` other than `getMyProfile.ts` calls `.from('users')`, and that call is a `.select()`, not a write
+- Confirmed the migration uses `as $$ ... $$;` dollar-quoting, so the new `functionBody` regex captures correctly
+
+## Please Verify
+
+- Whether the two fixes (dollar-quote anchoring, `srcRoot` sanity check) are correct and sufficient
+- Whether there is any other latent blind spot in a presence-check/source-scan test of this kind that would matter for provisioning-contract enforcement
+- Whether the "no mock to audit" framing above is accurate, or whether you see a boundary this reasoning missed
+
+Return your verdict in the Antigravity format from `ANTIGRAVITY.md`, including a Runtime Boundary Check section per that file's instructions. Save your verdict to `.claude/antigravity-review-latest.md`.

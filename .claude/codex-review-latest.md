@@ -1,28 +1,33 @@
-## Codex Review - Phase 2 Plan 02-02 WU-02-T5 Profile Stats Cache-Key Re-review #2
+## Codex Review - WU-02-T6 (profileTrigger.test.ts)
 
 **VERDICT: APPROVE**
 
 ### Findings
 - None.
 
+### Open Questions
+- None.
+
 ### Verification
-- Read `.claude/codex-prompt-latest.md`; current packet is Re-review #2, narrowed to the async cleanup for the `CODEX-01` profile stats cache regression test.
-- Read `.claude/review-queue.txt`; queue still lists the original 10 WU-02-T5 files, but the prompt explicitly says only the regression-test async cleanup changed since the prior review.
-- Inspected actual files from disk: `app/src/app/__tests__/(tabs)/profile.test.tsx`, `app/src/app/(tabs)/profile.tsx`, and `app/src/app/_layout.tsx`.
-- Searched `app/src` for `useQuery`, `queryKey`, `new QueryClient`, `QueryClientProvider`, `profileStats`, and `myProfile`; the only profile screen TanStack queries are `['profileStats', session?.user.id]` and `['myProfile', session?.user.id]`.
-- `git diff -- "app/src/app/(tabs)/profile.tsx" "app/src/app/__tests__/(tabs)/profile.test.tsx"` - confirmed `profileStats` remains user-keyed and the `CODEX-01` test now uses a captured `resolveUser2Stats` instead of a never-settled promise.
-- `npm.cmd test -- --runInBand --runTestsByPath "src/app/__tests__/(tabs)/profile.test.tsx"` - passed and exited cleanly, 1 suite / 18 tests, no open-handle timeout.
-- `npm.cmd run typecheck` - passed.
-- `npm.cmd run lint` - passed with 0 errors and the same 27 existing warnings (`unicode-bom` plus one unused eslint-disable warning in `_layout.test.tsx`).
-- `npm.cmd run test:coverage -- --runInBand` - passed and exited cleanly, 24 suites / 198 tests, 100% coverage on collected files.
+- Read `.claude/codex-prompt-latest.md`; current packet is WU-02-T6, scoped to the test-only file `app/src/features/profile/__tests__/profileTrigger.test.ts`.
+- Read `CODEX.md`, `docs/agent-harness.md`, `.claude/review-queue.txt`, `docs/stale-info-scan.md`, `.planning/stale-info-scan-latest.md`, `docs/schema-contract.md`, `.planning/phases/02-auth-profiles/02-REVIEW.md`, the queued test file, and `supabase/migrations/20260627000000_handle_new_user_trigger.sql`.
+- Confirmed `.claude/review-queue.txt` lists only `app/src/features/profile/__tests__/profileTrigger.test.ts`.
+- Inspected the queued test from disk. The source-scan guard walks `app/src` via `srcRoot` and checks static `.from('users').insert(` / `.from('users').upsert(` calls at `app/src/features/profile/__tests__/profileTrigger.test.ts:19-48`.
+- Confirmed the `srcRoot` sanity checks at `app/src/features/profile/__tests__/profileTrigger.test.ts:20-22` meaningfully reduce silent scan narrowing by requiring both expected `features` and `lib` children before walking.
+- Searched `app/src` for `.from(` calls. The only production `.from('users')` call is `app/src/features/profile/getMyProfile.ts:16-20`, and it is a `.select('display_name')`, not an insert or upsert. The only other hit is the test's own explanatory comment.
+- Inspected the migration. `supabase/migrations/20260627000000_handle_new_user_trigger.sql:21-32` defines `public.handle_new_user()` as `security definer`, inserts only `(id, email)` at lines 28-29, returns `new`, and does not set `display_name` in the function body.
+- Confirmed the migration SQL parse in `app/src/features/profile/__tests__/profileTrigger.test.ts:67-71` is appropriate for this migration: anchoring to `as $$ ... $$;` avoids the earlier nested `begin` / `end;` truncation risk. A literal `$$` inside the function body would terminate this exact dollar-quoted SQL body, so that is not a realistic hidden-body edge case for the current delimiter; if the migration changes to a different dollar-quote tag, this test will fail loudly via `functionBody` being undefined.
+- Confirmed no `supabase/functions` directory is present, so there is no current Supabase Edge Function source tree outside `app/src` for this test to miss. The documented blind spots remain static-scan limits: template-literal table names, variable table names, and any future non-`app/src` client/server source location would need an explicit test update.
+- `npm.cmd test -- --runInBand --testPathPattern=profileTrigger` from `app` passed: 1 suite, 2 tests.
+- `npm.cmd test -- --runInBand` from `app` passed: 25 suites, 200 tests.
 
 ### Runtime Boundary Check
-- Runtime boundary traced: `_layout.tsx:10` creates one app-lifetime `QueryClient`; `_layout.tsx:79` provides it to the app; `ProfileScreen` reads the current session and uses TanStack Query for user-owned profile data.
-- The original cache-leak finding is resolved: `app/src/app/(tabs)/profile.tsx:38` uses `queryKey: ['profileStats', session?.user.id]`, matching the already user-scoped `myProfile` query at line 44. User A and user B stats no longer share a cache key in the app-lifetime client.
-- The regression test now proves the intended boundary without poisoning Jest lifecycle: `app/src/app/__tests__/(tabs)/profile.test.tsx:197` renders user 1 and user 2 on one shared `QueryClient`; line 253 asserts user 1's cached `5` is absent for user 2; lines 255-258 resolve user 2's pending stats promise before unmount and cache clear.
-- The test still mocks Supabase/profile APIs, which is appropriate here because this review is about TanStack cache key isolation rather than RLS or RPC correctness.
+- Dependency call chain: none. The test imports only Node `fs` and `path`; it does not import application modules, hooks, providers, route guards, the Supabase client, or mocked APIs.
+- Runtime boundary under test is the real on-disk source tree (`app/src`) plus the real committed migration (`supabase/migrations/20260627000000_handle_new_user_trigger.sql`).
+- There is no mock boundary in this file that could hide production behavior. The assertions are structural presence checks, not runtime integration tests.
+- The source scan is sound as a bounded guard for the stated invariant: no static client-side `.from('users').insert(` or `.from('users').upsert(` path under `app/src`. It is intentionally not an exhaustive parser or database-policy proof, and the accepted blind spots are documented in-file at `app/src/features/profile/__tests__/profileTrigger.test.ts:23-25`.
 
 ### Approved
-- The WU-02-T5 `profileStats` cache-key implementation fix is complete.
-- The `CODEX-01` regression test exercises the cross-account cache-leak scenario and now terminates cleanly.
-- No remaining Codex findings for this focused re-review.
+- The WU-02-T6 test is ready to merge as a regression guard for the trigger-only profile provisioning contract.
+- The current test catches the direct client write forms it claims to catch, fails loudly if its expected `app/src` or migration path assumptions break, and verifies the committed `handle_new_user` trigger migration sets only `id` and `email`.
+- No Codex findings remain for this scoped review.

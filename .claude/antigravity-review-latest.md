@@ -1,27 +1,30 @@
-## Antigravity Review - WU-02-T5 Re-review (Profile Query Key Scoping Fix)
+## Antigravity Review - WU-02-T6 (Profile Provisioning Contract Test)
 
 **VERDICT: APPROVE**
 
 ### Issues
-- None. The query key scoping issue identified by Codex has been successfully resolved, and no other queries in the codebase exhibit this vulnerability.
+- None.
 
 ### Concerns
-- None. All queries in the codebase using TanStack Query are now correctly scoped by `session?.user.id`.
+- **Static Scan Limitations**: The write pattern regex (`/\.from\(\s*['"]users['"]\s*\)\s*\.(insert|upsert)\(/`) is a static presence check. It has two minor limitations:
+  1. *Chained Reference Assumption*: If a developer stores a table reference in a variable before inserting (e.g. `const tbl = supabase.from('users'); tbl.insert(...)`), the regex will not match it.
+  2. *Quote Style*: The regex matches single and double quotes, but not backticks (e.g. `` .from(`users`) ``).
+  While both limitations are acceptable given the codebase's style guidelines and protected by the database-level RLS policies (which deny direct client-side insert/upsert operations), they are worth noting for future robustness.
 
 ### Verification
-- **Jest test suite**: Ran `npm test -- --runInBand` successfully. All 198 tests in 24 suites passed, including the new regression test `CODEX-01: does not leak a previous user's cached stats to a newly signed-in user`.
-- **TypeScript compilation**: Ran `npm run typecheck` and verified 0 errors.
-- **Linter checks**: Ran `npm run lint` and verified 0 errors (with only 27 pre-existing Unicode BOM warnings).
+- **Jest tests**: Ran `npm run test -- --testPathPattern=profileTrigger` successfully in the `app` directory. Both tests passed.
+- **Manual walk**: Verified that no other TS/TSX file under `app/src` calls `.from('users')` for writing. The only occurrence is `getMyProfile.ts`, which uses `.select('display_name')`.
+- **Migration SQL**: Verified that `supabase/migrations/20260627000000_handle_new_user_trigger.sql` defines `handle_new_user()` using `as $$` and does not mention `display_name`.
 
 ### Runtime Boundary Check
 - **Call-paths Traced:**
-  - **Profile stats query lifecycle**: `profile.tsx` -> `useQuery` key `['profileStats', session?.user.id]` -> invokes `profileStats` -> calls SECURITY DEFINER RPC `get_profile_stats`.
-  - **Shared QueryClient lifecycle**: Instantiated at the module scope in `_layout.tsx` (app-lifetime scope).
+  - The test scans files on disk directly using Node's `fs.readdirSync`/`fs.readFileSync` starting at `app/src`.
+  - The test reads `supabase/migrations/20260627000000_handle_new_user_trigger.sql` directly from disk.
 - **Audit Findings:**
-  - The query key scoping fix (`['profileStats', session?.user.id]`) correctly prevents cache collisions and state leakage between successive authenticated user sessions sharing the same app runtime.
-  - A repo-wide search confirmed that only two queries use TanStack Query (`statsQuery` and `profileQuery` in `profile.tsx`), and both are now correctly scoped by `session?.user.id`. No other queries exist in the codebase.
-  - The regression test `CODEX-01: does not leak a previous user's cached stats to a newly signed-in user` accurately simulates the persistent `QueryClient` runtime environment by sharing a single `QueryClient` instance across two render-and-unmount cycles. It successfully proves that `user-2` does not render `user-1`'s cached stats while their own fetch is in-flight. The test mocks are appropriate and do not mask any production security, caching, or data-leakage behavior.
+  - This is a static analysis check running at test time. There are no runtime dependencies, network queries, hook invocations, or router guards involved.
+  - The "no mock to audit" assertion is accurate because the test does not mock the database client, components, or API endpoints. This approach prevents test doubles from masking actual client-side writes.
 
 ### Approved
-- The query key updates in [profile.tsx](file:///C:/Users/mrsai/Gotta%20Go/app/src/app/(tabs)/profile.tsx#L38) are fully correct.
-- The regression test suite in [profile.test.tsx](file:///C:/Users/mrsai/Gotta%20Go/app/src/app/__tests__/(tabs)/profile.test.tsx#L197-L246) is approved.
+- The regression test suite in [profileTrigger.test.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/__tests__/profileTrigger.test.ts) is approved.
+- The `handle_new_user` migration SQL is verified and approved.
+
