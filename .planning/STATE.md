@@ -23,3 +23,11 @@ resume_signal: "WU-02-T6 (profileTrigger.test.ts) committed (c33bc1a). Both Anti
 - 2026-07-01 — Phase 5: added "contribution verified" push notification success criterion. Source: same audit.
 - 2026-07-01 — Phase 7: added `report_user` RPC and "report fixed" push notification. Closes the Apple 1.2 / Play UGC report/block-user gap identified as LAUNCH-BLOCKING in the audit. Source: same audit.
 - 2026-07-01 — Phase 8: added save/favorite-location requirement and plan 08-04. Source: same audit.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260704-0kt | Harness integrity fix batch: queue-path normalization, Antigravity invocation repair, roster format drift, Stop-hook gating, review-gate wording | 2026-07-04 | b413be8 | [260704-0kt-harness-integrity-fix-batch-queue-path-n](./quick/260704-0kt-harness-integrity-fix-batch-queue-path-n/) |
+
+Last activity: 2026-07-04 - Completed quick task 260704-0kt: harness integrity fix batch (both reviewers APPROVE, round 2). Phase 2 verification is still the next phase-level action — unaffected by this quick task.
