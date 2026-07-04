@@ -1,5 +1,5 @@
 # Project Context (Maintained by Orchestrator)
-<!-- updated: 2026-07-03 (savepoint) -->
+<!-- updated: 2026-07-04 (savepoint) -->
 
 ## Tooling
 - Package manager: npm
@@ -15,6 +15,10 @@
 - **Antigravity CLI invocation on this Windows host (new 2026-07-02):** the documented `antigravity -p "$(...)"` pattern hits Windows' ~32K command-line length limit for anything beyond a small prompt — pasting full context docs + file contents (the literal `/antigravity-review` script) fails with "The filename or extension is too long", silently leaving the review artifact stale. Since `agy`/`antigravity` is itself an agentic CLI with filesystem read access, use a SHORT prompt (a few KB) naming file paths for it to read itself, not full file contents inline. Codex (human-paste into a GUI app) has no such constraint. Binary lives at `C:\Users\mrsai\AppData\Local\agy\bin\agy.exe`; the `antigravity` PowerShell wrapper (`antigravity.ps1` → `& agy $args`) works from PowerShell but not reliably piped through Git Bash (`| head` etc. can show empty output even on success — don't mistake this for a real failure, re-run without piping to confirm).
 - **TanStack Query cache-key scoping (new 2026-07-02, Codex WU-02-T5 MAJOR finding):** any `useQuery` whose data is user-scoped MUST include the user id in its `queryKey` if the `QueryClient` instance is app-lifetime (created once outside the component tree, e.g. `_layout.tsx`) — an unscoped key lets one user's cached data render for the next user who signs in during the same app runtime. Check every new `useQuery` call site against this.
 - **Async test cleanup (new 2026-07-02, Codex WU-02-T5 MAJOR finding, round 2):** a test simulating an in-flight/pending fetch with `new Promise(() => {})` (never resolves) leaves an open async handle that can hang `npm test`/`npm run test:coverage` — sometimes not until much later in a full-suite run, which looks exactly like environment/resource flakiness rather than a test bug (cost significant debugging time before the real cause was found). Always capture the `resolve` function and settle the promise before the test ends.
+- **PostToolUse review-queue hook fixed (2026-07-04):** the hook previously appended raw absolute Windows paths to `.claude/review-queue.txt`, which the pre-commit gate's repo-relative comparison could never match — silently disarming the review-artifact gate. Fixed to normalize both backslash- and forward-slash-separated absolute paths to repo-relative forward-slash entries, dropping out-of-repo paths. Two review rounds: Codex caught that the round-1 fix still missed forward-slash absolute paths specifically; round 2 fixed and both reviewers APPROVE. See `.claude/settings.json`.
+- **Antigravity invocation fixed (2026-07-04):** `.claude/commands/antigravity-review.md`, `AGENTS.md`, `AGENTS_ROSTER.md` now correctly document the short-prompt/packet-on-disk invocation pattern (previously documented a broken inline-packet form that hits Windows' ~32K command-line limit).
+- **Manual reviewer workflow (new 2026-07-04):** Claude now only writes/updates `.claude/antigravity-prompt-latest.md` and `.claude/codex-prompt-latest.md`. The user runs both Antigravity and Codex himself in separate terminal tabs (both are real CLIs — `codex exec`, `agy`/`antigravity`) and they write their own `-review-latest.md` files directly. Claude does not invoke either CLI going forward.
+- **gsd-sdk STATE.md schema change (observed 2026-07-04):** an external gsd-sdk process reshaped STATE.md's frontmatter — `current_plan`/`current_task`/`next_task`/`resume_signal` fields were replaced with `milestone_name` + `last_activity`. This was intentional (not a Claude edit) — don't try to restore the old field names; `gsd-sdk query state.record-session` now fails with "No session fields found" against the new schema, so that step is currently skipped and STATE.md's `last_activity`/`last_updated` are updated directly instead.
 
 ## Critical Constraints
 - jest@29.7.0 PINNED — do not let any install upgrade it
@@ -48,6 +52,11 @@
 | WU-02-T4 | OAuth UI (sign-in Google/Apple gating) + deep-link callback route + sign-up profile wiring + guard-race/retry fixes | src/app/(auth)/{sign-in,sign-up}.tsx, src/app/auth/callback.tsx, src/features/auth/SessionProvider.tsx, src/app/_layout.tsx + all tests | 76c7375 |
 | process | Review-handoff standard tightening (runtime-boundary/mock-boundary audit, self-enforcing pre-commit hook) | CODEX.md, ANTIGRAVITY.md, docs/agent-harness.md, docs/verification.md, .claude/commands/*, .claude/hooks/check-review-artifacts.js, .beads/hooks/pre-commit | c2e1e33 |
 | WU-02-T5 | Profile screen + DeleteAccountModal + AuthRequiredModal + getMyProfile.ts + QueryClientProvider | src/app/(tabs)/profile.tsx, src/app/(components)/{DeleteAccountModal,AuthRequiredModal}.tsx, src/features/profile/getMyProfile.ts, src/app/_layout.tsx, jest.setup.ts + all tests | 254af27 |
+| WU-02-T6 | profileTrigger.test.ts — provisioning-is-trigger-only contract, LAST task in Plan 02-02 | app/src/features/profile/__tests__/profileTrigger.test.ts | c33bc1a |
+| audit | 2026-07-03 full project audit — dead Expo template code deleted, Colors.ts relocated, bookkeeping fixes (ROADMAP/STATE counters, beads cleanup, backfilled SUMMARYs) | app/components/* (deleted), app/src/constants/Colors.ts, .planning/ROADMAP.md, .planning/STATE.md, CLAUDE.md, ANTIGRAVITY.md | 9986c4e (bookkeeping), bc9a52b (code) |
+| harness | 2026-07-04 harness integrity audit — queue-path normalization, Antigravity invocation repair, roster format drift, Stop-hook gating, review-gate wording | .claude/settings.json, .claude/commands/{antigravity-review,review-gate}.md, AGENTS.md, AGENTS_ROSTER.md | b413be8 |
+| verify | Phase 2 goal-backward verification — PASSED 11/11, 0 gaps; ROADMAP/STATE Phase 2 closure | .planning/phases/02-auth-profiles/02-VERIFICATION.md, .planning/ROADMAP.md, .planning/STATE.md, .planning/project-audit-2026-07-03.md | d159219 |
+| discuss-03 | Phase 3 context — 32 decisions, 2 scope gaps closed (Nearby tab, family_mode toggle → new plan 03-04) | .planning/phases/03-read-path-map/{03-CONTEXT,03-DISCUSSION-LOG}.md, .planning/ROADMAP.md, .planning/STATE.md | 5c3accc |
 
 ## Established Patterns
 - Supabase client: `import { supabase } from '@/lib/supabase'` (never recreate)
@@ -79,8 +88,11 @@
 - getMyProfile(userId) (features/profile/getMyProfile.ts): direct `public.users` SELECT of `display_name` only — safe under `users_select_own` RLS (no table-level revoke on `users`, unlike `ratings`). First TanStack Query usage in the codebase; queryKey MUST include the user id (see Critical Constraints/Established Patterns).
 - QueryClientProvider (src/app/_layout.tsx): app-lifetime `QueryClient`, wraps `SessionProvider`/`GuardComponent`. Added WU-02-T5.
 
-## Test Suite State (as of commit 254af27)
-- 24 suites, 198 tests, 100% coverage on all `src/features/**`. typecheck clean, lint clean (27 pre-existing unrelated `unicode-bom` warnings).
+## Test Suite State (as of commit c33bc1a / bc9a52b / b413be8 — no app code changed since)
+- 25 suites, 200 tests, 100% coverage on all `src/features/**`. typecheck clean, lint clean (27 pre-existing unrelated `unicode-bom` warnings).
 
-## In-Progress (uncommitted at savepoint)
-- **WU-02-T6** (`app/src/features/profile/__tests__/profileTrigger.test.ts`): implementation complete, GSD code review findings fixed (removed a tautological test; broadened the insert-detection regex to also catch `.upsert(`; scoped the migration function-body match to `handle_new_user` specifically). Local verification green: 25 suites / 200 tests, 100% coverage, 0 typecheck/lint errors. **NOT yet reviewed by Antigravity or Codex, NOT yet committed** — next step on resume is to run that review gate, then commit.
+## Phase 2 Status: FULLY CLOSED
+Goal-backward verification PASSED 11/11 success criteria, 0 gaps (`.planning/phases/02-auth-profiles/02-VERIFICATION.md`). All 7 requirements (REQ-2-1..7) satisfied. ROADMAP.md checkbox `[x]`. Known accepted, non-blocking caveat: `app/src/constants/legal.ts` Termly URLs remain placeholders — user must supply live URLs before release.
+
+## Phase 3 Status: Discussion complete, not yet planned
+`.planning/phases/03-read-path-map/03-CONTEXT.md` has 32 locked decisions. Two scope gaps found and added to ROADMAP.md as new plan 03-04: Nearby list-view screen (accessible alt to map, designed in Phase 1.5 but never scheduled) and a `family_mode` Settings toggle (the RPC-layer filter Phase 3 builds had no UI to ever activate it — extends the existing `update_profile` RPC). Notable decisions to carry into planning: dev-only seed migration needed (live `locations` table has zero rows — no seed INSERTs exist in any migration), max-pins-per-viewport as a tunable `app_config` value (Phase 1 pattern), client-side `supercluster` clustering per `ARCHITECTURE.md` (reconciles a discrepancy with Phase 1.5's `ShapeSource`/`cluster:true` mention — researcher should confirm), and a new "Get Directions" LocationDetail action not in the original Phase 1.5 design. Next: `/gsd:plan-phase 3`, execution method confirmed as Metaswarm orchestrated.
