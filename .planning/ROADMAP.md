@@ -114,13 +114,14 @@ Plans:
   10. All screens pass Phase 1.5 component acceptance checklist before Codex review
   11. Nearby tab renders the same location set as a sorted-by-distance list, reusing 03-01's RPCs — accessible via native screen-reader semantics (no Mapbox canvas dependency)
   12. Settings screen has a `family_mode` toggle wired to an extended `update_profile` RPC; enabling it is independently verified to activate SC3's filter
-**Plans**: 4
+**Plans**: 5
 
 Plans:
-- [ ] 03-01: search_locations_bbox + search_locations_nearby + get_location_detail RPCs (SECURITY DEFINER, shadowban/delete/suppress filters baked in); app_config entry for max pins per viewport; dev-only seed migration for test locations
-- [ ] 03-02: MapScreen with Mapbox MapView, bbox viewport hook, supercluster clustering, pin tap → LocationDetail modal (full bottom-sheet shell incl. Get Directions action, hidden Verify/Rate/Report until their phases ship)
-- [ ] 03-03: Filter state (Zustand), denied-location and empty-state UI
-- [ ] 03-04: Nearby list-view screen (accessible alt to map) + family_mode Settings toggle — depends_on: 03-01 (closes two scope gaps found during 03-CONTEXT.md discussion, 2026-07-04)
+- [ ] 03-01-PLAN.md — DB read path: search_locations_bbox/_nearby/get_location_detail SECURITY DEFINER RPCs (four-clause moderation + family_mode via auth.uid() + tag filters), suppressed_at column + index, max_pins_per_viewport config, update_profile family_mode extension, dev-only seed, db push + regenerated types + pgTAP [wave 1]
+- [ ] 03-02-PLAN.md — Client data layer + test infra: features/locations hooks (bbox/detail/nearby/familyMode/formatDistance), Zustand filters store, MSW/fixtures, @gorhom/bottom-sheet + expo-localization installs (100% coverage, TDD) [wave 2, depends 03-01]
+- [ ] 03-03-PLAN.md — MapScreen (Mapbox native-clustered pins, user dot, 400ms viewport refetch, zoom-out cutoff, RPC-failure banner) + LocationDetail bottom sheet (peek/half/full, Get Directions) [wave 3, depends 03-01/02]
+- [ ] 03-04-PLAN.md — Nearby list-view tab (accessible alt to map) + family_mode Settings toggle [wave 4, depends 03-02/03]
+- [ ] 03-05-PLAN.md — Filter chip row (AND logic, null-include), denied-GPS manual-search fallback, distinct empty/filtered-empty states on MapScreen [wave 4, depends 03-02/03]
 
 ---
 
@@ -315,7 +316,7 @@ Plans:
 | 1. Foundation & Scaffold | 2/2 | Complete | 2026-06-24 |
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
 | 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
-| 3. Read Path & Map | 0/3 | Not started | - |
+| 3. Read Path & Map | 0/5 | Not started | - |
 | 4. GPS Service & Submission | 0/2 | Not started | - |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
