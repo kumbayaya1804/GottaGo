@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-07-03T00:00:00.000Z"
+last_updated: "2026-07-04T00:00:00.000Z"
 progress:
   total_phases: 12
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
   completed_plans: 7
-  percent: 17
-current_plan: "02-02"
+  percent: 25
+current_plan: null
 current_task: null
-next_task: "Phase 2 verification (gsd-verifier) — Plans 02-01a, 02-01b, 02-02 all complete; no VERIFICATION.md yet"
-resume_signal: "WU-02-T6 (profileTrigger.test.ts) committed (c33bc1a). Both Antigravity and Codex APPROVE, no findings. This closes out Plan 02-02 — all three plans in Phase 2 (02-01a, 02-01b, 02-02) are now implemented and committed. Phase 2 itself is NOT yet marked complete in ROADMAP.md: no phase-level VERIFICATION.md exists yet (has_verification was false as of last check). Next: run phase verification, then decide whether to move to Phase 3 (Read Path & Map) — confirm execution method with user per CLAUDE.md, don't auto-select."
+next_task: "Phase 3 (Read Path & Map) kickoff — plan not yet started; confirm execution method with user per CLAUDE.md, don't auto-select"
+resume_signal: "Phase 2 (Auth & Profiles) verified passed 11/11 success criteria, 0 gaps — .planning/phases/02-auth-profiles/02-VERIFICATION.md, committed alongside ROADMAP.md/STATE.md transition. ROADMAP.md Phase 2 checkbox now [x]. One known, already-tracked, non-blocking caveat re-confirmed: app/src/constants/legal.ts still has placeholder Termly URLs (user must supply live URLs before release). Four device-only manual QA items from 02-VALIDATION.md remain pre-existing and out of scope for automated verification. Next: Phase 3 (Read Path & Map) kickoff — no plan exists yet; confirm execution method with user per CLAUDE.md's 'ask every time, don't auto-select' rule before starting /gsd-discuss-phase or /gsd-plan-phase 3."
 ---
 
 ## Roadmap Evolution

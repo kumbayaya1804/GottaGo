@@ -18,7 +18,7 @@ Goal: globally available crowdsourced bathroom discovery with GPS-verified data,
 
 - [x] **Phase 1: Foundation & Scaffold** — DB config + extensions verified, Expo app runs, Supabase connection established, TypeScript types generated
 - [x] **Phase 1.5: UX Foundation & Design System** — Design contract (flow maps, wireframes, design system, nav model, emergency UX rules, error-state matrix, component checklist) that all client-facing phases implement against
-- [ ] **Phase 2: Auth & Profiles** — Email/password + Google OAuth (Android-only until Apple Developer enrolled), SessionProvider, profile auto-creation, protected routes, account deletion, privacy/TOS links, GPS consent UX
+- [x] **Phase 2: Auth & Profiles** — Email/password + Google OAuth (Android-only until Apple Developer enrolled), SessionProvider, profile auto-creation, protected routes, account deletion, privacy/TOS links, GPS consent UX
 - [ ] **Phase 3: Read Path & Map** — search_locations_bbox + search_locations_nearby RPCs, MapScreen renders real locations, emergency mode reads
 - [ ] **Phase 4: GPS Service & Submission** — GpsService hook, submit_location SECURITY DEFINER RPC, SubmitFlow screen, pending-state lifecycle
 - [ ] **Phase 5: Trust Engine & Verification** — verify_location RPC, trigger chain, confidence recalc, publish-on-N-verifications gate, VerifyFlow screen
