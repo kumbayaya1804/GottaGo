@@ -1,10 +1,15 @@
 ---
 phase: 3
 slug: read-path-map
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-07-04
+reviewed_at: 2026-07-04
+exceptions:
+  - id: D-33
+    dimensions: [4, 5]
+    reason: "Established Phase 1.5 typography/spacing tokens exceed generic checker thresholds — user-approved standing exception, see 03-CONTEXT.md D-33"
 ---
 
 # Phase 3 — UI Design Contract
@@ -51,6 +56,8 @@ Declared values (established `spacing.ts` — all multiples of 4):
 
 Exceptions: Touch targets ≥44pt minimum on all interactive elements (design-system.md §18.2). Emergency-mode elements ≥56pt — **not exercised in this phase** (Emergency Mode is Phase 8). FAB 64×64pt — the emergency FAB is Phase 8; Phase 3 does not add it.
 
+**Accepted exception (D-33):** `md=12px` and `lg=20px` fall outside the standard {4,8,16,24,32,48,64} set flagged by gsd-ui-checker Dimension 5. Both are established Phase 1.5 tokens already shipped in Phase 1/2 screens — see `03-CONTEXT.md` D-33 for the user-approved rationale. Not a Phase 3 defect; not to be re-flagged.
+
 ---
 
 ## Typography
@@ -68,6 +75,8 @@ Established `typography.ts` scale. Roles exercised by Phase 3 screens (full syst
 | label | 11px | 500 | 16 | Filter chip labels, tab bar labels |
 
 Weights used this phase: **400 (regular), 500 (medium), 600 (semibold)** — from the locked system. No inline `fontSize` raw numbers permitted (design-system.md §20 gate); all sizes reference `typography.ts`.
+
+**Accepted exception (D-33):** 5 distinct sizes and 3 weights exceed gsd-ui-checker Dimension 4's generic 4-size/2-weight maximums. Both are established Phase 1.5 tokens already shipped in Phase 1/2 screens — see `03-CONTEXT.md` D-33 for the user-approved rationale. Not a Phase 3 defect; not to be re-flagged.
 
 ---
 
@@ -174,11 +183,11 @@ No third-party registries declared. Registry vetting gate: not applicable.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: FLAG (non-blocking — no MapScreen focal point declared; recommend "primary visual anchor: nearest/selected bathroom pin and its cluster")
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: BLOCK → **accepted exception (D-33)**, see above
+- [x] Dimension 5 Spacing: BLOCK → **accepted exception (D-33)**, see above
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved with documented exception (D-33), 2026-07-04. Checker run: `gsd-ui-checker` BLOCKED on Dimensions 4/5 for mechanical threshold reasons rooted in the pre-existing Phase 1.5 token system, not Phase 3 authoring. User reviewed and explicitly accepted the exception rather than trimming shipped tokens — see `03-CONTEXT.md` D-33.
