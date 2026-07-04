@@ -23,6 +23,7 @@ resume_signal: "Phase 2 (Auth & Profiles) verified passed 11/11 success criteria
 - 2026-07-01 — Phase 5: added "contribution verified" push notification success criterion. Source: same audit.
 - 2026-07-01 — Phase 7: added `report_user` RPC and "report fixed" push notification. Closes the Apple 1.2 / Play UGC report/block-user gap identified as LAUNCH-BLOCKING in the audit. Source: same audit.
 - 2026-07-01 — Phase 8: added save/favorite-location requirement and plan 08-04. Source: same audit.
+- 2026-07-04 — Phase 3: added Nearby list-view tab (accessible alt to map, designed in Phase 1.5 but never scheduled into any phase) and a `family_mode` Settings toggle (the RPC-layer filter Phase 3 builds had no UI to ever activate it) — both folded into new plan 03-04. Source: `03-CONTEXT.md` discussion, two systematic cross-reference passes.
 
 ### Quick Tasks Completed
 

@@ -100,7 +100,7 @@ Plans:
 ### Phase 3: Read Path & Map
 **Goal**: The map renders real bathroom locations fetched from Supabase via PostGIS RPCs. Public search excludes deleted/shadowbanned/suppressed records. Emergency mode reads nearest location.
 **Depends on**: Phase 2 (auth required for location details and future mutations)
-**Requirements**: User can view a map of bathrooms near their current GPS location; User can search for bathrooms in any city/area (manual search fallback for denied GPS); User can filter by Chill Spot/wheelchair accessible/changing table/cleanliness/currently open; "Emergency Mode" one-tap nearest available bathroom; User can tap a listing to see full details; User with `family_mode` enabled does not see locations flagged `access_sensitivity` = sensitive in any search result (RPC-layer enforcement per Phase 1.5 UI spec 02-UI-SPEC.md:903, not client-side)
+**Requirements**: User can view a map of bathrooms near their current GPS location; User can search for bathrooms in any city/area (manual search fallback for denied GPS); User can filter by Chill Spot/wheelchair accessible/changing table/cleanliness/currently open; "Emergency Mode" one-tap nearest available bathroom; User can tap a listing to see full details; User with `family_mode` enabled does not see locations flagged `access_sensitivity` = sensitive in any search result (RPC-layer enforcement per Phase 1.5 UI spec 02-UI-SPEC.md:903, not client-side); User can view bathrooms in a sorted list (Nearby tab) as an accessible alternative to the map (Phase 1.5 nav model, closes a 2026-07-04 discussion-discovered scheduling gap); User can enable `family_mode` from Settings (closes a 2026-07-04 discussion-discovered gap — the filter above had no UI to ever activate it)
 **Success Criteria** (what must be TRUE):
   1. MapScreen renders Mapbox map with bathroom location pins from `search_locations_bbox` RPC
   2. RPC returns only published, non-deleted, non-shadowbanned, non-suppressed locations — filters: `shadowban_status = false AND deleted_at IS NULL AND suppressed_at IS NULL`
@@ -112,12 +112,15 @@ Plans:
   8. Shadowbanned/deleted/suppressed/family_mode-excluded test fixtures confirmed absent from the relevant search results
   9. Plan 03-01 includes a migration adding `locations.suppressed_at TIMESTAMPTZ` if the column does not already exist in the live schema, before RPCs reference it
   10. All screens pass Phase 1.5 component acceptance checklist before Codex review
-**Plans**: TBD
+  11. Nearby tab renders the same location set as a sorted-by-distance list, reusing 03-01's RPCs — accessible via native screen-reader semantics (no Mapbox canvas dependency)
+  12. Settings screen has a `family_mode` toggle wired to an extended `update_profile` RPC; enabling it is independently verified to activate SC3's filter
+**Plans**: 4
 
 Plans:
-- [ ] 03-01: search_locations_bbox + search_locations_nearby + get_location_detail RPCs (SECURITY DEFINER, shadowban/delete/suppress filters baked in)
-- [ ] 03-02: MapScreen with Mapbox MapView, bbox viewport hook, supercluster clustering, pin tap → LocationDetail modal
+- [ ] 03-01: search_locations_bbox + search_locations_nearby + get_location_detail RPCs (SECURITY DEFINER, shadowban/delete/suppress filters baked in); app_config entry for max pins per viewport; dev-only seed migration for test locations
+- [ ] 03-02: MapScreen with Mapbox MapView, bbox viewport hook, supercluster clustering, pin tap → LocationDetail modal (full bottom-sheet shell incl. Get Directions action, hidden Verify/Rate/Report until their phases ship)
 - [ ] 03-03: Filter state (Zustand), denied-location and empty-state UI
+- [ ] 03-04: Nearby list-view screen (accessible alt to map) + family_mode Settings toggle — depends_on: 03-01 (closes two scope gaps found during 03-CONTEXT.md discussion, 2026-07-04)
 
 ---
 
