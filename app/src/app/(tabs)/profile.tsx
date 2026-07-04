@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet, useColorScheme } from 'r
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
-import { Colors } from '../../../constants/Colors';
+import { Colors } from '../../constants/Colors';
 import { spacing } from '../../constants/spacing';
 import { typography } from '../../constants/typography';
 import { radius } from '../../constants/radius';

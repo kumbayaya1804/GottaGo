@@ -23,7 +23,7 @@ import {
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Colors } from '../../../constants/Colors';
+import { Colors } from '../../constants/Colors';
 import { spacing } from '../../constants/spacing';
 import { typography } from '../../constants/typography';
 import { radius } from '../../constants/radius';

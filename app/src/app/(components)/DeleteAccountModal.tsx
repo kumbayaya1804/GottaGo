@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Modal, Pressable, TextInput, StyleSheet, useColorScheme } from 'react-native';
-import { Colors } from '../../../constants/Colors';
+import { Colors } from '../../constants/Colors';
 import { spacing } from '../../constants/spacing';
 import { typography } from '../../constants/typography';
 import { radius } from '../../constants/radius';

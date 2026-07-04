@@ -1,7 +1,7 @@
 ﻿import React from 'react';
 import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
-import { Colors } from '../../../constants/Colors';
+import { Colors } from '../../constants/Colors';
 
 /**
  * Tab bar layout — 4 tabs: Map, Nearby, Submit, Profile.

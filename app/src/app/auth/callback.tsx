@@ -14,7 +14,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, ActivityIndicator, StyleSheet, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
-import { Colors } from '../../../constants/Colors';
+import { Colors } from '../../constants/Colors';
 import { handleAuthCallback } from '../../features/auth/oauth';
 
 export default function AuthCallbackScreen() {

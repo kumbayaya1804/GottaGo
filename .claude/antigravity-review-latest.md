@@ -1,4 +1,4 @@
-## Antigravity Review - WU-02-T6 (Profile Provisioning Contract Test)
+## Antigravity Review - Project Audit Cleanup (2026-07-03)
 
 **VERDICT: APPROVE**
 
@@ -6,25 +6,25 @@
 - None.
 
 ### Concerns
-- **Static Scan Limitations**: The write pattern regex (`/\.from\(\s*['"]users['"]\s*\)\s*\.(insert|upsert)\(/`) is a static presence check. It has two minor limitations:
-  1. *Chained Reference Assumption*: If a developer stores a table reference in a variable before inserting (e.g. `const tbl = supabase.from('users'); tbl.insert(...)`), the regex will not match it.
-  2. *Quote Style*: The regex matches single and double quotes, but not backticks (e.g. `` .from(`users`) ``).
-  While both limitations are acceptable given the codebase's style guidelines and protected by the database-level RLS policies (which deny direct client-side insert/upsert operations), they are worth noting for future robustness.
+- None. The cleanups strictly remove dead code, relocate design tokens to their correct project structure (`src/constants/Colors.ts`), and update configuration settings accordingly.
 
 ### Verification
-- **Jest tests**: Ran `npm run test -- --testPathPattern=profileTrigger` successfully in the `app` directory. Both tests passed.
-- **Manual walk**: Verified that no other TS/TSX file under `app/src` calls `.from('users')` for writing. The only occurrence is `getMyProfile.ts`, which uses `.select('display_name')`.
-- **Migration SQL**: Verified that `supabase/migrations/20260627000000_handle_new_user_trigger.sql` defines `handle_new_user()` using `as $$` and does not mention `display_name`.
+- **Byte-Identity Verification**: Confirmed that the content of the moved [Colors.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/constants/Colors.ts) is identical to the original template file.
+- **Import Audit**: Run a query confirming that all 11 import-path updates under `app/src` correctly point to `../constants/Colors` or `../../constants/Colors` depending on file depth.
+- **Linter & Typecheck Checks**:
+  - Run `npm run typecheck` inside `app/` successfully (0 errors).
+  - Run `npm run lint` inside `app/` successfully (0 errors, 27 pre-existing Unicode BOM warnings unchanged).
+- **Test Suite**: Run `npm run test` successfully; all 25 suites and 200 tests pass without regressions.
 
 ### Runtime Boundary Check
 - **Call-paths Traced:**
-  - The test scans files on disk directly using Node's `fs.readdirSync`/`fs.readFileSync` starting at `app/src`.
-  - The test reads `supabase/migrations/20260627000000_handle_new_user_trigger.sql` directly from disk.
+  - Standard client imports for design tokens: e.g., in [forgot-password.tsx](file:///C:/Users/mrsai/Gotta%20Go/app/src/app/(auth)/forgot-password.tsx) -> `Colors` imported from `../../constants/Colors`.
 - **Audit Findings:**
-  - This is a static analysis check running at test time. There are no runtime dependencies, network queries, hook invocations, or router guards involved.
-  - The "no mock to audit" assertion is accurate because the test does not mock the database client, components, or API endpoints. This approach prevents test doubles from masking actual client-side writes.
+  - This is a static directory cleanup and import path correction.
+  - No behavioral, query, state management, hook, or RPC boundaries are affected.
+  - No mocks reference the design colors; all components resolve the moved file correctly at module-resolution/test time.
 
 ### Approved
-- The regression test suite in [profileTrigger.test.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/features/profile/__tests__/profileTrigger.test.ts) is approved.
-- The `handle_new_user` migration SQL is verified and approved.
-
+- Relocation of [Colors.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/constants/Colors.ts) to the compiled source constants directory is approved.
+- Removal of dead components under `app/components/` is approved.
+- Configuration updates in [tsconfig.json](file:///C:/Users/mrsai/Gotta%20Go/app/tsconfig.json) and [eslint.config.js](file:///C:/Users/mrsai/Gotta%20Go/app/eslint.config.js) are approved.

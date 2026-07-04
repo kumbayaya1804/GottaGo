@@ -17,7 +17,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors } from '../../constants/Colors';
+import { Colors } from '../constants/Colors';
 import { spacing } from '../constants/spacing';
 import { typography } from '../constants/typography';
 import { radius } from '../constants/radius';

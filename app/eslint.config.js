@@ -15,6 +15,6 @@ module.exports = [
     },
   },
   {
-    ignores: ['dist/**', '.expo/**', 'android/**', 'node_modules/**', 'components/**'],
+    ignores: ['dist/**', '.expo/**', 'android/**', 'node_modules/**'],
   },
 ];

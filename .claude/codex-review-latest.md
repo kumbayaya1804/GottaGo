@@ -1,4 +1,4 @@
-## Codex Review - WU-02-T6 (profileTrigger.test.ts)
+## Codex Review - Audit cleanup code batch (2026-07-03)
 
 **VERDICT: APPROVE**
 
@@ -9,25 +9,37 @@
 - None.
 
 ### Verification
-- Read `.claude/codex-prompt-latest.md`; current packet is WU-02-T6, scoped to the test-only file `app/src/features/profile/__tests__/profileTrigger.test.ts`.
-- Read `CODEX.md`, `docs/agent-harness.md`, `.claude/review-queue.txt`, `docs/stale-info-scan.md`, `.planning/stale-info-scan-latest.md`, `docs/schema-contract.md`, `.planning/phases/02-auth-profiles/02-REVIEW.md`, the queued test file, and `supabase/migrations/20260627000000_handle_new_user_trigger.sql`.
-- Confirmed `.claude/review-queue.txt` lists only `app/src/features/profile/__tests__/profileTrigger.test.ts`.
-- Inspected the queued test from disk. The source-scan guard walks `app/src` via `srcRoot` and checks static `.from('users').insert(` / `.from('users').upsert(` calls at `app/src/features/profile/__tests__/profileTrigger.test.ts:19-48`.
-- Confirmed the `srcRoot` sanity checks at `app/src/features/profile/__tests__/profileTrigger.test.ts:20-22` meaningfully reduce silent scan narrowing by requiring both expected `features` and `lib` children before walking.
-- Searched `app/src` for `.from(` calls. The only production `.from('users')` call is `app/src/features/profile/getMyProfile.ts:16-20`, and it is a `.select('display_name')`, not an insert or upsert. The only other hit is the test's own explanatory comment.
-- Inspected the migration. `supabase/migrations/20260627000000_handle_new_user_trigger.sql:21-32` defines `public.handle_new_user()` as `security definer`, inserts only `(id, email)` at lines 28-29, returns `new`, and does not set `display_name` in the function body.
-- Confirmed the migration SQL parse in `app/src/features/profile/__tests__/profileTrigger.test.ts:67-71` is appropriate for this migration: anchoring to `as $$ ... $$;` avoids the earlier nested `begin` / `end;` truncation risk. A literal `$$` inside the function body would terminate this exact dollar-quoted SQL body, so that is not a realistic hidden-body edge case for the current delimiter; if the migration changes to a different dollar-quote tag, this test will fail loudly via `functionBody` being undefined.
-- Confirmed no `supabase/functions` directory is present, so there is no current Supabase Edge Function source tree outside `app/src` for this test to miss. The documented blind spots remain static-scan limits: template-literal table names, variable table names, and any future non-`app/src` client/server source location would need an explicit test update.
-- `npm.cmd test -- --runInBand --testPathPattern=profileTrigger` from `app` passed: 1 suite, 2 tests.
+- Read `.claude/codex-prompt-latest.md`; current packet is the 2026-07-03 audit cleanup code batch, replacing the prior WU-02-T6 profile-trigger scope.
+- Read `CODEX.md`, `CLAUDE.md`, `docs/agent-harness.md`, `docs/review-severity.md`, `docs/stale-info-scan.md`, `.planning/stale-info-scan-latest.md`, `.claude/review-queue.txt`, and the scoped changed files/configs from disk.
+- Confirmed `.claude/review-queue.txt` lists the moved Colors module, the 11 import consumers, `app/tsconfig.json`, and `app/eslint.config.js`.
+- Compared the tracked old blob `HEAD:app/constants/Colors.ts` to `app/src/constants/Colors.ts` with a Node byte comparison: `byteEqual=true`, `normalizedEqual=true`, `oldBytes=3182`, `newBytes=3182`. The move did not change the token module content.
+- Programmatically resolved all 11 changed import paths. Each import now points to `C:\Users\mrsai\Gotta Go\app\src\constants\Colors.ts`:
+  - `app/src/app/(auth)/forgot-password.tsx:20` -> `../../constants/Colors`
+  - `app/src/app/(auth)/sign-in.tsx:26` -> `../../constants/Colors`
+  - `app/src/app/(auth)/sign-up.tsx:22` -> `../../constants/Colors`
+  - `app/src/app/(components)/AuthRequiredModal.tsx:3` -> `../../constants/Colors`
+  - `app/src/app/(components)/DeleteAccountModal.tsx:3` -> `../../constants/Colors`
+  - `app/src/app/(tabs)/profile.tsx:6` -> `../../constants/Colors`
+  - `app/src/app/(tabs)/_layout.tsx:4` -> `../../constants/Colors`
+  - `app/src/app/auth/callback.tsx:17` -> `../../constants/Colors`
+  - `app/src/app/gps-consent.tsx:22` -> `../constants/Colors`
+  - `app/src/app/index.tsx:11` -> `../constants/Colors`
+  - `app/src/app/reset-password.tsx:20` -> `../constants/Colors`
+- `rg -n "constants/Colors" app/src app/jest.setup.ts app/jest.config.js app/babel.config.js app/app.config.ts app/eas.json app/package.json` produced exactly the moved file's two docblock references plus the 11 expected imports; no test, mock, Jest, Babel, EAS, package, or app config reference remains.
+- Exact deleted-template searches for `app/components`, `@/components`, `components/`, `EditScreenInfo`, `ExternalLink`, `StyledText`, `Themed`, `useClientOnlyValue`, and the former `components/useColorScheme` module names produced no remaining references in `app` or app config files.
+- Confirmed both old directories are gone from the working tree: `Test-Path app/components` -> `False`; `Test-Path app/constants` -> `False`.
+- Reviewed config diffs. `app/tsconfig.json:17-21` now excludes only `node_modules`, `__tests__`, and `src/**/__tests__`; removing `components` and `constants` is safe because those root directories no longer exist and `Colors.ts` now belongs inside `src/`. `app/eslint.config.js:17-19` now ignores only `dist/**`, `.expo/**`, `android/**`, and `node_modules/**`; the removed `components/**` ignore targeted a deleted directory.
+- `npm.cmd run typecheck` from `app` passed with 0 errors.
+- `npm.cmd run lint` from `app` passed with 0 errors and 27 existing warnings (`unicode-bom` plus one unused eslint-disable warning in `_layout.test.tsx`).
 - `npm.cmd test -- --runInBand` from `app` passed: 25 suites, 200 tests.
 
 ### Runtime Boundary Check
-- Dependency call chain: none. The test imports only Node `fs` and `path`; it does not import application modules, hooks, providers, route guards, the Supabase client, or mocked APIs.
-- Runtime boundary under test is the real on-disk source tree (`app/src`) plus the real committed migration (`supabase/migrations/20260627000000_handle_new_user_trigger.sql`).
-- There is no mock boundary in this file that could hide production behavior. The assertions are structural presence checks, not runtime integration tests.
-- The source scan is sound as a bounded guard for the stated invariant: no static client-side `.from('users').insert(` or `.from('users').upsert(` path under `app/src`. It is intentionally not an exhaustive parser or database-policy proof, and the accepted blind spots are documented in-file at `app/src/features/profile/__tests__/profileTrigger.test.ts:23-25`.
+- Runtime boundary traced: `app/src/constants/Colors.ts` is a leaf design-token module with no imports and the same exported `Colors` object/default export as the old `app/constants/Colors.ts` blob.
+- Consumer boundary traced: the 11 UI consumers now resolve the same color-token import from `src/constants/Colors.ts`. No provider, hook implementation, route guard, Supabase client, RPC, migration, RLS policy, GPS logic, or trust/shadowban path changed.
+- Config boundary traced: `tsconfig.json` and `eslint.config.js` only removed references to deleted root-level template directories. The move increases typechecking coverage for `Colors.ts` by placing it inside `src/`, and `npm.cmd run typecheck` confirms that stricter compilation surface is clean.
+- Mock boundary: no tests or mocks reference `constants/Colors` by path. A broken import would fail module resolution during TypeScript/Jest load rather than being hidden by a mock.
 
 ### Approved
-- The WU-02-T6 test is ready to merge as a regression guard for the trigger-only profile provisioning contract.
-- The current test catches the direct client write forms it claims to catch, fails loudly if its expected `app/src` or migration path assumptions break, and verifies the committed `handle_new_user` trigger migration sets only `id` and `email`.
+- The audit cleanup batch is behavior-neutral as inspected: `Colors.ts` content is byte-identical, all import edits resolve to the moved module, and the deleted Expo template files have no remaining references.
+- The config cleanup is correct for the new tree shape and verified by typecheck, lint, and the full Jest suite.
 - No Codex findings remain for this scoped review.

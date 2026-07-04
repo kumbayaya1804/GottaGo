@@ -1,43 +1,41 @@
-You are Antigravity for the "Gotta Go" project. This is the review-gate request for **WU-02-T6**, the last work unit in Plan 02-02 (Phase 2, auth/profiles). Read your operating instructions from `ANTIGRAVITY.md` and `docs/agent-harness.md` if you need to refresh context, then read this file fresh from disk:
+You are Antigravity for the "Gotta Go" project. This is a review request for the **audit cleanup code batch** (project audit 2026-07-03) — a structural-only change with zero behavior modification intended. Read your operating instructions from `ANTIGRAVITY.md` and `docs/agent-harness.md` if needed, then read the files in `.claude/review-queue.txt` fresh from disk.
 
-- `app/src/features/profile/__tests__/profileTrigger.test.ts`
+## What Changed And Why
 
-## What This Is
+A full project audit found the old Expo template directories at the `app/` root. Investigation showed:
 
-A **test-only** addition — no production code created or modified. It locks the "profile provisioning is trigger-only" contract (T-02-PROV / ROADMAP SC-3): `public.users` has no client-facing INSERT policy, so the only legitimate way a row appears is the `handle_new_user` SECURITY DEFINER trigger firing on `auth.users` insert. Two tests enforce this:
+1. **`app/components/` (8 files) was genuinely dead** — Expo scaffold leftovers (EditScreenInfo, ExternalLink, StyledText, Themed, useClientOnlyValue×2, useColorScheme×2), referenced by nothing under `src/`. **Deleted.**
+2. **`app/constants/Colors.ts` was NOT dead** — 11 live files imported it via relative paths, even though it sat in a directory excluded from `tsconfig.json`. Its own docblock says the intended import is `@/constants/Colors` (which resolves to `src/constants/` via the path alias) — i.e., the file was always meant to live with the other design tokens in `src/constants/` (`spacing.ts`, `typography.ts`, `radius.ts`, `legal.ts`) and got stranded at the template location. **Moved (`git mv`) to `app/src/constants/Colors.ts`, content unchanged.**
+3. **11 import paths updated** — pure one-`../`-removal per file, matching how each file already imports its sibling constants: 8 files at 3-up depth (`../../../constants/Colors` → `../../constants/Colors`): the three `(auth)` screens, both `(components)` modals, `(tabs)/profile.tsx`, `(tabs)/_layout.tsx`, `auth/callback.tsx`; 3 files at 2-up depth (`../../` → `../`): `gps-consent.tsx`, `index.tsx`, `reset-password.tsx`.
+4. **Dead config entries removed:** `"components"`/`"constants"` from `app/tsconfig.json` `exclude` (the directories no longer exist; note `Colors.ts` is now INSIDE the compiled `src/` tree rather than reached through an excluded directory), and `'components/**'` from `app/eslint.config.js` ignores.
 
-1. A source-scan of all non-test `.ts`/`.tsx` files under `app/src` for any `.from('users').insert(` or `.from('users').upsert(` call — asserts none exist.
-2. A read of the real migration file `supabase/migrations/20260627000000_handle_new_user_trigger.sql`, asserting its `handle_new_user()` function body inserts only `id`+`email` and never sets `display_name` (locked per `02-CONTEXT.md` §10).
+No color token values, exports, or any other line of any file changed — verify this by diff if you wish (`git diff HEAD -- app/`).
 
-## Prior Review Round (GSD self-review, already fixed — please verify)
+## Priority 1 — Verify No Behavior Change
 
-An earlier draft of this file had two issues, both already fixed in the version now on disk:
-1. **Tautological test removed:** an earlier "Test 1" drove a fully-mocked Supabase client and asserted only about its own mock inputs — it exercised no application code and was deleted entirely.
-2. **Regex blind spot on `.upsert()` closed:** the write-detection pattern now matches both `.insert(` and `.upsert(` — `line 26`: `/\.from\(\s*['"]users['"]\s*\)\s*\.(insert|upsert)\(/`.
+- Confirm `Colors.ts` content is byte-identical to the old `app/constants/Colors.ts` (git shows it as `R` rename).
+- Confirm every one of the 11 import-path changes resolves to the same module (the moved file), and no import was missed (`grep -rn "constants/Colors" app/src` should show only the 11 imports + the file's own docblock).
 
-A second, fresh GSD review pass on the current file found two more (now fixed) issues:
-3. **`functionBody` extraction truncation risk (line 67-69):** the old regex stopped at the first literal `end;`, which would silently truncate on a future nested `BEGIN...END` block (e.g. exception handling) and mask a real `display_name` regression. Fixed by anchoring to the `$$ ... $$` dollar-quote delimiters instead: `/create or replace function public\.handle_new_user\(\)[\s\S]*?as \$\$([\s\S]*?)\$\$;/i`. Verified against the live migration, which does use `as $$ ... $$;` dollar-quoting.
-4. **`srcRoot` had no sanity check (line 19-22):** a future file move would have silently narrowed the scan instead of failing loudly. Fixed by adding `expect(fs.existsSync(path.join(srcRoot, 'features'))).toBe(true)` and the same for `lib` before the walk begins.
+## Priority 2 — TypeScript Compilation Surface Change
+
+Removing the `exclude` entries and moving `Colors.ts` into `src/` means the file is now typechecked as part of the main program (before, it was only pulled in transitively). Verify this strictness change is safe: `npm run typecheck` reports 0 errors.
+
+## Priority 3 — Anything The Audit Missed
+
+You have repo-wide context: is there any other file still referencing the deleted `app/components/` files, or any tooling (babel, jest, EAS/metro config) that referenced the old `app/constants/` or `app/components/` paths?
 
 ## Dependency Call Chains
 
-This test does not exercise any application module, provider, hook, route guard, RPC, or Supabase client call — it reads directly from the filesystem (`fs.readdirSync`/`fs.readFileSync`) against the real `app/src` tree and the real migration SQL file. There is no call chain through `sign-up.tsx`, `getMyProfile.ts`, `_layout.tsx`, or any Supabase-mocked boundary. The only "runtime" involved is Node's `fs` module operating on the actual repo tree at test time.
+`Colors.ts` is a leaf module (exports a `const` object, imports nothing). Its consumers are the 11 UI files listed in the review queue. No RPC, migration, policy, provider, hook, or navigation logic is touched. `tsconfig.json`/`eslint.config.js` changes only remove references to now-deleted directories.
 
 ## Runtime Boundary And Mock Audit
 
-Nothing is mocked in this file — that is the point. Instead of testing behavior through a mocked Supabase client (which could hide a real client-side `.insert()`/`.upsert()` call behind a mock that always returns success), this test statically scans real source files and reads the real, committed migration SQL as the source of truth. The boundary that matters here — "does any client code path attempt to write to `users`, and does the trigger migration only set `id`+`email`" — is checked against the actual on-disk artifacts, not a test double, so there is no mock to audit for hiding production behavior.
+No runtime boundary is affected: this batch changes where a static token module lives on disk and how it is imported, not what any component renders or calls. No tests were added or modified — the existing 25 suites exercise the same screens through the same imports (now resolving to the moved file), and no mock references `constants/Colors` (verified: zero hits in `src/app/__tests__/` and `jest.setup.ts`), so no mock could mask a path-resolution failure; a broken import would fail module resolution loudly at test load time.
 
 ## Verification Already Run
 
-- `npx jest --testPathPattern=profileTrigger` — 2/2 tests passing (isolated run, post-fix)
-- Full suite: `npx jest` — 25 suites, 200 tests, 0 failures (post-fix, includes this file)
-- Manually confirmed: no file under `app/src` other than `getMyProfile.ts` calls `.from('users')`, and that call is a `.select()`, not a write
-- Confirmed the migration uses `as $$ ... $$;` dollar-quoting, so the new `functionBody` regex captures correctly
+- `npm run typecheck` — 0 errors
+- `npm run lint` — 0 errors, 27 pre-existing BOM warnings (same count as before the change)
+- `npx jest` — 25 suites, 200 tests, 0 failures
 
-## Please Verify
-
-- Whether the two fixes (dollar-quote anchoring, `srcRoot` sanity check) are correct and sufficient
-- Whether there is any other latent blind spot in a presence-check/source-scan test of this kind that would matter for provisioning-contract enforcement
-- Whether the "no mock to audit" framing above is accurate, or whether you see a boundary this reasoning missed
-
-Return your verdict in the Antigravity format from `ANTIGRAVITY.md`, including a Runtime Boundary Check section per that file's instructions. Save your verdict to `.claude/antigravity-review-latest.md`.
+Return your verdict in the Antigravity format from `ANTIGRAVITY.md`, including a Runtime Boundary Check section. Save it to `.claude/antigravity-review-latest.md`.
