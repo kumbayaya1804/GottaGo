@@ -1,4 +1,4 @@
-## Codex Review - Audit cleanup code batch (2026-07-03)
+## Codex Review - .claude/settings.json, .claude/commands/antigravity-review.md, .claude/commands/review-gate.md, AGENTS_ROSTER.md, AGENTS.md
 
 **VERDICT: APPROVE**
 
@@ -9,37 +9,29 @@
 - None.
 
 ### Verification
-- Read `.claude/codex-prompt-latest.md`; current packet is the 2026-07-03 audit cleanup code batch, replacing the prior WU-02-T6 profile-trigger scope.
-- Read `CODEX.md`, `CLAUDE.md`, `docs/agent-harness.md`, `docs/review-severity.md`, `docs/stale-info-scan.md`, `.planning/stale-info-scan-latest.md`, `.claude/review-queue.txt`, and the scoped changed files/configs from disk.
-- Confirmed `.claude/review-queue.txt` lists the moved Colors module, the 11 import consumers, `app/tsconfig.json`, and `app/eslint.config.js`.
-- Compared the tracked old blob `HEAD:app/constants/Colors.ts` to `app/src/constants/Colors.ts` with a Node byte comparison: `byteEqual=true`, `normalizedEqual=true`, `oldBytes=3182`, `newBytes=3182`. The move did not change the token module content.
-- Programmatically resolved all 11 changed import paths. Each import now points to `C:\Users\mrsai\Gotta Go\app\src\constants\Colors.ts`:
-  - `app/src/app/(auth)/forgot-password.tsx:20` -> `../../constants/Colors`
-  - `app/src/app/(auth)/sign-in.tsx:26` -> `../../constants/Colors`
-  - `app/src/app/(auth)/sign-up.tsx:22` -> `../../constants/Colors`
-  - `app/src/app/(components)/AuthRequiredModal.tsx:3` -> `../../constants/Colors`
-  - `app/src/app/(components)/DeleteAccountModal.tsx:3` -> `../../constants/Colors`
-  - `app/src/app/(tabs)/profile.tsx:6` -> `../../constants/Colors`
-  - `app/src/app/(tabs)/_layout.tsx:4` -> `../../constants/Colors`
-  - `app/src/app/auth/callback.tsx:17` -> `../../constants/Colors`
-  - `app/src/app/gps-consent.tsx:22` -> `../constants/Colors`
-  - `app/src/app/index.tsx:11` -> `../constants/Colors`
-  - `app/src/app/reset-password.tsx:20` -> `../constants/Colors`
-- `rg -n "constants/Colors" app/src app/jest.setup.ts app/jest.config.js app/babel.config.js app/app.config.ts app/eas.json app/package.json` produced exactly the moved file's two docblock references plus the 11 expected imports; no test, mock, Jest, Babel, EAS, package, or app config reference remains.
-- Exact deleted-template searches for `app/components`, `@/components`, `components/`, `EditScreenInfo`, `ExternalLink`, `StyledText`, `Themed`, `useClientOnlyValue`, and the former `components/useColorScheme` module names produced no remaining references in `app` or app config files.
-- Confirmed both old directories are gone from the working tree: `Test-Path app/components` -> `False`; `Test-Path app/constants` -> `False`.
-- Reviewed config diffs. `app/tsconfig.json:17-21` now excludes only `node_modules`, `__tests__`, and `src/**/__tests__`; removing `components` and `constants` is safe because those root directories no longer exist and `Colors.ts` now belongs inside `src/`. `app/eslint.config.js:17-19` now ignores only `dist/**`, `.expo/**`, `android/**`, and `node_modules/**`; the removed `components/**` ignore targeted a deleted directory.
-- `npm.cmd run typecheck` from `app` passed with 0 errors.
-- `npm.cmd run lint` from `app` passed with 0 errors and 27 existing warnings (`unicode-bom` plus one unused eslint-disable warning in `_layout.test.tsx`).
-- `npm.cmd test -- --runInBand` from `app` passed: 25 suites, 200 tests.
+- Read `.claude/codex-prompt-latest.md` from disk for this active Round 2 review.
+- Read `CODEX.md`, `CLAUDE.md`, `docs/agent-harness.md`, `docs/review-severity.md`, `docs/stale-info-scan.md`, `.planning/stale-info-scan-latest.md`, `.claude/review-queue.txt`, and all five queued files from disk.
+- Confirmed `.claude/review-queue.txt` lists the active scope: `.claude/settings.json`, `.claude/commands/antigravity-review.md`, `.claude/commands/review-gate.md`, `AGENTS_ROSTER.md`, and `AGENTS.md`.
+- Inspected `git diff -- .claude/settings.json .claude/commands/antigravity-review.md .claude/commands/review-gate.md AGENTS_ROSTER.md AGENTS.md`.
+- `Get-Content .claude/settings.json -Raw | ConvertFrom-Json` passed, and both decoded hook command strings were extracted.
+- Executed the decoded PostToolUse hook command against fixture inputs: forward-slash absolute in-repo path, backslash absolute in-repo path, duplicate absolute path, out-of-repo backslash absolute, out-of-repo forward-slash absolute, relative backslash path, and relative forward-slash path. Output queue was exactly `AGENTS.md`, `docs/agent-harness.md`, and `docs/review-severity.md`.
+- Executed the decoded Stop hook command against the same fixture queue. It emitted the expected compressed JSON `systemMessage` when the queue contained entries and emitted no output after the queue was emptied.
+- `Select-String` confirmed `.claude/settings.json:7` now normalizes both `$root` and `$fp` to `$rootFwd` / `$fpFwd` before the rooted-prefix comparison, and `.claude/settings.json:42` only emits the review-needed message when pending queue entries exist.
+- `rg -n -F 'antigravity -p' AGENTS.md AGENTS_ROSTER.md ANTIGRAVITY.md CODEX.md docs .claude/commands .claude/hooks` showed the supported short-prompt invocations in `AGENTS.md:46`, `AGENTS_ROSTER.md:87`, and `.claude/commands/antigravity-review.md:92`; the old inline `cat <many files>` form remains only as the negative warning in `AGENTS_ROSTER.md:90`.
+- `rg -n -F 'Get-Content <file>' AGENTS.md AGENTS_ROSTER.md ANTIGRAVITY.md CODEX.md docs .claude/commands .claude/hooks` returned no matches.
+- Inspected `.claude/hooks/check-review-artifacts.js` and `.beads/hooks/pre-commit`; the commit gate still scopes artifact enforcement to staged files intersecting `.claude/review-queue.txt`, so the queue-writer fix is on the correct boundary.
+- Did not run Expo/Jest/typecheck/lint because this change touches harness and documentation only, with no `app/` source or package changes.
 
 ### Runtime Boundary Check
-- Runtime boundary traced: `app/src/constants/Colors.ts` is a leaf design-token module with no imports and the same exported `Colors` object/default export as the old `app/constants/Colors.ts` blob.
-- Consumer boundary traced: the 11 UI consumers now resolve the same color-token import from `src/constants/Colors.ts`. No provider, hook implementation, route guard, Supabase client, RPC, migration, RLS policy, GPS logic, or trust/shadowban path changed.
-- Config boundary traced: `tsconfig.json` and `eslint.config.js` only removed references to deleted root-level template directories. The move increases typechecking coverage for `Colors.ts` by placing it inside `src/`, and `npm.cmd run typecheck` confirms that stricter compilation surface is clean.
-- Mock boundary: no tests or mocks reference `constants/Colors` by path. A broken import would fail module resolution during TypeScript/Jest load rather than being hidden by a mock.
+- Call path traced: Claude Write/Edit/MultiEdit event -> `.claude/settings.json` PostToolUse hook -> `.claude/review-queue.txt` -> `/antigravity-review` and `/codex-prompt` packet generation -> `.claude/hooks/check-review-artifacts.js` via `.beads/hooks/pre-commit`.
+- The Round 1 defect was at the first boundary in that chain. The Round 2 change closes it by converting both root and incoming file path to forward slashes before testing whether an absolute path is inside the repo, so `C:/.../Gotta Go/AGENTS.md` now queues as `AGENTS.md` instead of being silently dropped.
+- Stop hook boundary traced separately: `.claude/settings.json` Stop hook -> Claude Code system message. The pending-only behavior works in fixture verification and avoids stale review-needed messages when the queue is empty.
+- Tests/mocks: there is no checked-in automated regression test for these hook bodies or command markdown files. Verification was manual extraction-and-execution against fixture inputs. For this harness-only change, that is sufficient for approval; a lightweight follow-up regression test would still reduce future drift risk.
+- No app runtime boundary, Supabase path, GPS behavior, RLS policy, or client mock boundary is touched by this change.
 
 ### Approved
-- The audit cleanup batch is behavior-neutral as inspected: `Colors.ts` content is byte-identical, all import edits resolve to the moved module, and the deleted Expo template files have no remaining references.
-- The config cleanup is correct for the new tree shape and verified by typecheck, lint, and the full Jest suite.
-- No Codex findings remain for this scoped review.
+- `.claude/settings.json:7` correctly normalizes absolute and relative paths to queue repo-relative forward-slash paths, suppresses duplicates, and skips out-of-repo absolute paths.
+- `.claude/settings.json:42` correctly suppresses the Stop-hook reminder unless `.claude/review-queue.txt` has non-blank entries.
+- `.claude/commands/antigravity-review.md:23` and `.claude/commands/antigravity-review.md:85` correctly move the large packet to `.claude/antigravity-prompt-latest.md` and invoke Antigravity with a short prompt, avoiding the Windows command-line length failure.
+- `.claude/commands/review-gate.md:3` correctly generalizes the review gate from Phase 1 to the current active phase.
+- `AGENTS.md:44`, `AGENTS.md:49`, `AGENTS_ROSTER.md:80`, `AGENTS_ROSTER.md:90`, `AGENTS_ROSTER.md:121`, and `AGENTS_ROSTER.md:190` align the active agent instructions with the short-prompt Antigravity invocation and mandatory Runtime Boundary Check output format.

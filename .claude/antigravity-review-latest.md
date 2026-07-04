@@ -1,4 +1,4 @@
-## Antigravity Review - Project Audit Cleanup (2026-07-03)
+## Antigravity Review - Harness Integrity Fix Batch (Round 2)
 
 **VERDICT: APPROVE**
 
@@ -6,25 +6,23 @@
 - None.
 
 ### Concerns
-- None. The cleanups strictly remove dead code, relocate design tokens to their correct project structure (`src/constants/Colors.ts`), and update configuration settings accordingly.
+- None. The normalized forward-slash matching logic successfully resolves the separator mismatch between Windows backslash outputs and staged file lists, preventing the silent failure queue drop.
 
 ### Verification
-- **Byte-Identity Verification**: Confirmed that the content of the moved [Colors.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/constants/Colors.ts) is identical to the original template file.
-- **Import Audit**: Run a query confirming that all 11 import-path updates under `app/src` correctly point to `../constants/Colors` or `../../constants/Colors` depending on file depth.
-- **Linter & Typecheck Checks**:
-  - Run `npm run typecheck` inside `app/` successfully (0 errors).
-  - Run `npm run lint` inside `app/` successfully (0 errors, 27 pre-existing Unicode BOM warnings unchanged).
-- **Test Suite**: Run `npm run test` successfully; all 25 suites and 200 tests pass without regressions.
+- Checked that `.claude/settings.json` parses as valid JSON via PowerShell and node.
+- Validated PowerShell path normalization logic (`$rootFwd` and `$fpFwd`) against mixed backslash and forward slash test cases (e.g. `C:/Users/.../AGENTS.md` vs `C:\Users\...\AGENTS.md`). Both properly extract the relative paths.
+- Ran `git diff` to verify only the described changes were made and no other regressions were introduced.
+- Verified that `.claude/review-queue.txt` matches the active review queue.
 
 ### Runtime Boundary Check
-- **Call-paths Traced:**
-  - Standard client imports for design tokens: e.g., in [forgot-password.tsx](file:///C:/Users/mrsai/Gotta%20Go/app/src/app/(auth)/forgot-password.tsx) -> `Colors` imported from `../../constants/Colors`.
-- **Audit Findings:**
-  - This is a static directory cleanup and import path correction.
-  - No behavioral, query, state management, hook, or RPC boundaries are affected.
-  - No mocks reference the design colors; all components resolve the moved file correctly at module-resolution/test time.
+- Traced the execution of the `PostToolUse` and `Stop` hooks in `.claude/settings.json` within the Claude Code CLI environment.
+- The `PostToolUse` hook writes relative, forward-slash-normalized paths to `.claude/review-queue.txt` which are then correctly consumed by the pre-commit hook `.claude/hooks/check-review-artifacts.js` (staged file intersection check) and by `/antigravity-review` and `/codex-prompt` commands.
+- The `Stop` hook runs at the end of the session, reading `.claude/review-queue.txt` and warning the user if any files are pending review.
+- Mocks/tests: Tested hook PowerShell code directly under `powershell.exe` in Windows environment to confirm path normalization and out-of-repo exclusion work correctly. Since there are no live backend/app files in scope, no other boundaries (RLS, PostGIS, Auth) are affected.
 
 ### Approved
-- Relocation of [Colors.ts](file:///C:/Users/mrsai/Gotta%20Go/app/src/constants/Colors.ts) to the compiled source constants directory is approved.
-- Removal of dead components under `app/components/` is approved.
-- Configuration updates in [tsconfig.json](file:///C:/Users/mrsai/Gotta%20Go/app/tsconfig.json) and [eslint.config.js](file:///C:/Users/mrsai/Gotta%20Go/app/eslint.config.js) are approved.
+- `.claude/settings.json` (PostToolUse and Stop hooks)
+- `.claude/commands/antigravity-review.md`
+- `.claude/commands/review-gate.md`
+- `AGENTS_ROSTER.md`
+- `AGENTS.md`

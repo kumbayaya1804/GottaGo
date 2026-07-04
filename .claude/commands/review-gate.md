@@ -1,6 +1,6 @@
 # /review-gate
 
-Run the full three-part review cycle on Phase 1 (or a specified phase). This command is the mandatory entry point for all code review. Never run `/antigravity-review` or `/codex-prompt` independently — always use this command so all three reviewers run in the correct order.
+Run the full three-part review cycle on the current active phase (or a specified phase). This command is the mandatory entry point for all code review. Never run `/antigravity-review` or `/codex-prompt` independently — always use this command so all three reviewers run in the correct order.
 
 ## Order
 

@@ -20,7 +20,11 @@ Invoke the Antigravity CLI on all files currently queued in `.claude/review-queu
 
 3. Read each file listed in the review queue.
 
-4. Run the Antigravity CLI with the combined prompt. Include `docs/agent-harness.md`, `docs/stale-info-scan.md`, the latest stale-information scan if present, verification evidence, every file listed in `.claude/review-queue.txt`, and the nearest runtime-boundary files that can affect the changed behavior. Use the following PowerShell command pattern on Windows, adjusting the file list from the queue:
+4. Build the full review packet and write it to `.claude/antigravity-prompt-latest.md`. Include `docs/agent-harness.md`, `docs/stale-info-scan.md`, the latest stale-information scan if present, verification evidence, every file listed in `.claude/review-queue.txt`, and the nearest runtime-boundary files that can affect the changed behavior. Then invoke Antigravity with a SHORT prompt that points at the packet file — never pass the packet itself on the command line.
+
+   > **WHY (do not regress this):** Windows caps a process command line at ~32K characters. `antigravity -p "<full packet>"` exceeds that for any real packet and fails silently ("The filename or extension is too long"), leaving a stale or empty review artifact. Antigravity is itself an agentic CLI with filesystem access: give it a short prompt naming the packet file and it reads the packet and the queued files from disk itself. This is the pattern that carried the WU-02-T5/T6 reviews.
+
+   Use the following PowerShell command pattern on Windows, adjusting the file list from the queue:
 
 ```powershell
 $files = Get-Content .claude\review-queue.txt | Where-Object { $_.Trim() }
@@ -77,7 +81,15 @@ $prompt = @(
 ) -join "`n"
 
 $prompt | Set-Content -Path .claude\antigravity-prompt-latest.md
-$response = antigravity -p $prompt
+
+# SHORT prompt only — the packet stays on disk (Windows ~32K command-line limit; see step 4 note).
+$shortPrompt = @(
+  'You are Antigravity, reviewing for the Gotta Go project.'
+  'Read the review packet at .claude/antigravity-prompt-latest.md in full. It contains your role guide, project context, verification evidence, dependency call chains, the Runtime Boundary And Mock Audit instructions, and every changed file in scope.'
+  'Inspect the actual files it names from disk — the packet is review input, not a substitute for evidence.'
+  'Return your complete verdict in the Antigravity review format defined in ANTIGRAVITY.md, including the mandatory Runtime Boundary Check section. Print the full verdict to stdout.'
+) -join ' '
+$response = antigravity -p $shortPrompt
 $response | Set-Content -Path .claude\antigravity-review-latest.md
 $response
 ```

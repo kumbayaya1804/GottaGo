@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "$j = [Console]::In.ReadToEnd() | ConvertFrom-Json; $fp = $j.tool_input.file_path; if ($fp) { $q = '.claude\\review-queue.txt'; if (!(Test-Path $q)) { New-Item -ItemType File -Path $q -Force | Out-Null }; $existing = Get-Content $q -ErrorAction SilentlyContinue; if ($existing -notcontains $fp) { Add-Content -Path $q -Value $fp } }",
+            "command": "$j = [Console]::In.ReadToEnd() | ConvertFrom-Json; $fp = $j.tool_input.file_path; if ($fp) { $root = (Get-Location).Path.TrimEnd('\\'); $rootFwd = $root -replace '\\\\','/'; $fpFwd = $fp -replace '\\\\','/'; $rel = $null; if (-not [System.IO.Path]::IsPathRooted($fp)) { $rel = $fpFwd } elseif ($fpFwd.StartsWith($rootFwd + '/', [System.StringComparison]::OrdinalIgnoreCase)) { $rel = $fpFwd.Substring($rootFwd.Length + 1) }; if ($rel) { $q = '.claude\\review-queue.txt'; if (!(Test-Path $q)) { New-Item -ItemType File -Path $q -Force | Out-Null }; $existing = Get-Content $q -ErrorAction SilentlyContinue; if ($existing -notcontains $rel) { Add-Content -Path $q -Value $rel } } }",
             "shell": "powershell",
             "statusMessage": "Queuing file for Antigravity + Codex review...",
             "type": "command"
@@ -39,7 +39,7 @@
       {
         "hooks": [
           {
-            "command": "@{systemMessage='Reviewers needed before committing: run Antigravity and Codex review on changed files. Check .claude/review-queue.txt, save Antigravity output to .claude/antigravity-review-latest.md, generate .claude/codex-prompt-latest.md, and save Codex output to .claude/codex-review-latest.md when available.'} | ConvertTo-Json -Compress",
+            "command": "$q = '.claude\\review-queue.txt'; $pending = @(); if (Test-Path $q) { $pending = @(Get-Content $q -ErrorAction SilentlyContinue | Where-Object { $_.Trim() }) }; if ($pending.Count -gt 0) { @{systemMessage='Reviewers needed before committing: run Antigravity and Codex review on changed files. Check .claude/review-queue.txt, save Antigravity output to .claude/antigravity-review-latest.md, generate .claude/codex-prompt-latest.md, and save Codex output to .claude/codex-review-latest.md when available.'} | ConvertTo-Json -Compress }",
             "shell": "powershell",
             "statusMessage": "Checking review queue...",
             "type": "command"

@@ -79,13 +79,16 @@ If any file listed above conflicts with another, flag the conflict for human res
 
 ### Invocation
 
-```bash
+```powershell
 # Run /antigravity-review in Claude Code to invoke automatically on queued files.
-# Manual invocation:
-antigravity -p "$(cat ANTIGRAVITY.md AGENTS_ROSTER.md AGENTS.md docs/agent-harness.md SPEC.md docs/schema-contract.md docs/review-severity.md docs/verification.md); Review the following changed files and return your verdict:\n$(cat <file>)"
+# It writes the full review packet to .claude/antigravity-prompt-latest.md, then calls
+# Antigravity with a SHORT prompt pointing at that packet. Manual invocation (after the
+# packet exists):
+antigravity -p "You are Antigravity, reviewing for the Gotta Go project. Read the review packet at .claude/antigravity-prompt-latest.md in full, inspect the files it names from disk, and return your verdict in the Antigravity review format defined in ANTIGRAVITY.md, including the Runtime Boundary Check section."
 ```
 
-> Use `/antigravity-review` in Claude Code — it builds the full context prompt and calls Antigravity automatically.
+> **Never inline the packet:** `antigravity -p "$(cat <many files>)"` exceeds Windows' ~32K command-line limit and fails silently ("The filename or extension is too long"). Antigravity is an agentic CLI with filesystem access — the short prompt + on-disk packet is the only supported invocation on this host.
+> Use `/antigravity-review` in Claude Code — it builds the packet and calls Antigravity automatically.
 
 ### Primary Focus Areas
 
@@ -115,9 +118,14 @@ antigravity -p "$(cat ANTIGRAVITY.md AGENTS_ROSTER.md AGENTS.md docs/agent-harne
 ### Verification
 - Commands run and results, or why verification was not run.
 
+### Runtime Boundary Check
+- Mandatory whenever the review packet includes a "Dependency Call Chains" or "Runtime Boundary And Mock Audit" section (i.e. any multi-file or cross-boundary change). State the call-path traced, which tests mock which boundaries, and whether any mock could hide production behavior. If the packet omitted this context, say so explicitly instead of skipping the section.
+
 ### Approved
 - What is correct and ready.
 ```
+
+> Canonical format lives in `ANTIGRAVITY.md` § Output Format — if this block and that file ever diverge, `ANTIGRAVITY.md` wins. The pre-commit hook (`.claude/hooks/check-review-artifacts.js`) rejects verdicts missing the Runtime Boundary Check section.
 
 ---
 
@@ -179,9 +187,14 @@ Open that file, copy the contents, and paste into the Codex app.
 ### Verification
 - Commands run and results, or why verification was not run.
 
+### Runtime Boundary Check
+- Mandatory whenever the review packet includes a "Dependency Call Chains" or "Runtime Boundary And Mock Audit" section (i.e. any multi-file or cross-boundary change). State the call-path traced, which tests mock which boundaries, and whether any mock could hide production behavior. If the packet omitted this context, say so explicitly instead of skipping the section.
+
 ### Approved
 - What is correct or ready to merge.
 ```
+
+> Canonical format lives in `CODEX.md` § Review Output — if this block and that file ever diverge, `CODEX.md` wins. The pre-commit hook (`.claude/hooks/check-review-artifacts.js`) rejects verdicts missing the Runtime Boundary Check section.
 
 ---
 

@@ -41,10 +41,12 @@ Antigravity acts as the senior architectural auditor for system-level reasoning:
 - Cross-feature data integrity and edge cases
 - **Dynamic Runtime State-Flow Audits**: Trace async lifecycles, event interleaving, and state transition boundaries to identify race conditions (e.g., router redirects preempting slow post-auth writes). Audit whether mocks in unit tests mask live database-layer constraints or privilege revocations.
 
-**Invoke from terminal:**
-```bash
-antigravity -p "$(Get-Content ANTIGRAVITY.md; Get-Content docs/agent-harness.md); Review this file: $(Get-Content <file>)"
+**Invoke from terminal** (after `/antigravity-review` has written the packet to `.claude/antigravity-prompt-latest.md`):
+```powershell
+antigravity -p "You are Antigravity, reviewing for the Gotta Go project. Read the review packet at .claude/antigravity-prompt-latest.md in full, inspect the files it names from disk, and return your verdict in the Antigravity review format defined in ANTIGRAVITY.md, including the Runtime Boundary Check section."
 ```
+
+Never pass the packet contents inline with `-p` — Windows' ~32K command-line limit truncates it and Antigravity fails silently. The short prompt + on-disk packet is the only supported invocation on this host.
 
 Or open Antigravity CLI in this project. `ANTIGRAVITY.md` loads automatically.
 
