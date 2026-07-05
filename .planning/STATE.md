@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: MVP — Global proof of concept
-status: in_progress
-last_updated: "2026-07-04T12:00:00.000Z"
-last_activity: "2026-07-04 - Phase 3 (Read Path & Map) context gathered — 32 decisions captured, 2 scope gaps closed (Nearby tab, family_mode toggle) via new plan 03-04. See .planning/phases/03-read-path-map/03-CONTEXT.md. Next: /gsd:plan-phase 3 (execution method confirmed as Metaswarm orchestrated)."
+milestone_name: milestone
+status: Ready to execute
+last_updated: "2026-07-05T15:48:25.871Z"
+last_activity: 2026-07-05
 progress:
   total_phases: 12
   completed_phases: 3
-  total_plans: 7
+  total_plans: 13
   completed_plans: 8
   percent: 25
 ---
@@ -28,4 +28,4 @@ progress:
 |---|-------------|------|--------|-----------|
 | 260704-0kt | Harness integrity fix batch: queue-path normalization, Antigravity invocation repair, roster format drift, Stop-hook gating, review-gate wording | 2026-07-04 | b413be8 | [260704-0kt-harness-integrity-fix-batch-queue-path-n](./quick/260704-0kt-harness-integrity-fix-batch-queue-path-n/) |
 
-Last activity: 2026-07-04 - Phase 3 (Read Path & Map) context gathered — 32 decisions captured, 2 scope gaps closed (Nearby tab, family_mode toggle) via new plan 03-04.
+Last activity: 2026-07-05

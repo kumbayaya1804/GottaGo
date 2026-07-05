@@ -496,20 +496,25 @@ grant execute on function public.search_locations_bbox(numeric,numeric,numeric,n
 1. **OQ-1 (RESOLVED): supercluster vs native clustering.**
    - Resolution: Native `@rnmapbox/maps` `ShapeSource cluster:true`. ARCHITECTURE.md's "raw points → client clusters" principle is satisfied; RPC shape unchanged; UI-SPEC + STACK.md concur. Do not install `supercluster`.
 
-2. **OQ-2: Is there a `status` column on `locations`, or is publish-state purely flag-based?**
+2. **OQ-2 (RESOLVED): Is there a `status` column on `locations`, or is publish-state purely flag-based?**
+   - **Status: RESOLVED** — Publish state is flag-based; NO `status` column is added in Phase 3. "Published" = `deleted_at IS NULL AND suppressed_at IS NULL AND shadowban_status = false` (03-01's three read RPCs implement exactly this four-clause filter, and 03-01 adds the `suppressed_at` column). Pending-row handling remains Phase 4's concern.
    - What we know: No `status` column in any migration (verified). ARCHITECTURE.md and ROADMAP reference `status='published'`.
    - What's unclear: Whether Phase 3 should add a `status` column or treat "published" = `deleted_at IS NULL AND suppressed_at IS NULL AND shadowban_status = false`.
    - Recommendation: Treat publish-state as flag-based for Phase 3 (no `status` clause). Pending-row handling is Phase 4's concern (submissions live in a separate `submissions` table per `delete_account` anonymization list). Flag for planner confirmation.
 
-3. **OQ-3: Exact access-code gating in `get_location_detail` for Phase 3.**
+3. **OQ-3 (RESOLVED): Exact access-code gating in `get_location_detail` for Phase 3.**
+   - **Status: RESOLVED** — `access_instructions` is omitted ENTIRELY from all Phase 3 RPCs (not returned to anon or authed). 03-01's `get_location_detail` returns a public-safe column list with no `access_instructions`; the reveal UX and any code field land in Phase 8.
    - What we know: D-24 (anon sees everything except access code); reveal UX is Phase 8 (`08-02`).
    - What's unclear: Does Phase 3's detail RPC return `access_instructions` to authed users now (behind Phase 8 reveal UX), or omit it entirely until Phase 8?
    - Recommendation: Omit `access_instructions` from the Phase 3 detail return entirely; add it in Phase 8 with the reveal gate. Confirm with planner (lowest-risk, avoids shipping a code field with no UX).
 
-4. **OQ-4: Manual city/address search (REQ-SEARCH) geocoding provider.**
+4. **OQ-4 (RESOLVED): Manual city/address search (REQ-SEARCH) geocoding provider.**
+   - **Status: RESOLVED** — No external geocoding provider is introduced in Phase 3. The denied-GPS fallback is map-recenter + manual search entry + "Search this area" (bbox re-query), implemented in 03-05. Full Places autocomplete is deferred to its own future decision/plan.
    - What we know: UI-SPEC ERR-01 says GPS-denied opens "manual city/address search (Google Places)". No geocoding dependency is installed.
    - What's unclear: Whether Phase 3 implements live geocoding (needs a Places/geocoding API + key) or a lighter fallback (recenter map, user pans, "Search this area").
    - Recommendation: Scope Phase 3's denied-GPS fallback to map-recenter + "Search this area" (bbox re-query) — no new external API. Full Places autocomplete may warrant its own decision/plan. Flag for planner; this could otherwise silently expand scope with a new API dependency and key management.
+
+> **Planning-time addendum (not part of the original research pass — recorded so this doc stays accurate for future readers):** `get_location_detail`'s signature was extended during planning to `get_location_detail(location_id uuid, user_lat numeric default null, user_lng numeric default null)`, returning a server-computed `distance_m` (ST_Distance, meters) when the caller supplies coords and `null` otherwise. This makes `get_location_detail` the single server-side source of the LocationDetail peek-tier distance — the client never computes distance. See 03-01 (RPC + pgTAP test #7) and 03-02 (`useLocationDetail(id, userLat?, userLng?)` mapping `distance_m`→`distanceM`).
 
 ## Environment Availability
 
