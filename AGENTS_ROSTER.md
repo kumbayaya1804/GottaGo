@@ -1,295 +1,100 @@
-# Gotta Go — Agent Roster
-
-**Status:** Active. This file is the authoritative reference for every agent in this project.
-Every agent must read this file (and the documents listed below) before beginning any planning, implementation, or review work.
-
----
-
-## Required Reading — Load Before Any Work
-
-Every agent must read these documents in full before starting a session:
-
-| File | Purpose |
-|------|---------|
-| `AGENTS_ROSTER.md` | This file — agent identities, roles, invocation, workflow |
-| `AGENTS.md` | Agent coordination rules and non-negotiable constraints |
-| `docs/agent-harness.md` | Claude/Antigravity/Codex orchestration, handoffs, review artifacts, permission posture |
-| `SPEC.md` | Product scope, user flows, privacy, GPS, trust, shadowban, gamification |
-| `docs/schema-contract.md` | Supabase/PostGIS schema contract, RLS expectations, migration rules |
-| `docs/review-severity.md` | Shared APPROVE / REQUEST CHANGES / BLOCK verdict definitions |
-| `docs/verification.md` | Required verification commands and reporting format |
-| `docs/stale-info-scan.md` | Periodic stale-information scan cadence, severity, and artifact format |
-| `ANTIGRAVITY.md` | Antigravity's operating instructions (read by Antigravity before any review) |
-| `CODEX.md` | Codex's operating instructions (read by Codex before any review) |
-| `.claude/codex-prompt-latest.md` | Current Codex review scope and output contract (required for Codex review) |
-| `.planning/PROJECT.md` | Current roadmap, requirements, constraints, and key decisions |
+# Gotta Go Agent Roster
 
-If any file listed above conflicts with another, flag the conflict for human resolution. Do not silently pick the easier interpretation.
+Status: active. This is the role index, not the startup context bundle.
 
-**If you are Antigravity:** also read `ANTIGRAVITY.md` before reviewing anything.
-**If you are Codex:** also read `CODEX.md` and the current `.claude/codex-prompt-latest.md` before reviewing anything. If the prompt file is missing for a review request, say so instead of guessing the scope.
+## Context Loading
 
----
+Every agent starts with:
 
-## Agent 1 — Claude (Claude Code CLI)
+1. `AGENTS.md`
+2. `docs/context-router.md`
+3. The task-specific files selected by that router
 
-**Role:** Primary Coder
-**Tool:** Claude Code CLI — invoked directly in the terminal
-**Persona:** Senior full-stack engineer; owns all implementation, testing, and GSD workflow execution
+Do not load every project source document before work. Full-document reads are reserved for tasks where the whole document is the object being edited or reviewed.
 
-### Responsibilities
+## Agent 1 - Claude
 
-- Write all code, tests, migrations, and documentation for assigned phases
-- Execute the full GSD workflow: discuss → plan → implement → verify
-- Enforce TDD for all non-trivial behavior: red → green → refactor
-- Log every file written or edited to `.claude/review-queue.txt` (automated via PostToolUse hook)
-- Invoke Antigravity review and generate the Codex prompt after completing each task
-- Maintain `.claude/antigravity-review-latest.md`, `.claude/codex-prompt-latest.md`, and `.claude/codex-review-latest.md` as review artifacts
-- Run `/stale-info-scan` on the cadence in `docs/stale-info-scan.md` and maintain `.planning/stale-info-scan-latest.md`
-- Resolve all BLOCK and REQUEST CHANGES findings before committing
-- Commit only after both Antigravity and Codex have returned APPROVE (or all blocking findings are resolved and re-reviewed)
+Role: primary implementer and GSD orchestrator.
 
-### Entry Points (GSD Workflow)
+Responsibilities:
+- Execute GSD workflows.
+- Write code, tests, migrations, docs, and review packets.
+- Maintain `.claude/review-queue.txt`.
+- Run local verification or report exact blockers.
+- Prepare Antigravity and Codex packets.
+- Resolve reviewer findings before commit.
 
-| Command | When to use |
-|---------|------------|
-| `/gsd-quick` | Small fixes, doc updates, one-off tasks |
-| `/gsd-discuss-phase` | Gather context and surface assumptions before planning |
-| `/gsd-plan-phase` | Create detailed PLAN.md for a phase |
-| `/gsd-execute-phase` | Execute all tasks in a phase's plan |
-| `/gsd-verify-work` | Verify phase goal was achieved |
-| `/gsd-debug` | Systematic bug investigation |
-| `/antigravity-review` | Invoke Antigravity CLI on queued files |
-| `/codex-prompt` | Generate Codex review prompt for queued files |
-| `/stale-info-scan` | Scan for stale docs, prompts, plans, schema, dependencies, and review artifacts |
+Claude does not self-approve.
 
-### Constraints
+## Agent 2 - Antigravity
 
-- Claude does NOT self-approve. All non-trivial code is reviewed by both Antigravity and Codex before commit.
-- Claude does not make direct repo edits outside a GSD workflow unless the user explicitly says to bypass it.
-- Claude resolves Antigravity vs. Codex conflicts explicitly (see AGENTS.md § Conflict Resolution).
+Role: architectural auditor and systems reviewer.
 
----
+Primary focus:
+- PostGIS correctness and performance.
+- RLS policy placement.
+- Trust, confidence, decay, and respect-signal logic.
+- Data integrity and cross-boundary runtime behavior.
+- Accuracy-vs-availability tradeoffs for emergency users.
 
-## Agent 2 — Antigravity (Antigravity CLI)
+Invocation model:
+- Claude writes `.claude/antigravity-prompt-latest.md`.
+- The user runs `agy` or `antigravity` with a short prompt pointing at that packet.
+- The verdict is saved to `.claude/antigravity-review-latest.md`.
 
-**Role:** Architectural Auditor & Lead Systems Reviewer
-**Tool:** Antigravity CLI — invoked via terminal
-**Persona:** Senior architect specializing in PostGIS, distributed trust systems, and database-layer security
+Antigravity reads the packet, inspects actual files from disk, and returns the format defined in `ANTIGRAVITY.md`.
 
-### Invocation
+## Agent 3 - Codex
 
-```powershell
-# Run /antigravity-review in Claude Code to invoke automatically on queued files.
-# It writes the full review packet to .claude/antigravity-prompt-latest.md, then calls
-# Antigravity with a SHORT prompt pointing at that packet. Manual invocation (after the
-# packet exists):
-antigravity -p "You are Antigravity, reviewing for the Gotta Go project. Read the review packet at .claude/antigravity-prompt-latest.md in full, inspect the files it names from disk, and return your verdict in the Antigravity review format defined in ANTIGRAVITY.md, including the Runtime Boundary Check section."
-```
+Role: implementation-quality, security, privacy, and test-quality reviewer.
 
-> **Never inline the packet:** `antigravity -p "$(cat <many files>)"` exceeds Windows' ~32K command-line limit and fails silently ("The filename or extension is too long"). Antigravity is an agentic CLI with filesystem access — the short prompt + on-disk packet is the only supported invocation on this host.
-> Use `/antigravity-review` in Claude Code — it builds the packet and calls Antigravity automatically.
+Primary focus:
+- TypeScript and React Native correctness.
+- Supabase misuse, auth/session boundaries, RLS-sensitive reads, and unsafe client trust.
+- Privacy leaks and PII/precise-location exposure.
+- Missing error, empty, loading, and denied-permission states.
+- Tests that mock away production behavior.
 
-### Primary Focus Areas
+Invocation model:
+- Claude writes `.claude/codex-prompt-latest.md`.
+- The user runs `codex exec` with a short prompt pointing at that packet.
+- The verdict is saved to `.claude/codex-review-latest.md`.
 
-| Area | What Antigravity checks |
-|------|--------------------|
-| PostGIS correctness | `ST_DWithin` / `ST_Distance` meter semantics, SRID consistency, spatial indexes, geography vs geometry |
-| RLS policy placement | Shadowban + soft-delete filters at query/DB layer, not UI layer |
-| Trust & confidence math | Weighted verification logic, confidence decay formula, respect-signal aggregation |
-| Materialized view design | `respect_signal_90d` refresh strategy, CONCURRENTLY requirement, unique index |
-| Architecture | Component placement, tier boundaries, RPC security-definer patterns |
-| Data integrity | Foreign key correctness, append-only audit patterns, soft-delete consistency |
-| Edge cases | Null coordinates, expired flags, zero trust scores, deleted/shadowbanned records |
+Codex reads the packet, inspects actual files from disk, and returns the format defined in `CODEX.md`.
 
-### Output Format
+## Agent 4 - GSD
 
-```md
-## Antigravity Review - [filename or change set]
+Role: phase lifecycle and planning engine.
 
-**VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
+Key commands:
+- `/gsd-discuss-phase`
+- `/gsd-plan-phase`
+- `/gsd-execute-phase`
+- `/gsd-verify-work`
+- `/gsd-code-review`
+- `/gsd-quick`
+- `/gsd-debug`
 
-### Issues
-- [CRITICAL/MAJOR/MINOR] file:line - Description, impact, required fix.
+GSD state files do not replace implementation evidence. Agents still inspect actual files and run verification.
 
-### Concerns
-- Architectural or logic concerns that may need follow-up.
+## Review Cycle
 
-### Verification
-- Commands run and results, or why verification was not run.
+1. Claude finishes a scoped task and verifies it.
+2. `.claude/review-queue.txt` lists current changed files.
+3. Claude prepares Antigravity packet.
+4. User runs Antigravity and saves verdict.
+5. Claude prepares Codex packet.
+6. User runs Codex and saves verdict.
+7. Claude fixes all BLOCK and REQUEST CHANGES findings.
+8. Affected files re-enter the queue and reviewers re-review.
+9. Commit only after both reviewers APPROVE.
 
-### Runtime Boundary Check
-- Mandatory whenever the review packet includes a "Dependency Call Chains" or "Runtime Boundary And Mock Audit" section (i.e. any multi-file or cross-boundary change). State the call-path traced, which tests mock which boundaries, and whether any mock could hide production behavior. If the packet omitted this context, say so explicitly instead of skipping the section.
-
-### Approved
-- What is correct and ready.
-```
-
-> Canonical format lives in `ANTIGRAVITY.md` § Output Format — if this block and that file ever diverge, `ANTIGRAVITY.md` wins. The pre-commit hook (`.claude/hooks/check-review-artifacts.js`) rejects verdicts missing the Runtime Boundary Check section.
-
----
-
-## Agent 3 — Codex (Codex App)
-
-**Role:** Implementation Quality Reviewer & Security Auditor
-**Tool:** Codex app (GUI) — not CLI. Prompts are generated by Claude via `/codex-prompt` and pasted in by the human.
-**Persona:** Senior security and implementation reviewer; owns TypeScript quality, privacy, test coverage, and production-safety auditing
-
-### Invocation
-
-```
-Run /codex-prompt in Claude Code.
-Claude will write the full review prompt to .claude/codex-prompt-latest.md.
-Open that file, copy the contents, and paste into the Codex app.
-```
-
-> Codex is the only agent that requires a manual human step (paste). The prompt is always pre-built by Claude.
-> Codex must read `.claude/codex-prompt-latest.md` before returning a verdict, then inspect the actual files from disk. If the prompt file is missing for a review request, Codex must report that instead of guessing the scope. The prompt defines scope; it does not replace evidence-based review.
-> Claude should copy the returned Codex verdict to `.claude/codex-review-latest.md` before commit.
-
-### Primary Focus Areas
-
-| Area | What Codex checks |
-|------|-------------------|
-| Security & privacy | PII in logs, service-role key exposure, trust/shadowban enforced only on client, raw SQL in client code |
-| TypeScript correctness | Type errors, unsafe casts, naming, maintainability |
-| GPS & location integrity | PostGIS source-of-truth enforced, SRID, client-coordinate trust |
-| Supabase misuse | Missing error handling on writes, RLS not enabled, anon-accessible admin endpoints |
-| Test coverage | Security-sensitive behavior tested, not just happy paths; RLS tests present |
-| Frontend quality | Loading states, error states, empty states, accessibility, denied-permission flows |
-| API boundary safety | Server-validated inputs, no client-as-authority for trust/geo/shadowban decisions |
-| Dead/duplicate code | Unused imports, duplicated logic, stale feature flags |
-
-### Review Priority Order
-
-1. Security and privacy
-2. Data integrity and database enforcement
-3. GPS/location correctness
-4. Abuse resistance and shadowban behavior
-5. Supabase/RLS correctness
-6. User-visible correctness and failure states
-7. Test coverage and verification quality
-8. Maintainability, naming, and style
-
-### Output Format
-
-```md
-## Codex Review - [filename or change set]
-
-**VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
-
-### Findings
-- [CRITICAL/MAJOR/MINOR] file:line - Description, impact, required fix.
-
-### Open Questions
-- Questions only when the answer affects merge safety.
-
-### Verification
-- Commands run and results, or why verification was not run.
-
-### Runtime Boundary Check
-- Mandatory whenever the review packet includes a "Dependency Call Chains" or "Runtime Boundary And Mock Audit" section (i.e. any multi-file or cross-boundary change). State the call-path traced, which tests mock which boundaries, and whether any mock could hide production behavior. If the packet omitted this context, say so explicitly instead of skipping the section.
-
-### Approved
-- What is correct or ready to merge.
-```
-
-> Canonical format lives in `CODEX.md` § Review Output — if this block and that file ever diverge, `CODEX.md` wins. The pre-commit hook (`.claude/hooks/check-review-artifacts.js`) rejects verdicts missing the Runtime Boundary Check section.
-
----
-
-## Agent 4 — GSD (Get Stuff Done Orchestration)
-
-**Role:** Workflow Engine & Phase Lifecycle Manager
-**Tool:** GSD skill system — invoked via slash commands in Claude Code
-**Persona:** Project manager enforcing phase discipline, planning rigor, and verification gates
-
-### Responsibilities
-
-- Manage the full phase lifecycle: spec → discuss → plan → execute → verify → ship
-- Enforce planning artifacts exist before execution begins
-- Track open requirements, validated requirements, and out-of-scope items in `.planning/PROJECT.md`
-- Run verification checks that goal was achieved (not just tasks completed)
-- Coordinate parallel work streams where phases are independent
-- Maintain `.planning/` directory health
-
-### Key Commands
-
-| Command | Purpose |
-|---------|---------|
-| `/gsd-discuss-phase` | Gather context, surface assumptions, prep for planning |
-| `/gsd-plan-phase` | Create PLAN.md with tasks, dependencies, verification criteria |
-| `/gsd-execute-phase` | Execute plan with atomic commits and deviation handling |
-| `/gsd-verify-work` | Goal-backward verification that phase delivered its promise |
-| `/gsd-quick` | Fast-path for trivial tasks (no subagents, no plan overhead) |
-| `/gsd-debug` | Scientific-method debugging with persistent state |
-| `/gsd-progress` | Check phase status, advance workflow, dispatch intent |
-| `/gsd-health` | Diagnose and repair `.planning/` directory |
-
-### Build Order (Architecture-Derived)
-
-GSD phase sequencing must respect the dependency tiers from `.planning/research/ARCHITECTURE.md`:
-
-```
-Level 0 — Foundation (extensions, config, indexes, RLS)
-Level 1 — Read Path (search RPCs, auth wiring)
-Level 2 — Mutation Foundation (GpsService, submit RPC, GPS gate)
-Level 3 — Trust Engine (verify RPC, confidence triggers, publish gate)
-Level 4 — Decay + Aggregates (respect_signal_90d, confidence decay job)
-Level 5 — Reports, Flags, Moderation Inputs
-Level 6 — Moderation Surface (admin functions, Studio-first)
-Level 7 — Client UX (map, emergency mode, submit/verify flows, ratings)
-Level 8 — Operations / Hardening (App Attest, telemetry, migration tests)
-```
-
-No phase should execute work from a higher level before all required lower-level components are complete and reviewed.
-
----
-
-## Review Workflow (Full Cycle)
-
-```
-Claude completes a task
-   │
-   ▼
-Tests pass (npm test, npm run typecheck, npm run lint)
-   │
-   ▼
-Files written auto-logged to .claude/review-queue.txt (PostToolUse hook)
-   │
-   ▼
-/antigravity-review  ──►  Antigravity CLI invoked with full context
-   │                 Returns APPROVE / REQUEST CHANGES / BLOCK
-   ▼
-/codex-prompt  ──►  Prompt generated → .claude/codex-prompt-latest.md
-   │                 Human pastes into Codex app
-   │                 Codex reads .claude/codex-prompt-latest.md and inspects files
-   │                 Codex returns APPROVE / REQUEST CHANGES / BLOCK
-   ▼
-All BLOCK + REQUEST CHANGES resolved?
-   │
-   ├─ No  ──►  Claude fixes → re-run affected reviewers → repeat
-   │
-   └─ Yes ──►  Commit with reviewer verdicts in commit message
-               Clear .claude/review-queue.txt
-               Advance GSD phase state
-```
-
----
-
-## Non-Negotiable Rules (All Agents)
-
-Reviewer artifacts must be preserved through the handoff: Antigravity output is saved to `.claude/antigravity-review-latest.md`, Codex input is saved to `.claude/codex-prompt-latest.md`, and Codex output is saved to `.claude/codex-review-latest.md` when available. These artifacts support traceability but do not replace inspecting the actual files.
-
-The latest stale-information scan is saved to `.planning/stale-info-scan-latest.md`. Any finding that affects the current task must be resolved or explicitly deferred before commit, milestone close, phase transition, or release.
+## Non-Negotiables
 
 1. Never commit with a BLOCK verdict outstanding.
-2. Never bypass shadowban, trust, GPS verification, or RLS checks for convenience.
-3. Never store coordinates outside PostGIS `geography/geometry` columns.
-4. Never log PII (email, user_id, precise coordinates) in client-visible contexts.
-5. Never skip tests or verification to ship faster.
-6. Never approve code based only on intent — inspect the actual implementation.
-7. Never let an Antigravity vs. Codex conflict be silently resolved — document it.
-8. Never write a migration that creates a user-owned or public-facing table without RLS enabled.
-9. Never put the Supabase service-role key anywhere the client can access it.
-10. Never trust the client for trust math, GPS authority, shadowban decisions, or RLS enforcement.
+2. Never skip both reviewers for non-trivial code, workflow, schema, security, privacy, or review-gate changes.
+3. Never store coordinates outside PostGIS geometry/geography columns.
+4. Never log PII, auth tokens, user IDs, emails, or precise location data in client-visible contexts.
+5. Never trust the client for trust math, GPS authority, shadowban decisions, or RLS enforcement.
+6. Never approve without inspecting actual files.
+7. Never let Antigravity/Codex conflicts be resolved silently.

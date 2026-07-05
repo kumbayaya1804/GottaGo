@@ -1,74 +1,48 @@
 # /review-gate
 
-Run the full three-part review cycle on the current active phase (or a specified phase). This command is the mandatory entry point for all code review. Never run `/antigravity-review` or `/codex-prompt` independently — always use this command so all three reviewers run in the correct order.
+Prepare the full review gate for the current task. This command coordinates GSD review, Antigravity packet generation, Codex packet generation, and final commit readiness. Claude prepares artifacts; the user runs the external reviewer CLIs.
 
 ## Order
 
-1. **GSD code review** (`/gsd-code-review <phase>`) — Claude's systematic file-by-file pass
-2. **Antigravity review** (`/antigravity-review`) — architectural, PostGIS, RLS, trust math
-3. **Codex prompt** (`/codex-prompt`) — security, privacy, TypeScript, test quality
+1. GSD code review for the scoped phase or files.
+2. Antigravity packet generation with `/antigravity-review`.
+3. User-run Antigravity verdict saved to `.claude/antigravity-review-latest.md`.
+4. Codex packet generation with `/codex-prompt`.
+5. User-run Codex verdict saved to `.claude/codex-review-latest.md`.
+6. Fix and re-review all BLOCK and REQUEST CHANGES findings.
 
-All three must complete before any commit is allowed. BLOCK or REQUEST CHANGES from any reviewer stops the line.
+## Inputs
 
-## Arguments
-
-- Phase number (optional) — defaults to current active phase from GSD state
-- `--depth=quick|standard|deep` — passed to GSD code review (default: standard)
+- Optional phase number. Defaults to current active phase from GSD state.
+- Optional `--depth=quick|standard|deep` for GSD code review.
 
 ## Steps
 
-### Step 1 — GSD Code Review
+1. Confirm `.claude/review-queue.txt` lists only current task files. Remove stale entries only with explicit confirmation that they belong to a closed task.
+2. Run the installed GSD code-review command (`/gsd-code-review` or `/gsd:code-review`, depending on runtime) for the same scope.
+3. Run `/antigravity-review` to write `.claude/antigravity-prompt-latest.md`.
+4. Ask the user to run Antigravity with the short command shown by `/antigravity-review`.
+5. After `.claude/antigravity-review-latest.md` exists and is APPROVE, run `/codex-prompt`.
+6. Ask the user to run Codex with the short command shown by `/codex-prompt`.
+7. After `.claude/codex-review-latest.md` exists and is APPROVE, verify freshness:
+   - queue matches changed files
+   - prompt manifests match current queue
+   - both verdicts reference current scope
+   - relevant verification has run or blockers are documented
+8. Commit only after the minimum gate in `docs/agent-harness.md` is satisfied.
 
-Invoke the `/gsd-code-review` skill with the phase argument and depth flag.
+## Stop Conditions
 
-Wait for the review to complete and `01-REVIEW.md` (or equivalent) to be created in the phase directory. Commit the REVIEW.md artifact.
-
-### Step 2 — Antigravity Review
-
-Immediately after GSD review completes, run `/antigravity-review` on the **same set of files** that GSD reviewed (from `.claude/review-queue.txt`).
-
-Do not skip this step. Antigravity owns:
-- PostGIS query correctness (ST_DWithin, SRID, meter semantics, geographic vs geometry)
-- RLS policy placement (shadowban + soft-delete at DB layer, not UI layer)
-- Trust and confidence math
-- Materialized view refresh strategy
-- Architecture and tier boundaries
-- Edge cases: null coordinates, expired flags, zero trust scores
-
-Save Antigravity's verdict to `.claude/antigravity-review-latest.md`.
-
-If Antigravity returns BLOCK or REQUEST CHANGES:
-- Fix all findings before proceeding
-- Re-run `/antigravity-review` on affected files
-- Do not proceed to Step 3 until Antigravity returns APPROVE
-
-### Step 3 — Codex Prompt
-
-Immediately after Antigravity returns APPROVE, run `/codex-prompt` to generate `.claude/codex-prompt-latest.md`.
-
-The Codex prompt must include:
-- Full CODEX.md context
-- All files from `.claude/review-queue.txt`
-- Antigravity verdict (from `.claude/antigravity-review-latest.md`)
-- GSD code review findings (from phase REVIEW.md)
-- Verification evidence (what passed, what could not be run)
-
-Tell the user: "The Codex prompt is ready at `.claude/codex-prompt-latest.md`. Open it, copy all contents, paste into the Codex app. After Codex returns its verdict, paste it here so Claude can address any findings."
-
-### Step 4 — Resolve and Commit
-
-After Codex returns its verdict:
-1. Copy Codex's verdict to `.claude/codex-review-latest.md`
-2. If APPROVE from both Antigravity and Codex: proceed to commit
-3. If BLOCK or REQUEST CHANGES from either: fix all findings, re-run the affected reviewer(s)
-4. Commit only when both reviewers return APPROVE
-5. Clear `.claude/review-queue.txt` after commit
-6. Advance GSD phase state
+- Missing or empty review queue.
+- Missing reviewer verdict.
+- BLOCK or REQUEST CHANGES from any reviewer.
+- Reviewer verdict scope does not match current queue/diff.
+- Relevant stale-info finding is unresolved and not explicitly deferred.
 
 ## Non-Negotiables
 
-- Never skip Antigravity. It is the primary validator for all SQL, RLS, and trust-engine correctness.
-- Never skip Codex prompt generation. Even if Codex returns APPROVE quickly, the artifact must exist.
-- Never commit with an outstanding BLOCK.
-- Never bypass with `--no-verify`.
-- Each reviewer inspects the actual files — not the other reviewer's summary.
+- Do not run reviewers on stale packets.
+- Do not approve from summaries.
+- Do not skip Antigravity for SQL, RLS, PostGIS, trust, confidence, or architecture.
+- Do not skip Codex for implementation, security, privacy, TypeScript, tests, or user-visible failure states.
+- Do not clear `.claude/review-queue.txt` until after commit.

@@ -1,7 +1,7 @@
 {
   "metaswarm_version": "0.12.0",
   "installed_at": "2026-06-22T00:00:00Z",
-  "updated_at": "2026-06-25T00:00:00Z",
+  "updated_at": "2026-07-04T00:00:00Z",
   "detection": {
     "language": "typescript",
     "framework": "expo-react-native",
@@ -32,6 +32,8 @@
     "name": "Gotta Go",
     "root": "C:\\Users\\mrsai\\Gotta Go",
     "app_dir": "app",
-    "github_remote": "https://github.com/kumbayaya1804/GottaGo"
+    "github_remote": "https://github.com/kumbayaya1804/GottaGo",
+    "context_router": "docs/context-router.md",
+    "review_workflow": "claude-prepares-packets-user-runs-reviewer-clis"
   }
 }

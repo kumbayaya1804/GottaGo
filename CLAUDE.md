@@ -1,234 +1,64 @@
-# Project Instructions
+# Claude Project Router
 
-This project uses [metaswarm](https://github.com/dsifry/metaswarm) for multi-agent orchestration.
+Status: active, intentionally lean. This file is auto-loaded by Claude Code, so it routes to current sources instead of embedding long project, stack, and review manuals.
 
-**First-time setup:** Run `/metaswarm-setup` in Claude Code to detect your project and configure everything.
+## Required Startup
 
-**Update metaswarm:** Run `/metaswarm-update-version` to check for and apply updates.
+1. Read `AGENTS.md`.
+2. Read `docs/context-router.md`.
+3. Read `.planning/STATE.md`.
+4. If recovering after compaction or a new terminal session, read `.beads/context/execution-state.md` if present.
 
----
+After that, load only the context tier selected by `docs/context-router.md`. Do not read the full roster, product spec, schema contract, roadmap, stale scan, Codex guide, or Antigravity guide unless the router makes that file relevant to the current task.
 
-## Superpowers Skill Discipline — MANDATORY
+## Workflow Entry Points
 
-Every session, every task. No exceptions. Invoke the Skill tool BEFORE taking action — not after. Full trigger table in `docs/agent-harness.md` § "Superpowers Skill Discipline."
+Use GSD for project work unless the user explicitly asks to bypass it:
 
-**Red flags that mean you skipped a skill:**
-- "This is a simple fix" → still invoke `superpowers:test-driven-development`
-- "I already know how to debug this" → still invoke `superpowers:systematic-debugging`
-- "The task is done" → still invoke `superpowers:verification-before-completion`
-- "I'll review at the end" → invoke `superpowers:requesting-code-review` after EACH task
+- `/gsd-quick` for small fixes, docs, and ad-hoc maintenance.
+- `/gsd-debug` for bug investigation.
+- `/gsd-plan-phase` and `/gsd-execute-phase` for phase work.
+- `/review-gate` for non-trivial changes that need both reviewers.
 
----
+For file-changing work, keep `.claude/review-queue.txt` current. For code or behavior changes under `app/src/**`, follow the TDD and verification rules in `docs/agent-harness.md`.
 
-## TDD Guard — Scope & Enforcement (MANDATORY)
+## Current Reviewer Contract
 
-TDD Guard runs as a pre-commit hook via `npx tdd-guard@latest`. **Never bypass without explicit user approval and a recorded reason.** Full scope table, enforcement rules, and the jest@29.7.0-pin/jest-reporter-blocked details are in `docs/agent-harness.md` § "TDD Guard — Scope & Enforcement."
+Claude writes packets. The user runs reviewers.
 
-Quick reference: `app/src/**` requires tests (TDD order: test → fail → implement → pass); 100% coverage enforced via `.coverage-thresholds.json`; jest is pinned at 29.7.0 — do not upgrade.
+- `/antigravity-review` writes `.claude/antigravity-prompt-latest.md`.
+- The user runs `agy` or `antigravity` with a short prompt pointing at that file and saves the verdict to `.claude/antigravity-review-latest.md`.
+- `/codex-prompt` writes `.claude/codex-prompt-latest.md`.
+- The user runs `codex exec` with a short prompt pointing at that file and saves the verdict to `.claude/codex-review-latest.md`.
 
----
+Do not invoke Antigravity or Codex directly from Claude unless the user explicitly overrides this rule. Do not inline full packet contents into a command line.
 
-## Metaswarm — Workflow Integration (MANDATORY)
+## Superpowers And TDD
 
-GSD is the primary workflow engine. Metaswarm adds quality gates and agent orchestration. When they conflict, GSD entry points win — but Metaswarm gates (design review, plan review, self-reflect) MUST still run.
+Use the relevant Superpowers skills before task actions. In this project, that usually means:
 
-### When to Invoke Which Metaswarm Skill
+- `superpowers:using-superpowers` at task start.
+- `superpowers:brainstorming` for behavior or workflow design.
+- `superpowers:systematic-debugging` before investigating failures.
+- `superpowers:test-driven-development` before non-trivial app behavior changes.
+- `superpowers:verification-before-completion` before claiming work is complete.
 
-| Trigger | Metaswarm Command | Notes |
-|---------|------------------|-------|
-| Starting any complex task (3+ files or multi-step) | `/start-task` | Instead of EnterPlanMode |
-| Before any implementation — load project context | `/prime` | Especially after compaction or new session |
-| After brainstorming completes | `/review-design` | 5-agent gate: PM, Architect, Designer, Security, CTO — ALL must approve before planning |
-| After any plan is drafted | `plan-review-gate` skill (auto-triggered by Metaswarm) | 3 adversarial reviewers — ALL must PASS before showing plan to user |
-| At session end or before handoff | `/handoff` | Writes self-contained handoff doc for next session |
-| After a PR merges or branch completes | `/self-reflect` | Captures learnings before moving on |
-| Before creating a PR | `/self-reflect` → commit knowledge → THEN PR | Knowledge base updates land atomically with the code |
-| Checking external tool status | `/external-tools-health` | Verify Codex/Antigravity access before review gate |
+TDD Guard is active for app source work. Do not bypass hooks without explicit user approval and a recorded reason.
 
-### What Metaswarm Does NOT Handle in This Project
+## Project Sources
 
-| Skipped Feature | Reason |
-|----------------|--------|
-| Metaswarm Code Review Agent | Antigravity + Codex are the designated reviewers (see review gate rules below) |
-| Metaswarm CI integration | No GitHub remote yet; deferred until repo is created |
-| Metaswarm git hooks | GSD handles commit discipline; TDD Guard handles hook enforcement |
-| Visual review skill | No web framework; React Native UI reviewed differently |
-| Metaswarm external-tools routing | Codex/Antigravity invoked manually via harness, not routed through Metaswarm |
+Use the router instead of embedding these here:
 
-### Execution Method Choice
+- Product and safety: `SPEC.md`
+- Current planning state: `.planning/STATE.md`
+- Roadmap and phase scope: `.planning/ROADMAP.md`
+- Verification commands: `docs/verification.md`
+- Schema and Supabase contract: `docs/schema-contract.md`
+- Agent/review contract: `docs/agent-harness.md`
+- Codex details: `CODEX.md`
+- Antigravity details: `ANTIGRAVITY.md`
+- Tool profile: `.metaswarm/project-profile.json`
 
-When a plan is ready to execute, ALWAYS ask the user:
+## Current Recovery Rule
 
-> **How would you like to execute this plan?**
-> 1. **Metaswarm orchestrated** — 4-phase loop per work unit (IMPLEMENT → VALIDATE → ADVERSARIAL REVIEW → COMMIT). Most thorough.
-> 2. **Superpowers subagent-driven** (`superpowers:subagent-driven-development`) — faster, per-task subagents.
-> 3. **Parallel session** (`superpowers:executing-plans`) — isolated session, good for long runs.
-
-Do NOT auto-select. The user decides every time.
-
-### Metaswarm + GSD Integration Rules
-
-1. **GSD entry points first:** Always enter work via `/gsd-quick`, `/gsd-debug`, or `/gsd-execute-phase`. Then apply Metaswarm gates.
-2. **Plan review gate is non-negotiable:** Even if GSD produces a plan, Metaswarm's adversarial plan review must run before showing it to the user.
-3. **Design review gate is non-negotiable:** After any `superpowers:brainstorming` output, run `/review-design` before writing-plans.
-4. **Self-reflect at branch close:** Before any merge or PR, run `/self-reflect`.
-5. **BEADS context recovery:** If context is lost mid-task, run `bd prime --work-type recovery` to reload state from `.beads/`.
-
----
-
-## Full Workflow Integration — How the Tools Fit Together
-
-The full task → brainstorm → plan → per-task TDD/review → verification → knowledge-capture sequence is documented once, in `docs/agent-harness.md` § "Standard Flow" — that prose description and this diagram were two descriptions of the same sequence drifting independently. Read it there.
-
-### Non-Negotiables (applies to ALL agents: Claude, Antigravity, Codex)
-- No commit without APPROVE from both Antigravity AND Codex (all BLOCK/REQUEST CHANGES resolved)
-- No `--no-verify` without explicit user approval
-- No `git push --force` without explicit user approval
-- No raw SQL except migrations or safely parameterized server-only code
-- No PII in logs; GPS in PostGIS geometry/geography columns only
-- `app/.env.local` never committed, never shared in review
-- `android/` never manually edited (Expo-generated)
-
----
-
-## Session Startup Protocol — Read These Before Any Work
-
-`AGENTS_ROSTER.md` § "Required Reading — Load Before Any Work" is the canonical list of files every agent (Claude, Antigravity, Codex) must read in full before writing code, reviewing a file, or making a plan. Read it there — it is the single source of truth for this list; don't maintain a second copy here.
-
-Skipping this startup read is not allowed. These documents are the source of truth. Implementation that conflicts with them must either update the docs in the same change or flag the conflict for human review.
-
----
-
-<!-- GSD:project-start source:PROJECT.md -->
-## Project
-
-**Gotta Go**
-
-Gotta Go is a crowdsourced mobile app that helps people find usable bathrooms when they urgently need one. Unlike static directories, it collects time-sensitive bathroom access codes (PINs), community-verified policy tags, quality ratings, and optimal timing windows — the kind of hyperlocal knowledge that exists only in people's heads. The parent segment is the primary acquisition wedge: parents with toddlers face bathroom urgency as a genuine crisis, and changing table data is a high-signal differentiator nobody else is collecting systematically.
-
-**Core Value:** When you urgently need a bathroom, Gotta Go finds you one with accurate, community-verified access info — including the current door code.
-
-### Constraints
-
-- **Tech Stack**: Expo (React Native) — iOS + Android, GPS-first UX. Supabase + PostGIS for DB/auth. Mapbox for mapping. Already committed to from prior design work.
-- **Data Integrity**: Minimum 2 independent GPS verifications (or 1 + 48hr no-flag window) before location publishes. Single-verification threshold is an unacceptable abuse surface.
-- **Liability**: Policy tags use community-reported framing, not declarative. "Users report this as accessible" not "this place allows free use." Moves liability to crowd, not platform.
-- **Gamification ordering**: If reward tiers are implemented, "Just used this" freshness confirmation must be lowest-reward or capped per location/user/window — not 3rd highest as in original design.
-- **Eugene density requirement**: 50 locations is the floor, but coverage type matters more than count.
-- **Security**: No raw SQL strings unless migrations or safely parameterized server-only code. GPS coordinates in PostGIS geometry/geography columns only. No PII in logs.
-- **Review gate**: No commit without APPROVE from both Antigravity and Codex (or all BLOCK/REQUEST CHANGES resolved).
-- **Multi-agent review (Claude + Antigravity + Codex)**: No self-approval; PostGIS correctness audited by Antigravity; security/privacy audited by Codex. Review workflow: Claude implements → logs files to `.claude/review-queue.txt` → Antigravity + Codex review → address all BLOCK/REQUEST CHANGES → commit with reviewer verdicts.
-- **Harness contract**: Follow `docs/agent-harness.md`. Reviewer artifacts are `.claude/antigravity-prompt-latest.md`, `.claude/antigravity-review-latest.md`, `.claude/codex-prompt-latest.md`, and `.claude/codex-review-latest.md`.
-- **Stale-info scan**: Follow `docs/stale-info-scan.md`. The latest scan artifact is `.planning/stale-info-scan-latest.md`; unresolved findings that affect the current task must be fixed or explicitly deferred before commit.
-<!-- GSD:project-end -->
-
-<!-- GSD:stack-start source:STACK.md -->
-## Technology Stack
-
-**Established in Phase 1 (2026-05-19):**
-- **Runtime**: Expo SDK 55 / React Native 0.83.6 / React 19
-- **Router**: Expo Router v4 — routes in `app/src/app/` (auto-discovered, no config field)
-- **Database**: Supabase project `ebmzhjmmtmldhrojkdqw` — live schema uses `locations`/`users` (NOT `bathroom_locations`/`profiles`)
-- **Maps**: `@rnmapbox/maps` with Mapbox SDK 11.20.1 — download token via EAS secret only, never hardcoded
-- **Auth storage**: AsyncStorage + `detectSessionInUrl: false` (required for React Native)
-- **Testing**: `jest@29.7.0` + `jest-expo@55` — jest@30 is incompatible with jest-expo@55
-- **TypeScript**: Strict; `@/*` → `./src/*` (old Expo template `components/`/`constants/` dirs deleted in audit 2026-07-03; `Colors.ts` now lives in `src/constants/` with the other design tokens)
-<!-- GSD:stack-end -->
-
-<!-- GSD:conventions-start source:CONVENTIONS.md -->
-## Conventions
-
-**Established in Phase 1:**
-- Placeholder/scaffold screens created via Bash (TDD Guard blocks Write on non-behavioral files)
-- `app.config.ts` kept alongside `app.json` until EAS build confirms; `app.config.ts` takes precedence
-- Root layout uses plain `<View>` in Phase 1 — `react-native-gesture-handler` added in Phase 2
-- Review gate: log files to `.claude/review-queue.txt` → `/review-gate` (chains GSD review → `/antigravity-review` → `/codex-prompt` automatically) → resolve BLOCKs → commit
-- **User advocacy premortem** is a required review dimension — see AGENTS.md and ANTIGRAVITY.md
-
-**Accepted structural patterns (audit 2026-07-03 — do not re-flag):**
-- `src/app/(components)/` intentionally uses Expo Router route-group syntax as a non-route component folder for screen-adjacent modals — accepted, do not relocate
-- `reset-password.tsx` and `auth/callback.tsx` intentionally live outside the `(auth)/` group: the redirect guard only auto-redirects the literal `(auth)` route group, and these routes must handle their own navigation
-- Untested `(tabs)` screens (`nearby`, `submit`, `index`) and `location/[id]` are 8–11-line Phase 3/4 stubs, intentionally excluded from the coverage gate until implemented
-- `.coverage-thresholds.json` exists at BOTH repo root (orchestrator-facing) and `app/` (jest-facing, with scope/exclusions) — paired files, threshold values must stay identical
-<!-- GSD:conventions-end -->
-
-<!-- GSD:architecture-start source:ARCHITECTURE.md -->
-## Architecture
-
-Architecture not yet mapped. Follow existing patterns found in the codebase.
-<!-- GSD:architecture-end -->
-
-<!-- GSD:skills-start source:skills/ -->
-## Project Skills
-
-Project skills exist in `.claude/skills/` (index: `.claude/skills/SKILL.md`): PostGIS Optimizer, RLS Security Guard, Trust Engine Validator, and Pitfall Scan — plus vendored `supabase` and `supabase-postgres-best-practices` reference packages (also mirrored in `.agents/skills/`). This section is auto-managed; if it drifts out of sync with what's actually on disk again, re-run the GSD skills sync or edit it manually — don't trust it without checking `.claude/skills/` directly.
-<!-- GSD:skills-end -->
-
-<!-- GSD:workflow-start source:GSD defaults -->
-## GSD Workflow Enforcement
-
-Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
-
-Use these entry points:
-- `/gsd-quick` for small fixes, doc updates, and ad-hoc tasks
-- `/gsd-debug` for investigation and bug fixing
-- `/gsd-execute-phase` for planned phase work
-
-Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
-<!-- GSD:workflow-end -->
-
-<!-- GSD:profile-start -->
-## Developer Profile
-
-> Profile not yet configured. Run `/gsd-profile-user` to generate your developer profile.
-> This section is managed by `generate-claude-profile` -- do not edit manually.
-<!-- GSD:profile-end -->
-
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
-
-### Rules
-
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-
-## Session Completion
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
+If `bd` is unavailable, do not run `bd prime` or block on it. Read `.beads/context/execution-state.md` and `.planning/STATE.md` instead. `.beads/plans/active-plan.md` is not authoritative unless its status matches those current-state files.

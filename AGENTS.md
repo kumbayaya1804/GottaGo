@@ -1,169 +1,63 @@
-# Agent Roles & Coordination
+# Agent Router
 
-## Project Source Of Truth
+Status: active, intentionally short. This file is auto-loaded by Codex and may be read by other agents, so it must route context instead of duplicating the full operating manual.
 
-All agents should read these documents before major planning, implementation, or review:
-- `SPEC.md` - product scope, user flows, privacy requirements, GPS verification, trust, confidence, shadowban, and gamification expectations
-- `docs/schema-contract.md` - provisional Supabase/PostGIS data model, RLS expectations, and migration review rules
-- `docs/review-severity.md` - shared APPROVE / REQUEST CHANGES / BLOCK definitions and severity examples
-- `docs/verification.md` - expected verification commands and reporting format
-- `docs/agent-harness.md` - Claude/Antigravity/Codex orchestration, handoff artifacts, permission posture, and commit gates
-- `docs/stale-info-scan.md` - periodic stale-information scan cadence, severity, and artifact format
-- `ANTIGRAVITY.md` - detailed Antigravity role guide and architectural review standard
-- `CODEX.md` - detailed Codex role guide and review operating standard
+## Load Order
 
-If implementation conflicts with these docs, agents must either update the docs in the same change or explicitly flag the conflict for human review.
+1. Read this file.
+2. Read `docs/context-router.md`.
+3. Use the router to choose the smallest task-appropriate context set.
+4. Load full source docs only when the router says the whole document is directly relevant.
 
-## Primary Coder - Claude (Claude Code)
+Do not start by loading `SPEC.md`, `docs/schema-contract.md`, `AGENTS_ROSTER.md`, `CODEX.md`, `ANTIGRAVITY.md`, `.planning/PROJECT.md`, or `.planning/ROADMAP.md` in full. Those are source documents, not default startup context.
 
-Claude is the default implementation agent. Responsibilities:
-- Writing code, tests, migrations, and documentation for assigned GSD tasks
-- Executing the GSD workflow: spec -> plan -> implement -> verify
-- Enforcing TDD for non-trivial behavior: red -> green -> refactor
-- Logging changed files to `.claude/review-queue.txt`
-- Maintaining review artifacts defined in `docs/agent-harness.md`
-- Running `/stale-info-scan` on the cadence in `docs/stale-info-scan.md` and keeping `.planning/stale-info-scan-latest.md` current
-- Committing only after both Antigravity and Codex have returned APPROVE or all REQUEST CHANGES/BLOCK feedback has been resolved
+## Roles
 
-Claude does not self-approve. All non-trivial code passes through both reviewers (Antigravity and Codex) before commit.
+- Claude is the default implementer and GSD orchestrator.
+- Antigravity is the architecture, PostGIS, RLS, trust, and data-integrity reviewer.
+- Codex is the implementation-quality, security, privacy, TypeScript, test-quality, and user-failure-state reviewer.
+- GSD owns phase lifecycle, planning, execution, verification, and state.
 
----
+Claude does not self-approve. Non-trivial code, workflow, schema, security, privacy, or review-gate changes require both Antigravity and Codex approval before commit.
 
-## Code Reviewer 1 - Antigravity (Antigravity CLI)
+## Current Review Workflow
 
-Focus: correctness, logic, architecture, data integrity, PostGIS queries, RLS policy placement, and dynamic runtime safety.
+Claude prepares review artifacts. The user runs the reviewer CLIs.
 
-Antigravity acts as the senior architectural auditor for system-level reasoning:
-- PostGIS geometry correctness, SRID consistency, and geospatial query performance
-- Trust/reputation math, confidence decay, and respect-signal calculations
-- RLS policy placement and shadowban enforcement at the database/query layer
-- Materialized view design and refresh strategy
-- Cross-feature data integrity and edge cases
-- **Dynamic Runtime State-Flow Audits**: Trace async lifecycles, event interleaving, and state transition boundaries to identify race conditions (e.g., router redirects preempting slow post-auth writes). Audit whether mocks in unit tests mask live database-layer constraints or privilege revocations.
+1. Claude verifies the task locally and ensures `.claude/review-queue.txt` lists the changed files for the current task.
+2. Claude runs `/antigravity-review` to write `.claude/antigravity-prompt-latest.md`.
+3. The user runs Antigravity (`agy` or `antigravity`) with a short prompt pointing at that packet. The verdict is saved to `.claude/antigravity-review-latest.md`.
+4. Claude runs `/codex-prompt` to write `.claude/codex-prompt-latest.md`.
+5. The user runs `codex exec` with a short prompt pointing at that packet. The verdict is saved to `.claude/codex-review-latest.md`.
+6. Claude fixes all BLOCK and REQUEST CHANGES findings and regenerates affected packets.
+7. Commit only after both saved reviewer verdicts are APPROVE and the relevant verification is reported.
 
-**Invoke from terminal** (after `/antigravity-review` has written the packet to `.claude/antigravity-prompt-latest.md`):
-```powershell
-antigravity -p "You are Antigravity, reviewing for the Gotta Go project. Read the review packet at .claude/antigravity-prompt-latest.md in full, inspect the files it names from disk, and return your verdict in the Antigravity review format defined in ANTIGRAVITY.md, including the Runtime Boundary Check section."
-```
+The packet files are inputs, not proof. Reviewers must inspect the actual files from disk and cite exact `file:line` evidence.
 
-Never pass the packet contents inline with `-p` — Windows' ~32K command-line limit truncates it and Antigravity fails silently. The short prompt + on-disk packet is the only supported invocation on this host.
+## User Advocacy Gate
 
-Or open Antigravity CLI in this project. `ANTIGRAVITY.md` loads automatically.
+Every implementation, plan, and review must ask:
 
----
+> Does this decision serve someone with 60 seconds before an emergency?
 
-## Code Reviewer 2 - Codex (OpenAI Codex)
+Flag or block changes that create blank maps, silent failures, excessive friction, unavailable results, or undocumented accuracy-vs-availability tradeoffs for high-urgency users.
 
-Codex is the senior implementation-quality reviewer and escalation engineer for this project. Codex should use its strongest available coding, analysis, and tool-use capabilities to find real defects, verify claims with evidence, and propose or apply precise fixes when explicitly assigned.
+## Non-Negotiables
 
-For full Codex operating instructions, read `CODEX.md`. Keep detailed Codex guardrails there so this auto-loaded file stays small and does not drift from the authoritative review standard.
+- Never commit with a BLOCK verdict outstanding.
+- Never bypass shadowban, trust, GPS verification, privacy, or RLS checks for convenience.
+- Never store coordinates outside approved PostGIS geometry/geography fields.
+- Never log PII, auth tokens, user IDs, emails, or precise location data in client-visible contexts.
+- Never treat client code as the security boundary for trust, GPS authority, shadowban, or RLS behavior.
+- Never approve from intent; inspect implementation, tests, runtime boundaries, and failure paths.
+- Never use full-document prompt dumps when focused excerpts, diffs, and dependency chains answer the review question.
 
-Codex owns review depth for:
-- TypeScript/JavaScript correctness, implementation quality, dependency/config risk, and test quality
-- Security, privacy, unsafe client trust, Supabase misuse, and user-visible failure states
-- Practical production risk: what breaks for a user even if the happy path passes
+## Beads And Recovery
 
-Codex must not approve without reading `.claude/codex-prompt-latest.md`, inspecting the actual queued files from disk, and reporting findings with exact file/line references. If the prompt file is missing, Codex must say so instead of guessing the scope.
+Use `bd` only when the CLI is available on PATH. If `bd` is missing, do not fail the session or inject stale Beads state. Read these files instead:
 
-Open the Codex app in this project. `AGENTS.md` loads automatically as Codex context; `CODEX.md` contains the detailed review format, verdict rules, guardrails, and implementation-mode instructions.
+- `.beads/context/execution-state.md`
+- `.beads/context/project-context.md` only when recovery or historical tooling context is needed
+- `.planning/STATE.md`
 
----
-
-## Review Workflow
-
-1. Claude completes a task and verifies all relevant tests pass
-2. Files written are logged to `.claude/review-queue.txt` automatically
-3. Claude invokes Antigravity review on queued files and saves the result to `.claude/antigravity-review-latest.md`
-4. Claude generates `.claude/codex-prompt-latest.md`; Codex reads that prompt, then reviews the actual queued files from disk
-5. Claude addresses all BLOCK and REQUEST CHANGES feedback
-6. Antigravity and Codex re-review affected files when needed
-7. Claude copies the latest Codex verdict to `.claude/codex-review-latest.md` when available
-8. Claude resolves or explicitly defers any stale-information scan findings that affect the current task
-9. Claude commits with a summary of reviewer verdicts and resolutions
-10. Claude clears `.claude/review-queue.txt` after the commit
-11. Move to the next GSD task
-
-## Conflict Resolution
-
-If Antigravity and Codex give contradictory feedback, Claude must not silently choose the easier path. Claude should document:
-- The conflict
-- Which recommendation was followed
-- Why that choice is safer for the project
-- Whether the decision needs human review
-
-Security, privacy, RLS, GPS integrity, and data-loss concerns should default to the stricter interpretation until resolved.
-
-## User Advocacy Standard (Premortem Gate)
-
-Every review — code, plan, or architecture — must include a user advocacy check. This is not optional. The target users are people who cannot wait: IBS/Crohn's/colitis sufferers, wheelchair users, parents with infants needing changing tables.
-
-**The premortem question every agent must ask before approving:**
-> "Does this decision serve someone with 60 seconds before an emergency?"
-
-Specific checks:
-- Does a threshold change make results less available to the most vulnerable users? Flag it.
-- Could this code path produce a blank screen, empty map, or "no results" during an emergency? Block it or require a fallback.
-- Does this flow add friction for a user who is in pain, stressed, or physically limited? Request changes.
-- Is a tradeoff between data quality and data availability documented with explicit reasoning? If not, require it.
-
-Antigravity owns the **accuracy vs. availability** tradeoff for geospatial and trust algorithms.
-Codex owns the **friction and silent failure** audit for UI flows and API error handling.
-
-User advocacy findings use the same severity scale as correctness findings. A design that harms high-urgency users is not a "minor concern."
-
-## Non-Negotiable Rules
-
-- Never commit with a BLOCK verdict outstanding
-- Never bypass shadowban, trust, GPS verification, or RLS checks for convenience
-- Never store coordinates outside approved PostGIS geometry/geography fields
-- Never log PII or precise location data in client-visible contexts
-- Never skip tests or verification to ship faster
-- Never approve code based only on intent; inspect the actual implementation
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
-
-### Rules
-
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-
-## Session Completion
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
+If Beads state conflicts with `.planning/STATE.md`, treat `.planning/STATE.md` and `.beads/context/execution-state.md` as the current recovery sources and flag the conflict.

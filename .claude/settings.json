@@ -17,7 +17,8 @@
       {
         "hooks": [
           {
-            "command": "bd prime",
+            "command": "$bd = Get-Command bd -ErrorAction SilentlyContinue; if ($bd) { bd prime --work-type recovery } elseif (Test-Path '.beads\\context\\execution-state.md') { @{systemMessage='bd CLI not found. For recovery, read .beads/context/execution-state.md, .planning/STATE.md, and docs/context-router.md instead of running bd prime.'} | ConvertTo-Json -Compress }",
+            "shell": "powershell",
             "type": "command"
           }
         ],
@@ -28,7 +29,8 @@
       {
         "hooks": [
           {
-            "command": "bd prime",
+            "command": "$bd = Get-Command bd -ErrorAction SilentlyContinue; if ($bd) { bd prime } elseif (Test-Path '.beads\\context\\execution-state.md') { @{systemMessage='bd CLI not found. Startup context is docs/context-router.md, .planning/STATE.md, and .beads/context/execution-state.md.'} | ConvertTo-Json -Compress }",
+            "shell": "powershell",
             "type": "command"
           }
         ],
@@ -39,7 +41,7 @@
       {
         "hooks": [
           {
-            "command": "$q = '.claude\\review-queue.txt'; $pending = @(); if (Test-Path $q) { $pending = @(Get-Content $q -ErrorAction SilentlyContinue | Where-Object { $_.Trim() }) }; if ($pending.Count -gt 0) { @{systemMessage='Reviewers needed before committing: run Antigravity and Codex review on changed files. Check .claude/review-queue.txt, save Antigravity output to .claude/antigravity-review-latest.md, generate .claude/codex-prompt-latest.md, and save Codex output to .claude/codex-review-latest.md when available.'} | ConvertTo-Json -Compress }",
+            "command": "$q = '.claude\\review-queue.txt'; $pending = @(); if (Test-Path $q) { $pending = @(Get-Content $q -ErrorAction SilentlyContinue | Where-Object { $_.Trim() }) }; if ($pending.Count -gt 0) { @{systemMessage='Reviewers needed before committing: check .claude/review-queue.txt, generate .claude/antigravity-prompt-latest.md and .claude/codex-prompt-latest.md, then have the user run Antigravity and Codex CLIs and save both review artifacts.'} | ConvertTo-Json -Compress }",
             "shell": "powershell",
             "statusMessage": "Checking review queue...",
             "type": "command"
@@ -57,6 +59,7 @@
   "permissions": {
     "allow": [
       "Bash(antigravity *)",
+      "Bash(agy *)",
       "Bash(codex *)",
       "Bash(npx *)",
       "Bash(git *)",

@@ -1,16 +1,35 @@
 # Skill: PostGIS Optimizer
 
 ## Purpose
-Audit SQL and PostgREST RPCs for geospatial correctness and performance.
 
-## Constraints
-- **Canonical Unit**: Always use `geography` or cast to it for meters. Never use raw degrees for distance.
-- **Indexing**: Proximity `WHERE` clauses must use `ST_DWithin` to leverage GiST indexes.
-- **Ordering**: Use the `<->` KNN operator for "nearest" searches.
-- **SRID**: Ensure SRID 4326 is used for all writes.
+Audit geospatial SQL, RPCs, indexes, and client call sites for correctness and performance.
+
+## Load When
+
+- migrations or RPCs touch `coordinates`, geography/geometry columns, radius search, nearest search, or GPS verification
+- app code consumes geospatial RPCs or maps returned distance/order values
+- review packets mention PostGIS, SRID, distance, radius, or location search
+
+## Context To Read
+
+- affected SQL/RPC/migration
+- relevant `docs/schema-contract.md` excerpt
+- client call site and tests consuming the result
+- query plan only when database access is available
+
+## Rules
+
+- Meter distances require `geography` or an explicit geography cast.
+- Do not compare raw geometry degrees as meters.
+- Radius predicates should use `ST_DWithin` so GiST indexes can be used.
+- Nearest ordering should use the appropriate indexed KNN pattern when available.
+- Writes must set SRID 4326 consistently.
+- Client-provided coordinates are not authority for GPS-sensitive invariants unless server-side checks enforce radius, accuracy, and freshness.
 
 ## Workflow
-1. Read the proposed SQL or RPC.
-2. Check for `ST_Distance` in `WHERE` (Pitfall #2).
-3. Check for `geometry` without meter-casting (Pitfall #1).
-4. Run `EXPLAIN ANALYZE` if database access is available to confirm Index Scans.
+
+1. Identify every geospatial predicate, sort, and write.
+2. Check units: meters vs degrees.
+3. Check index compatibility for radius and nearest queries.
+4. Check null, deleted, expired, unavailable, and shadowbanned location behavior.
+5. Run `EXPLAIN` or `EXPLAIN ANALYZE` only when database access is available and safe.

@@ -1,15 +1,79 @@
 # Skill: Review Packet Generator
 
 ## Purpose
-Generate the Antigravity and Codex review packets correctly, so neither reviewer has to infer scope from chat history and every review is artifact-driven per [docs/agent-harness.md](file:///C:/Users/mrsai/Gotta%20Go/docs/agent-harness.md).
 
-## Workflow
-1. Confirm `.claude/review-queue.txt` lists exactly the files changed for the current task, with no stale entries from a prior, already-reviewed task.
-2. Write the Antigravity packet to `.claude/antigravity-prompt-latest.md`, then run `/antigravity-review`. Antigravity reads the file, inspects the actual files on disk, and returns a verdict. Save it to `.claude/antigravity-review-latest.md`.
-3. Write the Codex packet to `.claude/codex-prompt-latest.md` after Antigravity returns. Include Antigravity's result or summary. Codex reads the file, inspects files on disk, runs practical verification, and returns a verdict. Save it to `.claude/codex-review-latest.md`.
-4. Every packet must include, per the "Prompt Packet Requirements" section of `docs/agent-harness.md`: task goal and phase; changed files from `.claude/review-queue.txt`; relevant project context and constraints; actual file contents or an explicit diff; runtime-boundary context; mock-boundary context; verification commands already run and their outcomes; known caveats or missing tooling; the required output format and verdict definitions from [docs/review-severity.md](file:///C:/Users/mrsai/Gotta%20Go/docs/review-severity.md).
-5. Runtime-boundary context means the nearest callers/callees, providers, route guards, hooks, RPCs, migrations, policies, scheduled jobs, external callbacks, and production wiring that can affect the changed behavior.
-6. Mock-boundary context means tests that replace any of those boundaries, plus a direct prompt for the reviewer to decide whether production behavior could differ from the test.
-7. Keep packets self-contained but not bloated. Prefer focused excerpts, exact diffs, full changed files, and the relevant dependency chain over pasting every project document wholesale.
-8. Never include secrets, service-role keys, auth tokens, `.env` values, or precise user location data in a packet.
-9. BLOCK and REQUEST CHANGES findings must be fixed and the affected files re-enter the queue for both reviewers before commit. No commit without APPROVE from both, per the Minimum Commit Gate in `docs/agent-harness.md`.
+Generate lean, evidence-rich Antigravity and Codex packets. Packets must let reviewers inspect the real files from disk without forcing the whole project into the prompt.
+
+## Inputs
+
+- `.claude/review-queue.txt`
+- `docs/context-router.md`
+- `git status --short`
+- `git diff HEAD -- <queued files>`
+- queued file contents or exact diffs
+- local verification evidence
+- latest reviewer verdicts only when their scope matches the current queue/diff
+
+## Context Tiers
+
+### Tier 0 - Always
+
+Include:
+- task goal and phase
+- queue entries
+- git status and queued-file diff
+- verification commands and outcomes
+- required verdict format
+- Runtime Boundary And Mock Audit
+- full queued files or exact diff hunks
+
+### Tier 1 - Boundary Specific
+
+Add focused excerpts when touched:
+- `SPEC.md` for emergency-user flows, product guarantees, privacy, GPS, trust, confidence, shadowban, or gamification
+- `docs/schema-contract.md` for tables, RPCs, policies, migrations, PostGIS, RLS, trust, or shadowban behavior
+- `docs/agent-harness.md` and `docs/stale-info-scan.md` for workflow, prompt, command, artifact, or stale-info changes
+- nearby callers, callees, providers, route guards, hooks, migrations, policies, tests, and mocks
+
+### Tier 2 - Exceptional
+
+Include a full source document only when:
+- the document itself is being reviewed or edited
+- a line excerpt would hide a relevant contradiction
+- the reviewer cannot judge scope without the full section
+
+## Freshness Header
+
+Each packet starts with:
+
+```md
+<!-- review-manifest
+reviewer: antigravity|codex
+generated_at: <ISO timestamp>
+queue:
+  - <path>
+diff_base: HEAD
+context_tier: 0|1|2
+-->
+```
+
+Each reviewer verdict must include a `### Reviewed Queue` section listing every queued file inspected. The pre-commit gate checks that staged files in `.claude/review-queue.txt` appear in both prompt packets and both saved verdicts.
+
+## Runtime Boundary And Mock Audit
+
+Every non-trivial packet includes:
+- nearest callers/callees
+- providers/layouts/route guards/hooks
+- RPCs, policies, migrations, triggers, scheduled jobs, and external callbacks
+- tests that mock any of those boundaries
+- explicit question: could the mock hide production behavior?
+
+Auth, routing, GPS, Supabase writes, RLS-sensitive reads, trust/shadowban logic, and async UI flows require event-ordering and failure-path review.
+
+## Rules
+
+- Prefer excerpts, diffs, and dependency chains over full-doc dumps.
+- Do not include secrets, tokens, private `.env` values, service-role keys, or precise user location data.
+- Do not reuse a verdict if its packet manifest, queue, or diff is stale.
+- Do not clear `.claude/review-queue.txt`; clear it only after commit.
+- Claude prepares packets. The user runs the reviewer CLIs unless explicitly overriding that workflow.

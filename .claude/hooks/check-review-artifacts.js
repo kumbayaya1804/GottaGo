@@ -1,17 +1,11 @@
 #!/usr/bin/env node
 /**
- * Pre-commit gate: blocks a commit if it stages files that are currently in
- * .claude/review-queue.txt but the reviewer packets/verdicts don't carry the
- * runtime-boundary and mock-boundary sections required by docs/agent-harness.md
- * "Prompt Packet Requirements" and the CODEX.md/ANTIGRAVITY.md Review Output formats.
+ * Pre-commit gate for the Antigravity + Codex review artifacts.
  *
- * This is a presence check, not a quality check — it proves the required section
- * exists, not that the analysis in it is correct. It exists to catch the "skipped
- * the step entirely" failure mode, which review packets don't self-report.
- *
- * Scoped to the intersection of staged files and review-queue.txt so it stays a
- * no-op for commits that don't touch anything pending review (docs-only changes,
- * bookkeeping files, etc).
+ * If staged files intersect .claude/review-queue.txt, this blocks the commit
+ * unless current prompt packets and review verdicts appear to match that scope.
+ * It is still not a quality check, but it now catches the common stale-artifact
+ * failure mode instead of checking headings only.
  */
 'use strict';
 
@@ -24,12 +18,16 @@ function readLines(file) {
   return fs
     .readFileSync(file, 'utf8')
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((line) => line.trim())
     .filter(Boolean);
 }
 
 function readFileSafe(file) {
   return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+}
+
+function includesAll(content, values) {
+  return values.filter((value) => !content.includes(value));
 }
 
 const queueFile = path.join('.claude', 'review-queue.txt');
@@ -43,15 +41,15 @@ let staged;
 try {
   staged = execSync('git diff --cached --name-only', { encoding: 'utf8' })
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((line) => line.trim())
     .filter(Boolean);
-} catch (e) {
-  console.error('check-review-artifacts: could not read staged files (' + e.message + '), skipping check');
+} catch (error) {
+  console.error('check-review-artifacts: could not read staged files (' + error.message + '), skipping check');
   process.exit(0);
 }
 
-const touchesReviewedFiles = staged.some((f) => queue.has(f));
-if (!touchesReviewedFiles) {
+const queuedStagedFiles = staged.filter((file) => queue.has(file));
+if (queuedStagedFiles.length === 0) {
   process.exit(0);
 }
 
@@ -60,25 +58,34 @@ const REQUIRED = [
     file: path.join('.claude', 'antigravity-prompt-latest.md'),
     label: 'Antigravity prompt packet',
     headings: ['Runtime Boundary And Mock Audit'],
+    requiredText: ['review-manifest', 'reviewer: antigravity'],
+    verdict: false,
   },
   {
     file: path.join('.claude', 'codex-prompt-latest.md'),
     label: 'Codex prompt packet',
     headings: ['Runtime Boundary And Mock Audit'],
+    requiredText: ['review-manifest', 'reviewer: codex'],
+    verdict: false,
   },
   {
     file: path.join('.claude', 'antigravity-review-latest.md'),
     label: 'Antigravity review verdict',
     headings: ['Runtime Boundary Check'],
+    requiredText: ['VERDICT: APPROVE'],
+    verdict: true,
   },
   {
     file: path.join('.claude', 'codex-review-latest.md'),
     label: 'Codex review verdict',
     headings: ['Runtime Boundary Check'],
+    requiredText: ['VERDICT: APPROVE'],
+    verdict: true,
   },
 ];
 
 let failed = false;
+
 for (const req of REQUIRED) {
   const content = readFileSafe(req.file);
   if (content === null) {
@@ -88,6 +95,7 @@ for (const req of REQUIRED) {
     failed = true;
     continue;
   }
+
   for (const heading of req.headings) {
     if (!content.includes(heading)) {
       console.error(
@@ -96,19 +104,35 @@ for (const req of REQUIRED) {
       failed = true;
     }
   }
+
+  for (const required of req.requiredText) {
+    if (!content.includes(required)) {
+      console.error(
+        'BLOCKED: ' + req.label + ' (' + req.file + ') is missing required freshness text: ' + required
+      );
+      failed = true;
+    }
+  }
+
+  const missingFiles = includesAll(content, queuedStagedFiles);
+  if (missingFiles.length > 0) {
+    console.error(
+      'BLOCKED: ' +
+        req.label +
+        ' (' +
+        req.file +
+        ') does not mention staged queued file(s): ' +
+        missingFiles.join(', ')
+    );
+    failed = true;
+  }
 }
 
 if (failed) {
   console.error('');
-  console.error(
-    'Per docs/agent-harness.md "Prompt Packet Requirements" and the CODEX.md/ANTIGRAVITY.md Review Output'
-  );
-  console.error(
-    'formats, every reviewer packet and verdict must include runtime-boundary and mock-boundary context.'
-  );
-  console.error('Regenerate the missing artifact(s) before committing files in .claude/review-queue.txt.');
+  console.error('Regenerate reviewer packets and verdicts for the current .claude/review-queue.txt scope.');
+  console.error('Prompt packets must include a review-manifest. Verdicts must be APPROVE and mention the staged queued files.');
   console.error('');
-  console.error('This check only confirms the section is present, not that its content is correct.');
   process.exit(1);
 }
 

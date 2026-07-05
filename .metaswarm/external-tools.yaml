@@ -2,11 +2,14 @@ external_tools:
   antigravity:
     enabled: true
     role: postgis-security-reviewer
+    invocation: user-run-cli
+    prompt_artifact: .claude/antigravity-prompt-latest.md
     review_artifacts:
       review: .claude/antigravity-review-latest.md
   codex:
     enabled: true
     role: security-privacy-reviewer
+    invocation: user-run-cli
     review_artifacts:
       prompt: .claude/codex-prompt-latest.md
       review: .claude/codex-review-latest.md
