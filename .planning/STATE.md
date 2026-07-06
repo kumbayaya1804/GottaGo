@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
+milestone_name: MVP — Global proof of concept
 status: Ready to execute
-last_updated: "2026-07-05T15:48:25.871Z"
-last_activity: 2026-07-05
+last_updated: "2026-07-06T05:49:49.109Z"
+last_activity: 2026-07-06
 progress:
   total_phases: 12
   completed_phases: 3
-  total_plans: 13
+  total_plans: 12
   completed_plans: 8
   percent: 25
 ---
