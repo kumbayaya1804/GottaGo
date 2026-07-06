@@ -12,13 +12,31 @@ notifyManager.setNotifyFunction((fn) => fn());
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
 
-jest.mock('@rnmapbox/maps', () => ({
-  MapView: 'MapView',
-  Camera: 'Camera',
-  ShapeSource: 'ShapeSource',
-  SymbolLayer: 'SymbolLayer',
-  setAccessToken: jest.fn(),
-}));
+jest.mock('@rnmapbox/maps', () => {
+  const RealReact = require('react');
+  const { View } = require('react-native');
+  // Render every Mapbox layer/source as a passthrough View so screen tests can
+  // mount MapScreen and query its non-native children (state cards, banners).
+  const Passthrough = ({ children, ...props }: { children?: unknown }) =>
+    RealReact.createElement(View, props, children as never);
+  return {
+    __esModule: true,
+    default: {
+      setAccessToken: jest.fn(),
+      StyleURL: {
+        Light: 'mapbox://styles/mapbox/light-v11',
+        Dark: 'mapbox://styles/mapbox/dark-v11',
+      },
+    },
+    MapView: Passthrough,
+    Camera: Passthrough,
+    ShapeSource: Passthrough,
+    SymbolLayer: Passthrough,
+    CircleLayer: Passthrough,
+    UserLocation: Passthrough,
+    setAccessToken: jest.fn(),
+  };
+});
 
 jest.mock('expo-location', () => ({
   getCurrentPositionAsync: jest.fn(),
