@@ -70,6 +70,9 @@ Two systematic cross-reference passes (Phase 1.5's design doc + PROJECT.md requi
 - **D-32 — Max pins per viewport as tunable config:** The ~200-pin-per-viewport cap (from `.planning/research/ARCHITECTURE.md`) should be a tunable `app_config` value, not a hardcoded constant — consistent with the established Phase 1 pattern (`max_accuracy_m`, `verify_radius_m`, `decay_half_life_days`, etc.), admin-editable via Supabase Studio without a redeploy.
 - **D-33 — Accepted exception: Phase 1.5 typography/spacing tokens exceed gsd-ui-checker's generic thresholds.** `/gsd:ui-phase 3`'s checker BLOCKed the UI-SPEC on two mechanical rules: (1) more than 4 font sizes (Phase 3 exercises 5: 22/17/15/13/11px from the locked `typography.ts` scale) and more than 2 font weights (Phase 3 uses 3: 400/500/600), and (2) spacing values outside the standard {4,8,16,24,32,48,64} set (`spacing.ts` includes `md=12px` and `lg=20px`). Both stem from the already-shipped, already-in-use Phase 1.5 design system (`app/src/constants/typography.ts`, `spacing.ts`), not a Phase-3-specific authoring choice — shrinking them now would mean reworking already-built Phase 1/2 screens for a generic visual-noise heuristic, not a real defect. User explicitly accepted these as an intentional, standing exception (2026-07-04): do not re-flag this in Phase 3 or any future phase reusing the same token files. `03-UI-SPEC.md` is approved with this exception recorded rather than trimmed to fit.
 
+### Cross-AI Review Decisions (2026-07-05)
+- **D-34 — [APPROVED 2026-07-05] Denied-GPS fallback narrowed to recenter + "Search this area" (no external geocoding).** ROADMAP SC6, PROJECT.md, and the LOCKED UI-SPEC ERR-01 all described the GPS-denied fallback as a "manual city/address search (Google Places)". Cross-AI review (Codex, 2026-07-05) flagged that plan 03-05 as written implements only map-recenter + pan + "Search this area" (bbox re-query) with NO geocoding — a real narrowing of three locked documents, not merely a technical gap. RESEARCH.md OQ-4 (RESOLVED) recommended exactly this narrowing for Phase 3 (deferring a Places/geocoding API + key + rate-limit/privacy surface to its own future plan). User approved the narrow-defer option (2026-07-05): Phase 3 ships recenter + pan + "Search this area" only, no external geocoding dependency. ROADMAP SC6 and UI-SPEC ERR-01 have been updated to match this narrowed scope. Full city/address Places autocomplete is deferred to a separate future decision/plan (see Deferred Ideas below). 03-05's Task 0 decision checkpoint is resolved — plans proceed as written.
+
 ### Claude's Discretion
 - Exact geographic center/coordinates for the dev seed data (D-31) — user explicitly deferred this to implementation time.
 - Exact max zoom-out threshold for D-04's pin-loading cutoff.
@@ -111,6 +114,7 @@ Two systematic cross-reference passes (Phase 1.5's design doc + PROJECT.md requi
 - `app/src/constants/` (Colors, typography, spacing, radius) — design tokens from Phase 1.5, moved here during the 2026-07-03 audit; all new screens use these, no raw hex/magic numbers
 - `app/src/app/(tabs)/profile.tsx` — existing Settings screen (Phase 2) to extend with the family_mode toggle (D-30)
 - `update_profile` RPC (`supabase/migrations/20260627000004_profile_rpcs.sql`) — existing SECURITY DEFINER RPC to extend with an optional `family_mode` parameter
+- `app/src/features/auth/gpsConsent.ts` — Phase 2 hook that requests foreground GPS permission + records consent, but exposes NO live coordinates. Phase 3 adds a dedicated `useCurrentPosition` hook (03-02) as the single live-coordinate source; screens forward its coords into `useLocationDetail`/`useNearby`. (Codex 2026-07-05 review finding.)
 - TanStack Query pattern already established (Phase 2) with user-id-scoped `queryKey`s on an app-lifetime `QueryClient` — any new user-scoped query in this phase (e.g. family_mode read) must follow the same scoping to avoid cross-user cache leaks (Codex WU-02-T5 finding, carried forward)
 
 ### Established Patterns
@@ -119,7 +123,7 @@ Two systematic cross-reference passes (Phase 1.5's design doc + PROJECT.md requi
 
 ### Integration Points
 - `search_locations_bbox`/`search_locations_nearby`/`get_location_detail` RPCs (new, plan 03-01) are the shared data layer for MapScreen (03-02), Filters (03-03), and the new Nearby screen (03-04, D-29)
-- `family_mode` toggle write (D-30) integrates into the existing `update_profile` RPC and Settings screen rather than new infrastructure
+- `family_mode` toggle write (D-30) integrates into the existing `update_profile` RPC and Settings screen rather than new infrastructure. The extended `update_profile` uses `coalesce()` on both `display_name` and `family_mode` so a family-mode-only write never nulls the display name (both reviewers, 2026-07-05).
 
 </code_context>
 
@@ -138,6 +142,7 @@ Two systematic cross-reference passes (Phase 1.5's design doc + PROJECT.md requi
 - **Pending-pin display (submitter-only, gray dashed pin):** Phase 4's job (Submit) — Phase 3's goal statement scopes to published locations only.
 - **Access code display + reveal UX:** Write path is Phase 4; the tap-to-reveal display gate is Phase 8 (`08-02`).
 - **Ratings, timing tips, reports:** Phases 8, 4, 6/7 respectively — LocationDetail sections for these are built but hidden (D-14) until then.
+- **Full city/address geocoding search (Google Places autocomplete):** Deferred out of Phase 3 by D-34 (pending user sign-off) — Phase 3's denied-GPS fallback is recenter + "Search this area" only. Live geocoding warrants its own decision/plan (API key, privacy/logging constraints).
 - **Apple Sign-In / iOS parity:** Unrelated to this phase (Phase 9, Apple Developer enrollment blocker).
 
 ### Reviewed Todos (not folded)
@@ -149,3 +154,4 @@ None — no pending todos were checked against this phase during this discussion
 
 *Phase: 03-Read Path & Map*
 *Context gathered: 2026-07-04*
+</content>

@@ -122,7 +122,7 @@ Plans:
   3. RPC additionally excludes `access_sensitivity`-flagged-sensitive locations when the requesting user's `users.family_mode = true` — enforced in the RPC, not filtered client-side
   4. `search_locations_nearby` returns nearest location ordered by distance (meters, not degrees)
   5. LocationDetail modal shows name, policy tag, confidence score, last verified
-  6. Denied location permission: map shows manual city/address search input instead of GPS-centered view (no dead-end state)
+  6. Denied location permission: map recenters and shows a manual search entry + "Search this area" (bbox re-query) instead of a GPS-centered view — no dead-end state. **Narrowed 2026-07-05 (D-34, cross-AI review):** no external geocoding/Google Places dependency in Phase 3 — the user pans/searches the current viewport rather than typing a city/address. Full city/address geocoding search is deferred to a future phase/plan.
   7. No-results state: named "No bathrooms found nearby" UI with "Search this area" button
   8. Shadowbanned/deleted/suppressed/family_mode-excluded test fixtures confirmed absent from the relevant search results
   9. Plan 03-01 includes a migration adding `locations.suppressed_at TIMESTAMPTZ` if the column does not already exist in the live schema, before RPCs reference it

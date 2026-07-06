@@ -40,6 +40,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 **Submissions**
 - [ ] User can submit a new bathroom location with: name, address, policy tag, access type, hours
+- [ ] User can submit a location that is not inside a building — e.g. a park restroom, trailhead facility, or standalone port-a-potty — where a street address doesn't apply; the submission flow accepts a GPS pin + free-text location description in place of a street address (`address` is already nullable in the live schema — Phase 4's SubmitFlow UX must not force a street address for these). Full design (any new location/structure-type field vs. reusing existing policy tags, icon/marker treatment) is a Phase 4 discuss-phase decision — noted here 2026-07-05, not yet locked.
 - [ ] User can submit/update the bathroom access code (PIN) for a location
 - [ ] User can add timing tips ("avoid 12–1pm lunch rush")
 - [ ] User sets an `access_sensitivity` value at submission, community-correctable the same way `policy_tag` is (Phase 4)
@@ -76,6 +77,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 **Policy Tags & Accessibility**
 - [ ] Each location has a policy tag: Chill Spot, Purchase Required, Code Required, Public Facility
+- [ ] Open design question (2026-07-05, for Phase 4 discuss-phase): whether non-building locations (park restrooms, trailhead facilities, standalone port-a-potties) need a distinct location/structure-type dimension, or whether the existing "Public Facility" policy tag already covers them adequately. Not yet decided — do not implement a new field speculatively before that discussion.
 - [ ] "Chill Spot" = community-reported walk-in welcome (bars, hotel lobbies, libraries, universities, businesses that don't mind). Not a guaranteed policy — community-reported framing, not declarative.
 - [ ] Accessibility tags: Wheelchair Accessible, Baby Changing Table, Family Restroom (single-occupancy/lockable), Changing Surface Cleanliness rating
 - [ ] Access codes (PINs) are an optional field, only visible to signed-in users, only relevant for Code Required locations where community indicates the listing is tolerated
