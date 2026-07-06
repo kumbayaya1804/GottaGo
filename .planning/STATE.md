@@ -28,4 +28,10 @@ progress:
 |---|-------------|------|--------|-----------|
 | 260704-0kt | Harness integrity fix batch: queue-path normalization, Antigravity invocation repair, roster format drift, Stop-hook gating, review-gate wording | 2026-07-04 | b413be8 | [260704-0kt-harness-integrity-fix-batch-queue-path-n](./quick/260704-0kt-harness-integrity-fix-batch-queue-path-n/) |
 
-Last activity: 2026-07-05
+## Accumulated Context
+
+### Pending Todos
+
+- [Non-comparative engagement and novelty ideas](../todos/pending/2026-07-06-non-comparative-engagement-and-novelty-ideas.md) — dopamine/retention mechanic ideas (discovery log, private streaks, gut-health trivia, quiet aggregate social proof, self-facing badges) compatible with the standing anti-comparative-gamification decision; not yet scoped to a phase.
+
+Last activity: 2026-07-06
