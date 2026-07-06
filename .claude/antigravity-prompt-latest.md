@@ -1,70 +1,50 @@
-# Antigravity Review Packet — Quick Task 260704-0kt: Harness Integrity Fix Batch (Round 2)
+# Antigravity Review Packet — Phase 3 Plan Review (Cross-AI /gsd-review)
 
-**Date:** 2026-07-04
-**Requested verdict format:** Antigravity review format per `ANTIGRAVITY.md` § Output Format, including the mandatory **Runtime Boundary Check** section. Verdict will be saved to `.claude/antigravity-review-latest.md`.
+**Date:** 2026-07-05
+**Requested verdict format:** Antigravity review format per `ANTIGRAVITY.md` § Output Format, including the mandatory **Runtime Boundary Check** section. Save your verdict to `.claude/antigravity-review-latest.md`.
 
-## Round 2 — What Changed Since Your Round 1 APPROVE
+## What This Is
 
-You approved this batch in Round 1. Codex's independent pass then found a MAJOR defect in the T1 hook fix you approved: the rooted-path check only recognized a backslash-prefixed root. `[System.IO.Path]::IsPathRooted` also returns true for forward-slash absolute paths (e.g. `C:/Users/.../AGENTS.md`), so such a path took the "rooted" branch, failed the backslash-only prefix test, `$rel` stayed null, and the file was silently dropped from the queue — the exact silent-failure class the fix was meant to close, reached via a different separator style. Codex reproduced this with the exact fixture `C:/Users/.../Gotta Go/AGENTS.md`.
-
-**Fix applied:** `.claude/settings.json` PostToolUse hook now normalizes both `$root` and `$fp` to forward slashes (`$rootFwd`, `$fpFwd`) before the rooted-prefix comparison, and uses `$fpFwd` directly for the relative-path branch (removing the now-redundant trailing `-replace`). Only `.claude/settings.json` changed in Round 2 — the other four files are unchanged from your Round 1 APPROVE.
-
-**Re-verification:** 7 cases run against the extracted, fixed command — backslash absolute in-repo, duplicate, out-of-repo backslash, Codex's exact forward-slash absolute in-repo repro, out-of-repo forward-slash, relative backslash, relative forward-slash. All pass; queue contains exactly the 4 expected entries, no duplicates, no out-of-repo leakage. `settings.json` still parses via `node -e "JSON.parse(...)"`.
-
-Please re-review `.claude/settings.json` specifically for this fix, and confirm your Round 1 approval of the other four files still stands.
+This is a **pre-execution plan review**, not a code review — Phase 3 ("Read Path & Map") has not been implemented yet. All 5 plans are drafted and are being cross-AI reviewed before `/gsd:execute-phase 3` runs (the `/gsd-review --phase 3` step). This is a companion review to a Codex packet covering the same plans (`.claude/codex-prompt-latest.md`) — Codex is reviewing for security/privacy; you are reviewing for **PostGIS/spatial correctness**, per this project's standing reviewer contract (`CLAUDE.md` § Current Reviewer Contract: "Antigravity (PostGIS correctness)").
 
 ## Your Role And Context (read from disk)
 
-Read in full: `ANTIGRAVITY.md`. Consult as needed: `docs/agent-harness.md` (harness contract this change modifies), `docs/review-severity.md` (verdict definitions), `AGENTS.md`, `AGENTS_ROSTER.md`. This is a **process/harness change set** — no app code, no SQL, no PostGIS, no RLS. Your review dimensions here are: correctness of the hook logic, integrity of the review-gate machinery, and cross-document consistency of the harness contract.
+Read in full: `ANTIGRAVITY.md`. Consult as needed: `docs/schema-contract.md` (live schema field names/types), `docs/agent-harness.md`, `docs/review-severity.md`. This review has no diff to inspect yet — your job is to judge whether the *planned* SQL/RPC design (not yet written) will be spatially and semantically correct once implemented.
 
-## Task Goal
+## Files to Read (in this order)
 
-A 2026-07-04 audit of the Claude/Antigravity/Codex harness found five defects. This change set fixes all five:
+1. `.planning/PROJECT.md` — project context, "Map & Discovery" requirements
+2. `.planning/ROADMAP.md` — search "### Phase 3: Read Path & Map" for goal, dependencies, requirements, 12 success criteria
+3. `.planning/phases/03-read-path-map/03-CONTEXT.md` — locked decisions D-01 through D-33
+4. `.planning/phases/03-read-path-map/03-RESEARCH.md` — this is the important one for you: architecture patterns (esp. Pattern 2 bbox geography/geometry cast, Pattern 3 tag-join filters, Pattern 4 family_mode via `auth.uid()`), Pitfalls 1/2/5 (suppressed_at ordering, TEXT confidence_tier ordering, geography/geometry cast trap), and the resolved Open Questions (OQ-1 clustering, OQ-2 no `status` column, OQ-3 access-code omission)
+5. All 5 plan files, in dependency order:
+   - `.planning/phases/03-read-path-map/03-01-PLAN.md` (Wave 1 — the DB layer: `search_locations_bbox`, `search_locations_nearby`, `get_location_detail`, `suppressed_at` column + index, pgTAP tests — **this is your primary review target**)
+   - `.planning/phases/03-read-path-map/03-02-PLAN.md` (Wave 2 — client data layer/hooks consuming the RPCs)
+   - `.planning/phases/03-read-path-map/03-03-PLAN.md` (Wave 3 — MapScreen native clustering + LocationDetail sheet)
+   - `.planning/phases/03-read-path-map/03-04-PLAN.md` (Wave 4 — Nearby list + family_mode toggle)
+   - `.planning/phases/03-read-path-map/03-05-PLAN.md` (Wave 4 — filter chips + denied-GPS fallback)
 
-1. **`.claude/settings.json` (PostToolUse hook):** The hook appended raw absolute Windows paths (`C:\Users\mrsai\Gotta Go\app\...`) to `.claude/review-queue.txt`. The pre-commit gate `.claude/hooks/check-review-artifacts.js` intersects queue entries with `git diff --cached --name-only` (repo-relative, forward slashes) — absolute entries never match, so the gate silently no-ops. Verified empirically before the fix. The fix relativizes against the project root (hook CWD), flips to forward slashes, and skips out-of-repo files entirely.
-2. **`.claude/commands/antigravity-review.md`:** Step 4 invoked `antigravity -p $prompt` with the entire multi-document packet inline — this exceeds Windows' ~32K command-line limit and fails silently (established during WU-02-T5). Fixed: packet still written to `.claude/antigravity-prompt-latest.md` (unchanged), invocation now a short prompt directing Antigravity to read the packet from disk. Note `docs/agent-harness.md` § Standard Flow step 4 *already* described the read-from-disk contract — the command script was the drifted artifact. **You are being invoked via the new pattern right now.**
-3. **`AGENTS_ROSTER.md` output formats:** Both reviewer format blocks predate the 2026-07-02 process change (`c2e1e33`) and lacked the mandatory "Runtime Boundary Check" section — a reviewer following the roster produces a verdict the commit hook rejects. Fixed: section added with wording byte-identical to `ANTIGRAVITY.md`/`CODEX.md`, plus precedence notes making those files canonical.
-4. **`.claude/settings.json` (Stop hook):** The "Reviewers needed before committing" reminder fired unconditionally on every turn end. Fixed: emits only when the review queue has at least one non-blank line.
-5. **`.claude/commands/review-gate.md`:** Stale "on Phase 1" wording → "on the current active phase".
+## Review Instructions
 
-## Changed Files (review queue)
+Analyze the plan set as a whole and provide:
 
-- `.claude/settings.json`
-- `.claude/commands/antigravity-review.md`
-- `.claude/commands/review-gate.md`
-- `AGENTS_ROSTER.md`
-- `AGENTS.md`
+1. **Summary** — one-paragraph assessment of whether this plan set will deliver a spatially-correct, performant read path.
+2. **Strengths** — what's well-designed (bullet points).
+3. **Concerns** — potential issues, gaps, risks (bullet points, each tagged HIGH/MEDIUM/LOW severity).
+4. **Suggestions** — specific, actionable improvements (bullet points).
+5. **Risk Assessment** — overall risk level (LOW/MEDIUM/HIGH) with justification.
 
-Inspect all five from disk. The exact diff against HEAD is reproducible with:
-`git diff HEAD -- .claude/settings.json .claude/commands/antigravity-review.md .claude/commands/review-gate.md AGENTS_ROSTER.md AGENTS.md`
+Focus especially on:
+- **PostGIS correctness (your usual lane):** Is the `coordinates::geometry && ST_MakeEnvelope(...)` cast for the bbox test correct, while `ST_Distance`/`<->` KNN stays on `geography`? Is `ORDER BY CASE confidence_tier ... END DESC, verification_count DESC` actually a valid substitute for the invalid `ORDER BY confidence_score DESC` (confidence_score is TEXT)? Does the partial GiST index rebuild (`idx_locations_coordinates_active` with `AND suppressed_at IS NULL` added) still support both the bbox `&&` test and the `<->` KNN ordering after the 03-01 migration?
+- Whether `search_locations_nearby`'s `<->` KNN ordering on `geography` will actually use the GiST index as planned, or silently degrade to a sequential scan given the added `suppressed_at`/moderation `WHERE` clauses.
+- Whether `get_location_detail`'s new `distance_m` computation (`ST_Distance` between the row's `geography` point and a caller-supplied point) is consistent with `search_locations_nearby`'s distance expression, as the plan claims it must be (03-01 Task 2 action).
+- Whether the tag-join filter pattern reused from `get_locations_in_radius` (EXISTS subqueries against `tags`) will perform acceptably at the `max_pins_per_viewport` (~200) scale, or needs an index recommendation.
+- Whether the dev-only seed guard (D-31 — seed.sql loaded only on `db reset`, never `db push`) is architecturally sound, and whether the seed fixture set (sensitive/suppressed/shadowbanned/deleted/null-tag rows) is sufficient to exercise the pgTAP assertions listed in 03-01.
+- Whether the client-side rendering plan (03-03's native Mapbox `ShapeSource cluster:true`) is consistent with the RPC response shape the DB layer produces (raw points, not pre-clustered) — i.e., no mismatch between what 03-01 returns and what 03-03 expects to receive.
+- Any missing spatial edge cases: antimeridian/pole-crossing bbox queries, SRID mismatches, or degenerate viewports (zero-area bbox).
 
-## Dependency Call Chains
+Output your review in markdown format, ending with a clear **VERDICT: APPROVE** or **VERDICT: REQUEST CHANGES** line, plus the mandatory **Runtime Boundary Check** section per `ANTIGRAVITY.md` § Output Format.
 
-These are configuration/instruction artifacts; their "callers" are the tools and agents that execute them:
+---
 
-- `.claude/settings.json` PostToolUse hook → writes `.claude/review-queue.txt` → consumed by (a) `.claude/hooks/check-review-artifacts.js` (invoked from `.beads/hooks/pre-commit`; intersects queue with staged files; requires the four review artifacts to carry required headings), (b) `/antigravity-review` (`$files = Get-Content .claude\review-queue.txt`), (c) `/codex-prompt` (same). **Read `.claude/hooks/check-review-artifacts.js` and `.beads/hooks/pre-commit` from disk** — they are unchanged by this change set and define the matching contract the hook fix must satisfy.
-- `.claude/settings.json` Stop hook → emits a systemMessage consumed by the Claude Code harness at turn end.
-- `.claude/commands/antigravity-review.md` → executed by Claude to invoke you; its output artifacts (`antigravity-prompt-latest.md`, `antigravity-review-latest.md`) are checked by `check-review-artifacts.js` for the headings "Runtime Boundary And Mock Audit" (packet) and "Runtime Boundary Check" (verdict).
-- `AGENTS_ROSTER.md`/`AGENTS.md` → required startup reading for all three agents; the roster's format blocks are followed by reviewers when producing verdicts.
-- `.claude/commands/review-gate.md` → orchestrates the GSD → Antigravity → Codex chain.
-
-## Runtime Boundary And Mock Audit
-
-- **Real runtime boundaries:** (1) Claude Code hook runtime executes the two PowerShell one-liners under `powershell.exe` (5.1) with CWD = project root, JSON on stdin; (2) `git` pre-commit executes `check-review-artifacts.js` via Node; (3) the `antigravity` CLI receives the short prompt as its literal command line. There are no application-runtime boundaries (no providers, routes, RPCs, migrations) in scope.
-- **Mock/test boundary:** hook verification was performed by *extracting the command strings from the edited settings.json* (post-JSON-escaping — the exact artifact the runtime will execute) and running them under `powershell.exe` in a scratch fake project root with piped JSON fixtures. What this does NOT prove: that Claude Code's hook runtime passes CWD = project root (asserted from platform behavior; these project hooks only load when the session is rooted at the project, in which case CWD is the project root) and that `tool_input.file_path` is always absolute (a defensive relative-path branch is retained regardless).
-- **Ordering/failure paths to verify:** (a) the queue file is created on first use if missing; (b) an out-of-repo path is *dropped* rather than queued — confirm you agree this is fail-safe (an absolute out-of-repo entry was previously un-reviewable noise that also weakened the gate's intersection semantics); (c) hooks-snapshot timing: settings.json changes take effect at next session start, so the in-flight session's queue was hand-set to the five files above — confirm the queue content matches the actual change set.
-- **Silent-failure audit:** the entire point of fixes 1 and 2 is removing two silent-failure modes (gate no-op on path mismatch; 32K CLI truncation). Verify no new silent path was introduced — in particular the hook has no output channel in either the queued or dropped case (statusMessage is static), which is pre-existing behavior, unchanged.
-
-## Verification Context
-
-Commands run this session:
-- `ConvertFrom-Json` parse of edited `.claude/settings.json` → OK.
-- PostToolUse hook (extracted from edited JSON), 5 cases: in-repo absolute → `app/src/foo.ts`; duplicate → single entry; out-of-repo absolute → skipped; relative backslash path → `docs/agent-harness.md`; no `file_path` key → no-op. All pass.
-- Stop hook (extracted), 3 cases: populated queue → systemMessage JSON; missing queue file → no output; empty queue file → no output. All pass.
-- Repo-wide grep: no live instruction file retains an inline-packet `antigravity -p` invocation (`.beads/context/*` historical notes describe the failure mode and prescribe the same workaround — consistent, untouched).
-- App suite not re-run: no `app/` files in scope (last green: 25 suites / 200 tests, this session, commit `bc9a52b`).
-- GSD self-review: `.planning/quick/260704-0kt-harness-integrity-fix-batch-queue-path-n/260704-0kt-REVIEW.md` (PASS, 0 blocking).
-
-## Required Output
-
-Return your verdict in the `ANTIGRAVITY.md` § Output Format, including Issues (with exact file:line), Concerns, Verification (commands you ran), **Runtime Boundary Check**, and Approved sections. Print the full verdict to stdout.
+*Save your full review output to `.claude/antigravity-review-latest.md` when done.*
