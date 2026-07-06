@@ -27,13 +27,20 @@ jest.mock('expo-location', () => ({
 }));
 
 jest.mock('react-native-mmkv', () => {
+  // Mirrors the react-native-mmkv v4 instance API (createMMKV factory; getString
+  // returns string | undefined; remove()/contains()/clearAll()). Backed by a
+  // shared in-memory Map so persist writes/reads are observable in tests.
   const store = new Map<string, string>();
+  const instance = {
+    getString: (k: string) => (store.has(k) ? store.get(k) : undefined),
+    set: (k: string, v: string) => store.set(k, v),
+    remove: (k: string) => store.delete(k),
+    contains: (k: string) => store.has(k),
+    clearAll: () => store.clear(),
+  };
   return {
-    MMKV: jest.fn().mockImplementation(() => ({
-      getString: (k: string) => store.get(k) ?? null,
-      set: (k: string, v: string) => store.set(k, v),
-      delete: (k: string) => store.delete(k),
-    })),
+    createMMKV: jest.fn(() => instance),
+    MMKV: jest.fn().mockImplementation(() => instance),
   };
 });
 

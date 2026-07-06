@@ -40,6 +40,7 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-secure-store',
     'expo-image',
+    'expo-localization',
     [
       '@rnmapbox/maps',
       {
