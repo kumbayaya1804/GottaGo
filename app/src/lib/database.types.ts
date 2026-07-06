@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       app_config: {
@@ -681,19 +706,19 @@ export type Database = {
       get_location_detail: {
         Args: { location_id: string; user_lat?: number; user_lng?: number }
         Returns: {
-          address: string | null
-          chill_spot: boolean | null
-          confidence_tier: string | null
-          distance_m: number | null
-          hours: Json | null
+          address: string
+          chill_spot: boolean
+          confidence_tier: string
+          distance_m: number
+          hours: Json
           id: string
-          is_open_now: boolean | null
-          last_verified_at: string | null
-          lat: number | null
-          lng: number | null
+          is_open_now: boolean
+          last_verified_at: string
+          lat: number
+          lng: number
           name: string
-          policy_tag: string | null
-          verification_count: number | null
+          policy_tag: string
+          verification_count: number
         }[]
       }
       get_locations_in_radius:
@@ -731,6 +756,7 @@ export type Database = {
               policy_tag: string | null
               respect_signal_score: number | null
               shadowban_status: boolean
+              suppressed_at: string | null
               timezone: string
               updated_at: string | null
               verification_count: number | null
@@ -776,6 +802,7 @@ export type Database = {
               policy_tag: string | null
               respect_signal_score: number | null
               shadowban_status: boolean
+              suppressed_at: string | null
               timezone: string
               updated_at: string | null
               verification_count: number | null
@@ -802,16 +829,16 @@ export type Database = {
           min_lng: number
         }
         Returns: {
-          chill_spot: boolean | null
-          confidence_tier: string | null
+          chill_spot: boolean
+          confidence_tier: string
           id: string
-          is_open_now: boolean | null
-          last_verified_at: string | null
-          lat: number | null
-          lng: number | null
+          is_open_now: boolean
+          last_verified_at: string
+          lat: number
+          lng: number
           name: string
-          policy_tag: string | null
-          verification_count: number | null
+          policy_tag: string
+          verification_count: number
         }[]
       }
       search_locations_nearby: {
@@ -826,22 +853,22 @@ export type Database = {
           user_lng: number
         }
         Returns: {
-          chill_spot: boolean | null
-          confidence_tier: string | null
-          distance_m: number | null
+          chill_spot: boolean
+          confidence_tier: string
+          distance_m: number
           id: string
-          is_open_now: boolean | null
-          last_verified_at: string | null
-          lat: number | null
-          lng: number | null
+          is_open_now: boolean
+          last_verified_at: string
+          lat: number
+          lng: number
           name: string
-          policy_tag: string | null
-          verification_count: number | null
+          policy_tag: string
+          verification_count: number
         }[]
       }
       set_gps_consent: { Args: never; Returns: undefined }
       update_profile: {
-        Args: { new_display_name?: string | null; new_family_mode?: boolean | null }
+        Args: { new_display_name?: string; new_family_mode?: boolean }
         Returns: undefined
       }
     }
@@ -972,6 +999,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
