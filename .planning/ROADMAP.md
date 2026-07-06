@@ -143,7 +143,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03-PLAN.md — MapScreen (Mapbox native-clustered pins, user dot, 400ms viewport refetch, zoom-out cutoff, RPC-failure banner) + LocationDetail bottom sheet (peek/half/full, Get Directions) [wave 3, depends 03-01/02]
+- [x] 03-03-PLAN.md — MapScreen (Mapbox native-clustered pins, user dot, 400ms viewport refetch, zoom-out cutoff, RPC-failure banner) + LocationDetail bottom sheet (peek/half/full, Get Directions) [wave 3, depends 03-01/02]
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -373,7 +373,7 @@ Plans:
 | 1. Foundation & Scaffold | 2/2 | Complete | 2026-06-24 |
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
 | 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
-| 3. Read Path & Map | 2/5 | In Progress|  |
+| 3. Read Path & Map | 3/5 | In Progress|  |
 | 4. GPS Service & Submission | 0/2 | Not started | - |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
