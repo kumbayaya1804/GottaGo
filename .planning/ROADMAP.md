@@ -135,7 +135,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — DB read path: search_locations_bbox/_nearby/get_location_detail SECURITY DEFINER RPCs (four-clause moderation + family_mode via auth.uid() + tag filters), suppressed_at column + index, max_pins_per_viewport config, update_profile family_mode extension, dev-only seed, db push + regenerated types + pgTAP [wave 1]
+- [x] 03-01-PLAN.md — DB read path: search_locations_bbox/_nearby/get_location_detail SECURITY DEFINER RPCs (four-clause moderation + family_mode via auth.uid() + tag filters), suppressed_at column + index, max_pins_per_viewport config, update_profile family_mode extension, dev-only seed, db push + regenerated types + pgTAP [wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -373,7 +373,7 @@ Plans:
 | 1. Foundation & Scaffold | 2/2 | Complete | 2026-06-24 |
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
 | 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
-| 3. Read Path & Map | 0/5 | Not started | - |
+| 3. Read Path & Map | 1/5 | In Progress|  |
 | 4. GPS Service & Submission | 0/2 | Not started | - |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
