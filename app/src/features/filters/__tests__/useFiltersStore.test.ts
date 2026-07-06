@@ -1,7 +1,7 @@
 // The react-native-mmkv mock (jest.setup.ts) is backed by a shared in-memory
 // Map, so the persist middleware writes/reads through it. Store state is reset
 // to defaults before each test for isolation.
-import { MMKV } from 'react-native-mmkv';
+import { createMMKV } from 'react-native-mmkv';
 import {
   useFiltersStore,
   mmkvFilterStorage,
@@ -72,8 +72,8 @@ describe('activeRpcFilters', () => {
 describe('persistence within a session', () => {
   it('writes the current filters through MMKV', () => {
     useFiltersStore.getState().toggle('changing');
-    const raw = new MMKV().getString(FILTERS_STORAGE_KEY);
-    expect(raw).not.toBeNull();
+    const raw = createMMKV().getString(FILTERS_STORAGE_KEY);
+    expect(raw).toBeDefined();
     expect(raw as string).toContain('"changing":true');
   });
 });
