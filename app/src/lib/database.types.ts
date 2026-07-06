@@ -167,6 +167,7 @@ export type Database = {
           policy_tag: string | null
           respect_signal_score: number | null
           shadowban_status: boolean
+          suppressed_at: string | null
           timezone: string
           updated_at: string | null
           verification_count: number | null
@@ -192,6 +193,7 @@ export type Database = {
           policy_tag?: string | null
           respect_signal_score?: number | null
           shadowban_status?: boolean
+          suppressed_at?: string | null
           timezone?: string
           updated_at?: string | null
           verification_count?: number | null
@@ -217,6 +219,7 @@ export type Database = {
           policy_tag?: string | null
           respect_signal_score?: number | null
           shadowban_status?: boolean
+          suppressed_at?: string | null
           timezone?: string
           updated_at?: string | null
           verification_count?: number | null
@@ -675,6 +678,24 @@ export type Database = {
             Returns: number
           }
       delete_account: { Args: never; Returns: undefined }
+      get_location_detail: {
+        Args: { location_id: string; user_lat?: number; user_lng?: number }
+        Returns: {
+          address: string | null
+          chill_spot: boolean | null
+          confidence_tier: string | null
+          distance_m: number | null
+          hours: Json | null
+          id: string
+          is_open_now: boolean | null
+          last_verified_at: string | null
+          lat: number | null
+          lng: number | null
+          name: string
+          policy_tag: string | null
+          verification_count: number | null
+        }[]
+      }
       get_locations_in_radius:
         | {
             Args: {
@@ -767,8 +788,62 @@ export type Database = {
             }
           }
       get_profile_stats: { Args: never; Returns: Json }
+      search_locations_bbox: {
+        Args: {
+          filter_changing?: boolean
+          filter_chill_spot?: boolean
+          filter_high_conf?: boolean
+          filter_open_now?: boolean
+          filter_wheelchair?: boolean
+          max_lat: number
+          max_lng: number
+          max_pins?: number
+          min_lat: number
+          min_lng: number
+        }
+        Returns: {
+          chill_spot: boolean | null
+          confidence_tier: string | null
+          id: string
+          is_open_now: boolean | null
+          last_verified_at: string | null
+          lat: number | null
+          lng: number | null
+          name: string
+          policy_tag: string | null
+          verification_count: number | null
+        }[]
+      }
+      search_locations_nearby: {
+        Args: {
+          filter_changing?: boolean
+          filter_chill_spot?: boolean
+          filter_high_conf?: boolean
+          filter_open_now?: boolean
+          filter_wheelchair?: boolean
+          result_limit?: number
+          user_lat: number
+          user_lng: number
+        }
+        Returns: {
+          chill_spot: boolean | null
+          confidence_tier: string | null
+          distance_m: number | null
+          id: string
+          is_open_now: boolean | null
+          last_verified_at: string | null
+          lat: number | null
+          lng: number | null
+          name: string
+          policy_tag: string | null
+          verification_count: number | null
+        }[]
+      }
       set_gps_consent: { Args: never; Returns: undefined }
-      update_profile: { Args: { new_display_name: string }; Returns: undefined }
+      update_profile: {
+        Args: { new_display_name?: string | null; new_family_mode?: boolean | null }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
