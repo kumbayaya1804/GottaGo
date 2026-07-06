@@ -139,7 +139,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md — Client data layer + test infra: features/locations hooks (bbox/detail/nearby/familyMode/formatDistance), Zustand filters store, MSW/fixtures, @gorhom/bottom-sheet + expo-localization installs (100% coverage, TDD) [wave 2, depends 03-01]
+- [x] 03-02-PLAN.md — Client data layer + test infra: features/locations hooks (bbox/detail/nearby/familyMode/formatDistance), Zustand filters store, MSW/fixtures, @gorhom/bottom-sheet + expo-localization installs (100% coverage, TDD) [wave 2, depends 03-01]
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -373,7 +373,7 @@ Plans:
 | 1. Foundation & Scaffold | 2/2 | Complete | 2026-06-24 |
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
 | 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
-| 3. Read Path & Map | 1/5 | In Progress|  |
+| 3. Read Path & Map | 2/5 | In Progress|  |
 | 4. GPS Service & Submission | 0/2 | Not started | - |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
