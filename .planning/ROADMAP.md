@@ -170,12 +170,26 @@ Plans:
   9. Newly submitted location appears on map in pending state visible only to submitter
   10. All screens pass Phase 1.5 component acceptance checklist before Codex review
 
-**Plans**: TBD
+**Plans**: 6 plans
 
 Plans:
+**Wave 1**
 
-- [ ] 04-01: GpsService hook, GPS validation PL/pgSQL function (reusable across submit + verify), submit_location SECURITY DEFINER RPC
-- [ ] 04-02: SubmitFlow screen (RHF + Zod), all error/loading states, pending-location feedback
+- [ ] 04-01-PLAN.md — Submission DB layer: submissions staging columns + submit_location/get_my_pending_submissions/withdraw_submission RPCs + pgTAP + live push + type regen [wave 1]
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 04-02-PLAN.md — Access-code update DB layer: locations code columns + update_access_code (stage-then-confirm D-24)/confirm_access_code/get_access_code RPCs + pgTAP + push [wave 2, depends 04-01]
+- [ ] 04-03-PLAN.md — Submission client services (TDD): useGpsSample, submitLocation, submitSchema, types [wave 2, depends 04-01]
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 04-04-PLAN.md — Pending/withdraw/code client services (TDD): useMyPendingSubmissions, withdrawSubmission, updateAccessCode [wave 3, depends 04-02/04-03]
+- [ ] 04-05-PLAN.md — SubmitFlow 3-step wizard (RHF+Zod) + sensitivity confirm + Success screen; Places autocomplete deferred (OQ-1) [wave 3, depends 04-03]
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 04-06-PLAN.md — Pending-pin map layer + PendingStatusSheet + withdraw + LocationDetailSheet Update-door-code UI [wave 4, depends 04-04/04-02]
 
 ---
 
