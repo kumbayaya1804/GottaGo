@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, useColorScheme } from 'react-native';
+import { View, Text, Pressable, ScrollView, Switch, StyleSheet, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
@@ -11,6 +11,7 @@ import { LEGAL_URLS } from '../../constants/legal';
 import { useSession } from '../../features/auth/useSession';
 import { profileStats } from '../../features/profile/profileStats';
 import { getMyProfile } from '../../features/profile/getMyProfile';
+import { useFamilyMode } from '../../features/locations/useFamilyMode';
 import DeleteAccountModal from '../(components)/DeleteAccountModal';
 
 /**
@@ -45,6 +46,8 @@ export default function ProfileScreen() {
     queryFn: () => getMyProfile(session!.user.id),
     enabled: session !== null,
   });
+
+  const { familyMode, setFamilyMode } = useFamilyMode();
 
   if (session === null) {
     return (
@@ -135,8 +138,19 @@ export default function ProfileScreen() {
 
       <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Settings</Text>
       <View style={[styles.settingsRow, { borderBottomColor: colors.divider }]}>
-        <Text style={[styles.body, { color: colors.textPrimary }]}>Account</Text>
-        <Text style={[styles.subhead, { color: colors.textDisabled }]}>Coming soon</Text>
+        <View style={styles.familyModeTextGroup}>
+          <Text style={[styles.body, { color: colors.textPrimary }]}>Family mode</Text>
+          <Text style={[styles.subhead, { color: colors.textSecondary }]}>
+            Hide locations flagged as sensitive from all searches.
+          </Text>
+        </View>
+        <Switch
+          accessibilityLabel="Family mode"
+          accessibilityState={{ checked: familyMode }}
+          value={familyMode}
+          onValueChange={(value) => setFamilyMode(value)}
+          trackColor={{ true: colors.primary }}
+        />
       </View>
       <Pressable
         accessibilityRole="button"
@@ -285,6 +299,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
+  },
+  familyModeTextGroup: {
+    flex: 1,
+    marginRight: spacing.base,
+    gap: 2,
   },
   settingsAction: {
     fontSize: typography.subhead.fontSize,
