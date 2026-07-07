@@ -43,6 +43,17 @@ jest.mock('../../../features/profile/deleteAccount', () => ({
   deleteAccount: (...args: unknown[]) => mockDeleteAccount(...args),
 }));
 
+let mockFamilyModeValue: {
+  familyMode: boolean;
+  isLoading: boolean;
+  isError: boolean;
+  setFamilyMode: jest.Mock;
+  isSaving: boolean;
+};
+jest.mock('../../../features/locations/useFamilyMode', () => ({
+  useFamilyMode: () => mockFamilyModeValue,
+}));
+
 async function renderWithQueryClient(children: React.ReactElement) {
   // gcTime: 0 avoids leaving cache garbage-collection timers scheduled past test end
   // (Jest's "did not exit cleanly" warning) — each test gets a disposable client anyway.
@@ -69,6 +80,13 @@ beforeEach(() => {
     ratingsGiven: 2,
   });
   mockGetMyProfile.mockResolvedValue({ displayName: 'Jamie' });
+  mockFamilyModeValue = {
+    familyMode: false,
+    isLoading: false,
+    isError: false,
+    setFamilyMode: jest.fn().mockResolvedValue(undefined),
+    isSaving: false,
+  };
 });
 
 describe('ProfileScreen — Unauthenticated', () => {
@@ -176,6 +194,29 @@ describe('ProfileScreen — Signed In', () => {
     const { getByText } = await renderWithQueryClient(<ProfileScreen />);
     fireEvent.press(getByText('Open Settings'));
     expect(mockOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('Family mode switch reflects the current family_mode value and has switch a11y semantics', async () => {
+    mockFamilyModeValue = { ...mockFamilyModeValue, familyMode: true };
+    const { getByLabelText } = await renderWithQueryClient(<ProfileScreen />);
+    const toggle = getByLabelText('Family mode');
+    expect(toggle.props.accessibilityRole).toBe('switch');
+    expect(toggle.props.accessibilityState).toMatchObject({ checked: true });
+  });
+
+  it('toggling Family mode calls setFamilyMode with the flipped boolean', async () => {
+    const setFamilyMode = jest.fn().mockResolvedValue(undefined);
+    mockFamilyModeValue = { ...mockFamilyModeValue, familyMode: false, setFamilyMode };
+    const { getByLabelText } = await renderWithQueryClient(<ProfileScreen />);
+    fireEvent(getByLabelText('Family mode'), 'valueChange', true);
+    expect(setFamilyMode).toHaveBeenCalledWith(true);
+  });
+
+  it('renders the Family mode helper caption', async () => {
+    const { getByText } = await renderWithQueryClient(<ProfileScreen />);
+    expect(
+      getByText('Hide locations flagged as sensitive from all searches.'),
+    ).toBeTruthy();
   });
 
   it('tapping "Delete Account" opens the delete confirmation modal', async () => {
