@@ -16,8 +16,11 @@ import { radius } from '../../constants/radius';
 import { useMapViewport } from '../../features/locations/useMapViewport';
 import { useCurrentPosition } from '../../features/locations/useCurrentPosition';
 import { useLocationsBbox } from '../../features/locations/useLocationsBbox';
+import { useDeniedLocationState } from '../../features/locations/useDeniedLocationState';
+import { useFiltersStore } from '../../features/filters/useFiltersStore';
 import type { LocationFeatureCollection } from '../../features/locations/types';
 import LocationDetailSheet from '../(components)/LocationDetailSheet';
+import FilterChipRow from '../(components)/FilterChipRow';
 
 /**
  * MapScreen — the primary read surface (ROADMAP SC1). A Mapbox map with
@@ -43,6 +46,15 @@ const SEED_CENTER: [number, number] = [-123.09, 44.05];
 const EMPTY_FC: LocationFeatureCollection = { type: 'FeatureCollection', features: [] };
 const ZOOM_OUT_COPY = 'Zoom in to see individual locations';
 const BANNER_COPY = "Couldn't load bathrooms here.";
+// [LOCKED ERR-01] — verbatim, do not paraphrase (03-UI-SPEC.md).
+const DENIED_COPY = "We can't find your location. Use search to browse bathrooms near an address.";
+// [LOCKED ERR-06] truly-empty vs. the distinct filtered-empty state (D-10).
+const EMPTY_HEADING = 'No bathrooms found nearby';
+const EMPTY_BODY = "No bathrooms found nearby. Try 'Search this area' or adjust filters.";
+const FILTERED_EMPTY_HEADING = 'No bathrooms match your filters';
+const FILTERED_EMPTY_BODY = 'Try clearing filters or searching this area.';
+const SEARCH_THIS_AREA = 'Search this area';
+const CLEAR_FILTERS = 'Clear filters';
 
 /** Shape of the ShapeSource press event we consume (single pin vs. cluster). */
 interface ShapePressEvent {
@@ -59,20 +71,31 @@ export default function MapScreen() {
 
   const { viewport, belowPinThreshold, onRegionChange } = useMapViewport();
   const { coords } = useCurrentPosition();
+  const { showManualSearch } = useDeniedLocationState();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // User-scoped is unnecessary here (public read); keyed on viewport + coords so
-  // panning refetches and a new fix re-runs. Disabled past the zoom-out cutoff
-  // (D-04) so a far-out viewport never fetches a misleadingly sparse subset.
+  const activeRpcFilters = useFiltersStore((s) => s.activeRpcFilters);
+  const clearAllFilters = useFiltersStore((s) => s.clearAll);
+  // Any chip active → filtered-empty copy instead of truly-empty (D-10).
+  const hasActiveFilter = useFiltersStore(
+    (s) => s.openNow || s.chillSpot || s.wheelchair || s.changing || s.highConf,
+  );
+  const filters = activeRpcFilters();
+
+  // User-scoped is unnecessary here (public read); keyed on viewport + filters
+  // so panning AND toggling a chip both refetch (D-07). Disabled past the
+  // zoom-out cutoff (D-04) and while GPS is denied (search-only, D-34).
   const bboxQuery = useQuery({
-    queryKey: ['locationsBbox', viewport],
-    queryFn: () => useLocationsBbox(viewport!),
-    enabled: viewport !== null && !belowPinThreshold,
+    queryKey: ['locationsBbox', viewport, filters],
+    queryFn: () => useLocationsBbox(viewport!, filters),
+    enabled: viewport !== null && !belowPinThreshold && !showManualSearch,
   });
 
   // On error, TanStack retains the last successful `data`, so previously-loaded
   // pins stay on the map under the banner (D-28) rather than clearing to empty.
   const featureCollection = bboxQuery.data ?? EMPTY_FC;
+  const isEmptyResult =
+    bboxQuery.isSuccess && featureCollection.features.length === 0 && !showManualSearch;
 
   const styleURL = colorScheme === 'dark' ? Mapbox.StyleURL.Dark : Mapbox.StyleURL.Light;
 
@@ -129,7 +152,7 @@ export default function MapScreen() {
         />
         <UserLocation visible />
 
-        {!belowPinThreshold && (
+        {!belowPinThreshold && !showManualSearch && (
           <ShapeSource
             id="locations"
             shape={featureCollection as never}
@@ -162,10 +185,69 @@ export default function MapScreen() {
         )}
       </MapView>
 
-      {belowPinThreshold && (
+      {!showManualSearch && (
+        <View style={styles.chipRowContainer}>
+          <FilterChipRow />
+        </View>
+      )}
+
+      {showManualSearch && (
+        <View style={styles.centerOverlay} pointerEvents="box-none">
+          <View style={[styles.card, { backgroundColor: colors.mapOverlay }]}>
+            <Text style={[styles.cardText, { color: colors.textPrimary }]}>{DENIED_COPY}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={SEARCH_THIS_AREA}
+              onPress={() => bboxQuery.refetch()}
+              style={styles.cardButton}
+            >
+              <Text style={[styles.cardButtonText, { color: colors.primary }]}>
+                {SEARCH_THIS_AREA}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {belowPinThreshold && !showManualSearch && (
         <View style={styles.centerOverlay} pointerEvents="none">
           <View style={[styles.card, { backgroundColor: colors.mapOverlay }]}>
             <Text style={[styles.cardText, { color: colors.textPrimary }]}>{ZOOM_OUT_COPY}</Text>
+          </View>
+        </View>
+      )}
+
+      {isEmptyResult && !belowPinThreshold && (
+        <View style={styles.centerOverlay} pointerEvents="box-none">
+          <View style={[styles.card, { backgroundColor: colors.mapOverlay }]}>
+            <Text style={[styles.cardHeading, { color: colors.textPrimary }]}>
+              {hasActiveFilter ? FILTERED_EMPTY_HEADING : EMPTY_HEADING}
+            </Text>
+            <Text style={[styles.cardText, { color: colors.textSecondary }]}>
+              {hasActiveFilter ? FILTERED_EMPTY_BODY : EMPTY_BODY}
+            </Text>
+            {hasActiveFilter && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={CLEAR_FILTERS}
+                onPress={clearAllFilters}
+                style={styles.cardButton}
+              >
+                <Text style={[styles.cardButtonText, { color: colors.primary }]}>
+                  {CLEAR_FILTERS}
+                </Text>
+              </Pressable>
+            )}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={SEARCH_THIS_AREA}
+              onPress={() => bboxQuery.refetch()}
+              style={styles.cardButton}
+            >
+              <Text style={[styles.cardButtonText, { color: colors.primary }]}>
+                {SEARCH_THIS_AREA}
+              </Text>
+            </Pressable>
           </View>
         </View>
       )}
@@ -206,16 +288,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.base,
   },
+  chipRowContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
   card: {
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     borderRadius: radius.md,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  cardHeading: {
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
+    lineHeight: typography.h3.lineHeight,
+    textAlign: 'center',
   },
   cardText: {
     fontSize: typography.body.fontSize,
     fontWeight: typography.body.fontWeight,
     lineHeight: typography.body.lineHeight,
     textAlign: 'center',
+  },
+  cardButton: {
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  cardButtonText: {
+    fontSize: typography.bodyMedium.fontSize,
+    fontWeight: typography.bodyMedium.fontWeight,
+    lineHeight: typography.bodyMedium.lineHeight,
   },
   banner: {
     position: 'absolute',

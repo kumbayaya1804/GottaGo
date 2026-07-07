@@ -11,8 +11,15 @@
  *  - the RPC-failure banner + Retry appears (D-28).
  */
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { render, waitFor, fireEvent } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useFiltersStore, EMPTY_FILTERS } from '../../../features/filters/useFiltersStore';
+
+// --- Controllable denied-location permission state.
+const mockUseDeniedLocationState = jest.fn();
+jest.mock('../../../features/locations/useDeniedLocationState', () => ({
+  useDeniedLocationState: () => mockUseDeniedLocationState(),
+}));
 
 // --- Controllable viewport hook.
 const mockUseMapViewport = jest.fn();
@@ -80,6 +87,8 @@ beforeEach(() => {
     isStale: false,
   });
   mockUseLocationsBbox.mockResolvedValue(EMPTY_FC);
+  mockUseDeniedLocationState.mockReturnValue({ permission: 'granted', showManualSearch: false });
+  useFiltersStore.setState({ ...EMPTY_FILTERS });
 });
 
 describe('MapScreen', () => {
@@ -115,5 +124,59 @@ describe('MapScreen', () => {
     mockUseLocationsBbox.mockRejectedValue(new Error('rpc failed'));
     const { findByText } = renderScreen();
     expect(await findByText('Retry')).toBeTruthy();
+  });
+
+  it('renders the filter chip row when GPS permission is granted', () => {
+    const { getByLabelText } = renderScreen();
+    expect(getByLabelText('Chill Spot')).toBeTruthy();
+  });
+
+  it('toggling a filter chip re-queries the bbox RPC with the active filter (D-07)', async () => {
+    const { getByLabelText } = renderScreen();
+    fireEvent.press(getByLabelText('Chill Spot'));
+    await waitFor(() => {
+      const lastCall = mockUseLocationsBbox.mock.calls.at(-1);
+      expect(lastCall?.[1]).toMatchObject({ filter_chill_spot: true });
+    });
+  });
+
+  it('hides the filter chip row and shows the ERR-01 manual-search fallback when GPS is denied, with no dead end (D-34)', () => {
+    mockUseDeniedLocationState.mockReturnValue({ permission: 'denied', showManualSearch: true });
+    const { queryByLabelText, getByText } = renderScreen();
+    expect(queryByLabelText('Chill Spot')).toBeNull();
+    expect(
+      getByText("We can't find your location. Use search to browse bathrooms near an address."),
+    ).toBeTruthy();
+    expect(getByText('Search this area')).toBeTruthy();
+  });
+
+  it('shows the truly-empty state with Search this area when no filters are active and results are empty (D-10)', async () => {
+    const { findByText, queryByText } = renderScreen();
+    expect(await findByText('No bathrooms found nearby')).toBeTruthy();
+    expect(await findByText('Search this area')).toBeTruthy();
+    expect(queryByText('Clear filters')).toBeNull();
+  });
+
+  it('shows the distinct filtered-empty state with Clear filters when a filter is active and results are empty (D-10)', async () => {
+    useFiltersStore.setState({ ...EMPTY_FILTERS, chillSpot: true });
+    const { findByText } = renderScreen();
+    expect(await findByText('No bathrooms match your filters')).toBeTruthy();
+    expect(await findByText('Clear filters')).toBeTruthy();
+  });
+
+  it('"Search this area" re-runs the bbox query for the current viewport (D-09)', async () => {
+    const { findByText } = renderScreen();
+    const button = await findByText('Search this area');
+    mockUseLocationsBbox.mockClear();
+    fireEvent.press(button);
+    await waitFor(() => expect(mockUseLocationsBbox).toHaveBeenCalled());
+  });
+
+  it('"Clear filters" resets the filters store', async () => {
+    useFiltersStore.setState({ ...EMPTY_FILTERS, chillSpot: true });
+    const { findByText } = renderScreen();
+    const button = await findByText('Clear filters');
+    fireEvent.press(button);
+    expect(useFiltersStore.getState().chillSpot).toBe(false);
   });
 });
