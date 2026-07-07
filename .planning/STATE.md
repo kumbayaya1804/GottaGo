@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: MVP — Global proof of concept
+milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-07-06T05:49:49.109Z"
-last_activity: 2026-07-06
+last_updated: "2026-07-07T09:10:47.871Z"
+last_activity: 2026-07-07
 progress:
   total_phases: 12
-  completed_phases: 3
-  total_plans: 12
-  completed_plans: 8
-  percent: 25
+  completed_phases: 4
+  total_plans: 13
+  completed_plans: 13
+  percent: 33
 ---
 
 ## Roadmap Evolution
@@ -22,6 +22,7 @@ progress:
 - 2026-07-01 — Phase 8: added save/favorite-location requirement and plan 08-04. Source: same audit.
 - 2026-07-04 — Phase 3: added Nearby list-view tab (accessible alt to map, designed in Phase 1.5 but never scheduled into any phase) and a `family_mode` Settings toggle (the RPC-layer filter Phase 3 builds had no UI to ever activate it) — both folded into new plan 03-04. Source: `03-CONTEXT.md` discussion, two systematic cross-reference passes.
 - 2026-07-07 — Phase 3 executed (all 5 plans, 3 waves fully autonomous + 1 wave with deferred device checkpoints). Cross-AI review (Antigravity + Codex, 7 findings) resolved pre-execution; internal code review found 2 more criticals (CR-01 null-viewport crash, CR-02 D-08 chill_spot violation) post-execution, both fixed and pushed live. VERIFICATION.md: 12/13 must-haves, pgTAP-execution gap accepted as a tracked override (no Docker in this environment) — see pending todo. 7 device-UAT items deferred by design, not gaps.
+- 2026-07-07 — Phase 4 discuss-phase started. 1 of 4 selected gray areas complete (Non-building locations — closes the 2026-07-05/06 open PROJECT.md design question: no new location_type field, free-text description replaces street address when none exists, GPS fix is always the canonical coordinate source). Checkpoint saved: `.planning/phases/04-gps-service-submission/04-DISCUSS-CHECKPOINT.json`. Remaining areas: access_sensitivity submission UX, Access code (PIN) field framing, Pending-pin tap behavior. Full detail in `.beads/context/execution-state.md`.
 
 ### Quick Tasks Completed
 
