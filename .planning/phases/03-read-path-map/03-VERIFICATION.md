@@ -3,7 +3,7 @@ phase: 03-read-path-map
 verified: 2026-07-07T00:00:00Z
 status: gaps_found
 score: 12/13 must-haves verified
-overrides_applied: 0
+overrides_applied: 1
 gaps:
   - truth: "The pgTAP correctness suite (supabase/tests/phase3_read_rpcs.test.sql, ~22 assertions) proves the RPC-layer moderation/family_mode/D-08/antimeridian/coalesce/config-cap properties against a real PostgreSQL+PostGIS instance"
     status: partial
@@ -14,6 +14,11 @@ gaps:
     missing:
       - "Run `supabase start && supabase db reset && supabase test db --local` on a Docker-capable machine and confirm all assertions pass (in particular the new CR-02 chill_spot case at test lines ~127-131)."
       - "If a failure surfaces, it must be fixed before Phase 4 builds further RPCs on top of this read path."
+overrides:
+  - must_have: "The pgTAP correctness suite proves the RPC-layer moderation/family_mode/D-08/antimeridian/coalesce/config-cap properties against a real PostgreSQL+PostGIS instance"
+    reason: "Docker unavailable in every session to date; SQL manually verified correct by two independent review passes (cross-AI pre-execution review + post-execution code review, which caught and fixed the one real defect, CR-02); acceptable to proceed with the standing action item to run supabase test db --local on a Docker-capable machine at the first opportunity."
+    accepted_by: "Saint Armand"
+    accepted_at: "2026-07-07T08:50:50Z"
 ---
 
 # Phase 3: Read Path & Map Verification Report
