@@ -1,10 +1,11 @@
 ---
 phase: 04
 slug: gps-service-submission
-status: draft
-nyquist_compliant: false
+status: reconciled
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-07
+reconciled: 2026-07-07
 ---
 
 # Phase 04 — Validation Strategy
@@ -36,20 +37,18 @@ created: 2026-07-07
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 04-01-xx | 01 | 0 | REQ-GPS-VALIDATE | Spoofed GPS / Info Disclosure | RPC rejects `mocked=true`, accuracy>50m, age>60s with generic error | integration (SQL) | `pgTAP supabase/tests/phase4_submit.test.sql` | ❌ W0 | ⬜ pending |
-| 04-01-xx | 01 | 0/1 | REQ-GPS-VALIDATE | — | GpsService hook returns `{coord,accuracy,mocked,timestamp}`, high-accuracy mode; iOS `mocked`→false | unit | `npm test -- src/features/locations/useGpsSample.test.ts` | ❌ W0 | ⬜ pending |
-| 04-02-xx | 02 | 0 | REQ-SUBMIT | Info Disclosure (pending leak) | `submit_location` inserts pending row on `submissions` (not `locations`), `confirmation_count=1`, coords as geography | integration (SQL) | pgTAP | ❌ W0 | ⬜ pending |
-| 04-02-xx | 02 | 1 | REQ-SUBMIT | — | submit mutation maps fields, sensitive→`'sensitive'`, PIN only when `policy_tag='Code Required'` | unit (MSW) | `npm test -- src/features/submit/submitLocation.test.ts` | ❌ W0 | ⬜ pending |
-| 04-03-xx | 03 | 0 | REQ-CODE-WRITE | Tampering (malicious overwrite) | access code never in public search; `update_access_code` D-24 confirm-before-overwrite gate + `access_code_confirmed_at` reset | integration (SQL) | pgTAP | ❌ W0 | ⬜ pending |
-| 04-03-xx | 03 | 0 | REQ-PENDING | Elevation of Privilege | `get_my_pending_submissions` returns only caller's pending rows; anon → none | integration (SQL) | pgTAP | ❌ W0 | ⬜ pending |
-| 04-03-xx | 03 | 0 | REQ-PENDING | Tampering (withdraw others') | `withdraw_submission` deletes/cancels only the caller's own pending row | integration (SQL) | pgTAP | ❌ W0 | ⬜ pending |
-| 04-02-xx | 02 | 0 | REQ-SENSITIVITY | — | staged `access_sensitivity` value survives staging (full filter semantics land Phase 5 publish) | integration (SQL, staging assert) | pgTAP | ❌ W0 | ⬜ pending |
-| 04-04-xx | 04 | 1 | SC8 | Input Validation | SubmitFlow Zod schema: conditional PIN, required name/policy, all error states | unit | `npm test -- src/features/submit/submitSchema.test.ts` | ❌ W0 | ⬜ pending |
+*Reconciled 2026-07-07 against the 6 finalized PLAN.md files (04-01..04-06).*
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
-*Exact task IDs finalized once the planner assigns plan/wave numbers — this map will be reconciled against the actual PLAN.md files.*
+| Plan | Wave | Depends On | Requirement(s) | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
+|------|------|------------|-----------------|------------|-----------------|-----------|-------------------|-------------|--------|
+| 04-01 | 1 | — | REQ-SUBMIT, REQ-GPS-VALIDATE, REQ-PENDING, REQ-SENSITIVITY, REQ-TIMING, REQ-CODE-WRITE | T-04-01..T-04-0x (Spoofed GPS, Info Disclosure — pending leak) | `submit_location` inserts pending `submissions` row (never `locations`), `confirmation_count=1`; rejects `mocked=true`/accuracy>50m/age>60s with generic error; `get_my_pending_submissions`/`withdraw_submission` scoped to `auth.uid()` | integration (SQL) | pgTAP `supabase/tests/phase4_submit.test.sql` | ❌ Wave 0 gap — MISSING (no Docker), static grep-count fallback disclosed in task `<verify>` | ⬜ pending |
+| 04-02 | 2 | 04-01 | REQ-CODE-WRITE | T-04-07 (Tampering — overwrite; + sock-puppet confirm risk flagged by plan-checker, tracked not blocking) | `update_access_code`/`confirm_access_code` D-24 stage-then-confirm gate (`pending_access_code`/`pending_code_proposed_by`, confirmed by a *different* authed user), `access_code_confirmed_at` reset (D-22), access code never in public search | integration (SQL) | pgTAP `supabase/tests/phase4_access_code.test.sql` | ❌ Wave 0 gap — MISSING (no Docker), same disclosed fallback | ⬜ pending |
+| 04-03 | 2 | 04-01 | (client layer for REQ-SUBMIT, REQ-GPS-VALIDATE) | — | `useGpsSample` returns `{coord,accuracy,mocked,timestamp}` (BestForNavigation, iOS `mocked`→false); `submitLocation` maps fields, sensitive→`'sensitive'`; `submitSchema` Zod validation (conditional PIN, required name/policy) | unit (TDD, MSW) | `npm test -- app/src/features/submit/__tests__/useGpsSample.test.ts`, `submitLocation.test.ts` | ✅ created this phase (TDD red→green) | ⬜ pending |
+| 04-04 | 3 | 04-02, 04-03 | (client layer for REQ-PENDING, REQ-CODE-WRITE) | — | `useMyPendingSubmissions` scoped to caller only; `withdrawSubmission` deletes only caller's own pending row; `updateAccessCode` client wiring | unit (TDD, MSW) | `npm test -- app/src/features/submit/__tests__/useMyPendingSubmissions.test.ts`, `withdrawSubmission.test.ts` | ✅ created this phase (TDD red→green) | ⬜ pending |
+| 04-05 | 3 | 04-03 | REQ-SUBMIT, REQ-SENSITIVITY, REQ-TIMING, REQ-CODE-WRITE / SC8 | — | SubmitFlow 3-step wizard (RHF+Zod), all error states, `SensitivityConfirmModal` (D-15 confirm-before-submit) | component (RTL) | `npm test -- app/src/app/(tabs)/__tests__/submit.test.tsx` | ✅ created this phase | ⬜ pending |
+| 04-06 | 4 | 04-04, 04-02 | (client layer for REQ-PENDING) / SC9 | — | Pending-pin map layer + `PendingStatusSheet` + `WithdrawConfirmModal` (D-30 confirm); "Update door code" on `LocationDetailSheet` | component (RTL) | `npm test -- app/src/app/(components)/__tests__/PendingStatusSheet.test.tsx`, `LocationDetailSheet.updateCode.test.tsx` | ✅ created this phase | ⬜ pending |
+
+*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky — task-level status fills in during `/gsd:execute-phase 4`.*
 
 ---
 
@@ -74,14 +73,14 @@ created: 2026-07-07
 
 ## Validation Sign-Off
 
-- [ ] All tasks have automated verify (pgTAP or jest) or explicit Wave 0 dependency
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references (pgTAP file, feature test scaffolds, MSW handlers, GPS mocks, type regen)
-- [ ] No watch-mode flags in any automated command
-- [ ] Feedback latency < 30s
-- [ ] `nyquist_compliant: true` set in frontmatter once planner finalizes task IDs against this map
+- [x] All tasks have automated verify (pgTAP or jest) or explicit Wave 0 dependency — confirmed by plan-checker across all 6 plans
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify — confirmed by plan-checker
+- [x] Wave 0 covers all MISSING references (pgTAP files for 04-01/04-02, feature test scaffolds for 04-03/04-04, RTL component tests for 04-05/04-06, `database.types.ts` regen in both DB plans)
+- [x] No watch-mode flags in any automated command — plan-checker found none
+- [x] Feedback latency < 30s — jest full suite ~30s, pgTAP ~10s when runnable
+- [x] `nyquist_compliant: true` set in frontmatter — reconciled against the 6 finalized PLAN.md files above
 
-**Approval:** pending
+**Approval:** approved 2026-07-07 (plan-checker: 0 blockers, 4 non-blocking warnings — see 04-01-PLAN.md/04-02-PLAN.md `<verify>` blocks for the disclosed pgTAP/Docker gap, tracked as the same carryover override accepted in Phase 3)
 
 ---
 

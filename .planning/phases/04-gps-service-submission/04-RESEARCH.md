@@ -485,25 +485,30 @@ export async function submitLocation(input: SubmitInput): Promise<string> {
 | A6 | Published timing-tips storage = a new `timing_tips` table (recent-first list per wireframes); submission-time tip staged on the submission | OQ-4 | Low-Medium — if Phase 5/8 wants a different shape, only the publish-time mapping changes; Phase 4's staging is unaffected. |
 | A7 | GPS thresholds reused from existing `app_config` (50m/60s) apply to submission, not a submit-specific value | Runtime State Inventory | Low — thresholds are seeded and described as "for submission and verification." |
 
-## Open Questions
+## Open Questions (RESOLVED — see 04-01..04-06 plans)
 
-1. **OQ-1 (HIGH — scope + cost): Is Google Places address autocomplete (D-04) in Phase 4 scope, or deferrable?**
+1. **OQ-1 (HIGH — scope + cost): Is Google Places address autocomplete (D-04) in Phase 4 scope, or deferrable?** — **RESOLVED: deferred.**
    - Known: D-04 locks a Places-autocomplete ↔ free-text toggle on the address field; D-05 makes the address a **label only** (never geocoded — coords come from GPS). Phase 3 deferred all geocoding (its OQ-4).
    - Unclear: Whether Phase 4 ships live autocomplete (new Google API key + billing + possibly a package) or free-text-first (the "describe instead" mode already covers no-address cases; autocomplete is pure UX sugar since coords are GPS).
    - Recommendation: **Confirm before building.** Default to free-text + the D-04 toggle stub without live autocomplete unless the user wants the API cost now. If in scope, prefer a direct Places Autocomplete API fetch (session tokens, text predictions only) over a heavy RN wrapper, and gate any package behind `checkpoint:human-verify`.
+   - **Resolution:** `04-05-PLAN.md` (SubmitFlow objective) implements free-text + the D-04 "describe instead" toggle only — no live autocomplete, no new package, no API key. Coords always come from GPS (D-05), never geocoded.
 
-2. **OQ-2 (MEDIUM): Does SC3 require a literal `verification_events` row at submit time?**
+2. **OQ-2 (MEDIUM): Does SC3 require a literal `verification_events` row at submit time?** — **RESOLVED: no.**
    - Recommendation: No — use `confirmation_count=1` (Pattern 3). If a literal event is required by Phase 5's design, decide now between (a) `verification_events.location_id` nullable + `submission_id` FK, or (b) Option B/C. Flag to discuss-phase.
+   - **Resolution:** `04-01-PLAN.md` (Task 1/2 action) adopts `confirmation_count=1` on the `submissions` row for the creator-initial event — no `verification_events` row pre-publish, consistent with its `NOT NULL` FK to `locations`.
 
-3. **OQ-3 (MEDIUM-HIGH): Exact `update_access_code` confirmation mechanism (D-24).**
+3. **OQ-3 (MEDIUM-HIGH): Exact `update_access_code` confirmation mechanism (D-24).** — **RESOLVED: minimal stage-then-confirm.**
    - Known: D-24 requires "1 confirming verification before it replaces the old value"; D-25 = overwrite, no history; D-22 = reset `code_confirmed_at`.
    - Unclear: How the "1 confirming verification" is modeled — no code-verification infra exists. Immediate overwrite violates D-24; a full staging+confirm flow may be more than intended.
    - Recommendation: Minimal stage-then-confirm — `locations.pending_access_code` + `pending_code_proposed_by`, confirmed by one *other* authed user's presence, then copied to `access_instructions` and `access_code_confirmed_at=now()`. Ratify the exact gate in discuss/plan; it's abuse-resistance-critical.
+   - **Resolution:** `04-02-PLAN.md` implements exactly this — `pending_access_code`/`pending_code_proposed_by` staging columns, promoted by `confirm_access_code` RPC requiring a *different* authenticated user. Plan-checker flagged (warning, not blocker) that this allows a sock-puppet second-account confirmation with no trust-score/proximity check — accepted as matching D-24's literal text and this research's own "minimal mechanism" recommendation; tracked via an added STRIDE entry in `04-02-PLAN.md`'s threat model rather than re-scoped.
 
-4. **OQ-4 (LOW-MEDIUM): Published timing-tips storage shape + whether Phase 4 creates it.**
+4. **OQ-4 (LOW-MEDIUM): Published timing-tips storage shape + whether Phase 4 creates it.** — **RESOLVED: staging column only.**
    - Recommendation: Create a `timing_tips(location_id fk, submitter_id fk null, tip text, created_at)` table (matches wireframes "recent first"); stage the submission-time tip on the submission; publish (Phase 5) writes the row. If the planner prefers, defer table creation to Phase 5 and keep only the staging column in Phase 4. Either way, Phase 4 "stores it correctly" via the staging column.
+   - **Resolution:** `04-01-PLAN.md` stages the tip on a `submissions.timing_tip` column; the dedicated `timing_tips` table is deferred to Phase 5's publish gate.
 
-5. **OQ-5 (LOW): Should `submit_location` also enforce a duplicate/proximity guard** (e.g., reject a submission within N meters of an existing pending/published location)? Not in the D-list or success criteria. Recommendation: out of scope for Phase 4 unless the user asks; note for Phase 5/7 (dedupe is a `reports.report_type='duplicate_location'` concern, RC-02).
+5. **OQ-5 (LOW): Should `submit_location` also enforce a duplicate/proximity guard** — **left open, deferred by design (not this phase).**
+   - Not in the D-list or success criteria. Out of scope for Phase 4; noted for Phase 5/7 (dedupe is a `reports.report_type='duplicate_location'` concern, RC-02).
 
 ## Environment Availability
 
