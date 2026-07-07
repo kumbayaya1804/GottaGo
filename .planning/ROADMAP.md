@@ -20,7 +20,7 @@ Goal: globally available crowdsourced bathroom discovery with GPS-verified data,
 - [x] **Phase 1: Foundation & Scaffold** — DB config + extensions verified, Expo app runs, Supabase connection established, TypeScript types generated
 - [x] **Phase 1.5: UX Foundation & Design System** — Design contract (flow maps, wireframes, design system, nav model, emergency UX rules, error-state matrix, component checklist) that all client-facing phases implement against
 - [x] **Phase 2: Auth & Profiles** — Email/password + Google OAuth (Android-only until Apple Developer enrolled), SessionProvider, profile auto-creation, protected routes, account deletion, privacy/TOS links, GPS consent UX
-- [ ] **Phase 3: Read Path & Map** — search_locations_bbox + search_locations_nearby RPCs, MapScreen renders real locations, emergency mode reads
+- [x] **Phase 3: Read Path & Map** — search_locations_bbox + search_locations_nearby RPCs, MapScreen renders real locations, emergency mode reads (completed 2026-07-07)
 - [ ] **Phase 4: GPS Service & Submission** — GpsService hook, submit_location SECURITY DEFINER RPC, SubmitFlow screen, pending-state lifecycle
 - [ ] **Phase 5: Trust Engine & Verification** — verify_location RPC, trigger chain, confidence recalc, publish-on-N-verifications gate, VerifyFlow screen
 - [ ] **Phase 6: Decay, Aggregates & Flags** — confidence decay scheduled job (floor enforced), respect_signal_log triggers, respect_signal_90d concurrent refresh, availability_flags RPC
@@ -147,8 +147,8 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 03-04-PLAN.md — Nearby list-view tab (accessible alt to map) + family_mode Settings toggle [wave 4, depends 03-02/03]
-- [ ] 03-05-PLAN.md — Filter chip row (AND logic, null-include), denied-GPS manual-search fallback, distinct empty/filtered-empty states on MapScreen [wave 4, depends 03-02/03]
+- [x] 03-04-PLAN.md — Nearby list-view tab (accessible alt to map) + family_mode Settings toggle [wave 4, depends 03-02/03]
+- [x] 03-05-PLAN.md — Filter chip row (AND logic, null-include), denied-GPS manual-search fallback, distinct empty/filtered-empty states on MapScreen [wave 4, depends 03-02/03]
 
 ---
 
@@ -373,7 +373,7 @@ Plans:
 | 1. Foundation & Scaffold | 2/2 | Complete | 2026-06-24 |
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
 | 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
-| 3. Read Path & Map | 3/5 | In Progress|  |
+| 3. Read Path & Map | 5/5 | Complete   | 2026-07-07 |
 | 4. GPS Service & Submission | 0/2 | Not started | - |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
