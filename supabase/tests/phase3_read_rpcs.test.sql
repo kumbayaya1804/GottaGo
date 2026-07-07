@@ -17,7 +17,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(22);
 
 -- ─── Fixture: a family_mode=true authenticated test user ─────────────────────
 -- Inserting into auth.users fires the on_auth_user_created trigger, which provisions
@@ -122,6 +122,13 @@ select is(
      where id = '10000000-0000-0000-0000-000000000009'),   -- no tags at all
   1::bigint,
   'D-08: no-tag row INCLUDED when filter_changing is active');
+
+select is(
+  (select count(*) from public.search_locations_bbox(
+     -123.15, 44.03, -123.05, 44.07, false, true, false, false, false)
+     where id = '10000000-0000-0000-0000-000000000016'),   -- chill_spot = null
+  1::bigint,
+  'D-08 / CR-02: null chill_spot row INCLUDED when filter_chill_spot is active');
 
 -- ═══ 7. get_location_detail distance_m source ════════════════════════════════
 select isnt(

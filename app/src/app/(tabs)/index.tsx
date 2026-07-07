@@ -87,7 +87,9 @@ export default function MapScreen() {
   // zoom-out cutoff (D-04) and while GPS is denied (search-only, D-34).
   const bboxQuery = useQuery({
     queryKey: ['locationsBbox', viewport, filters],
-    queryFn: () => useLocationsBbox(viewport!, filters),
+    // CR-01 (code review): defensive null guard — refetch() can be invoked imperatively
+    // (bypassing the `enabled` gate below) before the first viewport commit lands.
+    queryFn: () => (viewport !== null ? useLocationsBbox(viewport, filters) : EMPTY_FC),
     enabled: viewport !== null && !belowPinThreshold && !showManualSearch,
   });
 
@@ -198,7 +200,12 @@ export default function MapScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={SEARCH_THIS_AREA}
-              onPress={() => bboxQuery.refetch()}
+              onPress={() => {
+                // CR-01 (code review): viewport is still null until the first debounced
+                // onRegionChange commit; refetch() bypasses the query's `enabled` gate,
+                // so guard here to avoid dereferencing a null viewport in queryFn.
+                if (viewport !== null) bboxQuery.refetch();
+              }}
               style={styles.cardButton}
             >
               <Text style={[styles.cardButtonText, { color: colors.primary }]}>

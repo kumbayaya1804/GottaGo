@@ -22,6 +22,7 @@
 --   11 → is_open_now = null                (D-08 open_now null-include)
 --   12 → tags accessibility=wheelchair + amenity=changing_table (positive filter match)
 --   13/14 → straddle longitude 180 (lng 179.9 / -179.9)  (antimeridian fixtures)
+--   16 → chill_spot = null                 (D-08 chill_spot null-include; code-review CR-02)
 
 insert into public.locations
   (id, name, coordinates, policy_tag, access_sensitivity, hours, is_open_now,
@@ -110,7 +111,13 @@ values
   ('10000000-0000-0000-0000-000000000015', 'Downtown Plaza Restroom',
    st_setsrid(st_makepoint(-123.0912, 44.0525), 4326)::geography,
    'chill_spot', null, null, true,
-   'Low', 2, now() - interval '12 days', true, null, false, null);
+   'Low', 2, now() - interval '12 days', true, null, false, null),
+
+  -- 16: NULL chill_spot — included under active chill_spot filter (D-08; code-review CR-02)
+  ('10000000-0000-0000-0000-000000000016', 'Null-Chill-Spot Rest Area',
+   st_setsrid(st_makepoint(-123.0898, 44.0555), 4326)::geography,
+   'public_facility', null, null, true,
+   'Medium', 3, now() - interval '7 days', null, null, false, null);
 
 -- Tags for row 12 (positive wheelchair + changing-table filter match).
 insert into public.tags (location_id, key, value) values
