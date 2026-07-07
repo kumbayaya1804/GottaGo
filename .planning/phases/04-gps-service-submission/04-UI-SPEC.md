@@ -1,7 +1,7 @@
 ---
 phase: 4
 slug: gps-service-submission
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-07-07
