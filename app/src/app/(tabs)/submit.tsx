@@ -407,11 +407,19 @@ export default function SubmitScreen() {
           <Text style={[styles.title, { color: colors.textPrimary }]}>Access & Hours</Text>
 
           <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Hours:</Text>
-          <TextInput
-            accessibilityLabel="Hours"
-            style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.surface }]}
-            placeholder="e.g. Open 7am–10pm"
-            placeholderTextColor={colors.textDisabled}
+          <Controller
+            control={control}
+            name="hours"
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                accessibilityLabel="Hours"
+                style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.surface }]}
+                placeholder="e.g. Open 7am–10pm"
+                placeholderTextColor={colors.textDisabled}
+                value={value ?? ''}
+                onChangeText={onChange}
+              />
+            )}
           />
 
           {/* D-17: PIN field renders ONLY for the code_required policy. */}

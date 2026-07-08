@@ -110,8 +110,18 @@ describe('submitSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('accepts an hours object', () => {
-    const result = submitSchema.safeParse(validInput({ hours: { mon: '9-5' } }));
+  it('accepts an hours description', () => {
+    const result = submitSchema.safeParse(validInput({ hours: 'Open 7am-10pm' }));
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an hours description over 200 characters', () => {
+    const result = submitSchema.safeParse(validInput({ hours: 'a'.repeat(201) }));
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts hours omitted', () => {
+    const result = submitSchema.safeParse(validInput({ hours: undefined }));
     expect(result.success).toBe(true);
   });
 });

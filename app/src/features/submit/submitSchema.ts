@@ -10,6 +10,9 @@ import { z } from 'zod';
  * - `accessCode` is optional even when `policyTag === 'code_required'` (D-19) — the field
  *   only ever renders in that case (D-17), so a value present under any other tag indicates
  *   a client bug, flagged via `superRefine`.
+ * - `hours` is a single free-text description (matches the Step 2 "Hours" input, e.g.
+ *   "Open 7am–10pm") — not structured per-day data. Staged as-is in the `submissions.hours`
+ *   jsonb column; Phase 5/8 owns any structured parsing at publish/display time.
  */
 export const submitSchema = z
   .object({
@@ -17,7 +20,7 @@ export const submitSchema = z
     address: z.string().max(200, 'Description is too long.').optional(),
     policyTag: z.enum(['chill_spot', 'purchase_required', 'code_required', 'public_facility']),
     accessSensitivity: z.boolean().default(false),
-    hours: z.record(z.string(), z.string()).optional(),
+    hours: z.string().max(200, 'Hours description is too long.').optional(),
     accessCode: z.string().max(100, 'Door code is too long.').optional(),
     timingTip: z.string().max(280, 'Timing tip is too long.').optional(),
   })

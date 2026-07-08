@@ -220,6 +220,25 @@ describe('SubmitScreen — sensitivity confirm gate (D-15)', () => {
     expect(utils.getByText(SUCCESS_BODY)).toBeTruthy();
     expect(utils.getByText('Back to Map')).toBeTruthy();
   });
+
+  it('retains a typed Hours value and forwards it to submitLocation', async () => {
+    const utils = await renderWizard();
+    await advanceToStep2(utils, 'Chill Spot');
+    fireEvent.changeText(utils.getByLabelText('Hours'), 'Open 7am-10pm');
+    await advanceToStep3(utils);
+    await waitFor(() => {
+      const cta = utils.getByLabelText(CTA_AT_LOCATION);
+      expect(cta.props.accessibilityState.disabled).toBe(false);
+    });
+    await act(async () => {
+      fireEvent.press(utils.getByLabelText(CTA_AT_LOCATION));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(mockSubmitLocation).toHaveBeenCalledTimes(1));
+    expect(mockSubmitLocation).toHaveBeenCalledWith(
+      expect.objectContaining({ hours: 'Open 7am-10pm' })
+    );
+  });
 });
 
 describe('SubmitScreen — submit failure maps to ERR-08 (SC7)', () => {

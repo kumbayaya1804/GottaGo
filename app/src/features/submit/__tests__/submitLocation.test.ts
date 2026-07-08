@@ -142,9 +142,9 @@ describe('submitLocation', () => {
     );
   });
 
-  it('forwards a provided hours object as p_hours', async () => {
+  it('forwards a provided hours description as p_hours', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: 'id', error: null });
-    const hours = { mon: '9-5' };
+    const hours = 'Open 7am-10pm';
 
     await submitLocation(baseInput({ hours }));
 

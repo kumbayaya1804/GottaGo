@@ -46,7 +46,7 @@ export interface SubmitInput {
   policyTag: string;
   address?: string | null;
   sensitive: boolean;
-  hours?: Record<string, string> | null;
+  hours?: string | null;
   accessCode?: string | null;
   timingTip?: string | null;
 }
