@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   Pressable,
+  TextInput,
   StyleSheet,
   useColorScheme,
   Linking,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import { Colors } from '../../constants/Colors';
 import { spacing } from '../../constants/spacing';
@@ -17,6 +19,9 @@ import { typography } from '../../constants/typography';
 import { radius } from '../../constants/radius';
 import { useLocationDetail } from '../../features/locations/useLocationDetail';
 import { formatDistance, usesMilesForLocale } from '../../features/locations/formatDistance';
+import { useSession } from '../../features/auth/useSession';
+import { updateAccessCode } from '../../features/submit/updateAccessCode';
+import AuthRequiredModal from './AuthRequiredModal';
 
 /**
  * LocationDetail bottom sheet (peek / half / full) — the primary read-detail
@@ -48,6 +53,17 @@ export interface LocationDetailSheetProps {
 }
 
 const MISSING_HOURS_COPY = 'Hours not yet available';
+
+// [LOCKED — 04-UI-SPEC.md Copywriting Contract] 'Update door code' is verbatim (D-23).
+const UPDATE_CODE_CTA = 'Update door code';
+const CODE_INPUT_LABEL = 'New door code';
+const CODE_SUBMIT_LABEL = 'Propose new code';
+// D-24 stage-then-confirm: the proposed code is NEVER presented as live — it needs one
+// confirming verification from a DIFFERENT user (server-side gate, 04-02) before it replaces
+// the old value. This copy states that pending-confirmation contract explicitly.
+const CODE_PENDING_COPY =
+  'New code proposed. It needs one confirming verification from another user before it goes live.';
+const CODE_FAILURE_COPY = "Couldn't submit the new code. Check your connection and try again.";
 
 /** Human display label + policy-tag token color for a raw policy_tag value. */
 function policyTagPresentation(
@@ -124,6 +140,20 @@ export default function LocationDetailSheet({
   const sheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['30%', '55%', '90%'], []);
 
+  // The 'Update door code' action is signed-in-only (D-23). Signed-out taps route to the
+  // AuthRequiredModal (action='see access code') — this sheet never shows the current/live
+  // code to anon (T-04-23), so no getAccessCode call and no code display exist here at all.
+  const session = useSession()?.session ?? null;
+  const router = useRouter();
+  const [authModalVisible, setAuthModalVisible] = useState(false);
+  const [codeUpdateOpen, setCodeUpdateOpen] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [codeSubmitting, setCodeSubmitting] = useState(false);
+  const [codeError, setCodeError] = useState(false);
+  const [codeProposed, setCodeProposed] = useState(false);
+  // Synchronous re-entrancy guard (see DeleteAccountModal): stops a double-tap from staging twice.
+  const codeSubmittingRef = useRef(false);
+
   const detailQuery = useQuery({
     // Keyed on the forwarded coords so a new fix refreshes the RPC-echoed distance.
     queryKey: ['locationDetail', locationId, userLat, userLng],
@@ -139,6 +169,15 @@ export default function LocationDetailSheet({
     } else {
       sheetRef.current?.close();
     }
+    // Reset the code-update UI whenever the selected location changes (or clears) so a
+    // proposed-code confirmation never bleeds across two different locations.
+    setAuthModalVisible(false);
+    setCodeUpdateOpen(false);
+    setCodeInput('');
+    setCodeSubmitting(false);
+    setCodeError(false);
+    setCodeProposed(false);
+    codeSubmittingRef.current = false;
   }, [locationId]);
 
   const handleChange = useCallback(
@@ -153,6 +192,35 @@ export default function LocationDetailSheet({
     if (!detail) return;
     Linking.openURL(directionsUrl(detail.lat, detail.lng, detail.name));
   }, [detailQuery.data]);
+
+  const handleUpdateCodePress = useCallback(() => {
+    // Signed-in-only (D-23): anon is routed to the auth gate, never shown a code UI.
+    if (session === null) {
+      setAuthModalVisible(true);
+      return;
+    }
+    setCodeUpdateOpen(true);
+  }, [session]);
+
+  async function handleSubmitCode() {
+    if (codeSubmittingRef.current || locationId === null) return;
+    const trimmed = codeInput.trim();
+    if (trimmed.length === 0) return;
+    codeSubmittingRef.current = true;
+    setCodeSubmitting(true);
+    setCodeError(false);
+    try {
+      // updateAccessCode STAGES only — the different-user promotion gate is server-side (D-24).
+      await updateAccessCode(locationId, trimmed);
+      setCodeProposed(true);
+      setCodeUpdateOpen(false);
+    } catch {
+      setCodeError(true);
+    } finally {
+      codeSubmittingRef.current = false;
+      setCodeSubmitting(false);
+    }
+  }
 
   if (locationId === null) return null;
 
@@ -238,7 +306,7 @@ export default function LocationDetailSheet({
               <Text style={[styles.body, { color: colors.textSecondary }]}>{detail.address}</Text>
             )}
 
-            {/* Action row: only Get Directions this phase (D-13/D-20) */}
+            {/* Action row: Get Directions (D-13) + signed-in-gated Update door code (D-23) */}
             <View style={styles.actionRow}>
               <Pressable
                 accessibilityRole="button"
@@ -252,9 +320,84 @@ export default function LocationDetailSheet({
                 </Text>
               </Pressable>
             </View>
+
+            <View style={styles.secondaryActionRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={UPDATE_CODE_CTA}
+                accessibilityHint="Propose a new door code for community confirmation"
+                style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+                onPress={handleUpdateCodePress}
+              >
+                <Text style={[styles.primaryButtonLabel, { color: colors.textInverse }]}>
+                  {UPDATE_CODE_CTA}
+                </Text>
+              </Pressable>
+            </View>
+
+            {codeProposed ? (
+              <Text
+                accessibilityLiveRegion="polite"
+                style={[styles.codePending, { color: colors.textSecondary }]}
+              >
+                {CODE_PENDING_COPY}
+              </Text>
+            ) : codeUpdateOpen ? (
+              <View style={styles.codePanel}>
+                <TextInput
+                  style={[styles.codeInput, { borderColor: colors.border, color: colors.textPrimary }]}
+                  placeholder={CODE_INPUT_LABEL}
+                  placeholderTextColor={colors.textDisabled}
+                  accessibilityLabel={CODE_INPUT_LABEL}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={codeInput}
+                  onChangeText={setCodeInput}
+                />
+                {codeError && (
+                  <Text
+                    accessibilityLiveRegion="assertive"
+                    style={[styles.codeError, { color: colors.errorRed }]}
+                  >
+                    {CODE_FAILURE_COPY}
+                  </Text>
+                )}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={CODE_SUBMIT_LABEL}
+                  accessibilityState={{ disabled: codeSubmitting }}
+                  disabled={codeSubmitting}
+                  style={[
+                    styles.primaryButton,
+                    styles.codeSubmitButton,
+                    { backgroundColor: codeSubmitting ? colors.border : colors.primary },
+                  ]}
+                  onPress={handleSubmitCode}
+                >
+                  <Text
+                    style={[
+                      styles.primaryButtonLabel,
+                      { color: codeSubmitting ? colors.textDisabled : colors.textInverse },
+                    ]}
+                  >
+                    {CODE_SUBMIT_LABEL}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         )}
       </BottomSheetView>
+
+      {authModalVisible && (
+        <AuthRequiredModal
+          visible
+          action="see access code"
+          onSignIn={() => router.push('/(auth)/sign-in')}
+          onCreateAccount={() => router.push('/(auth)/sign-up')}
+          onCancel={() => setAuthModalVisible(false)}
+        />
+      )}
     </BottomSheet>
   );
 }
@@ -320,12 +463,41 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
     flexDirection: 'row',
   },
+  secondaryActionRow: {
+    marginTop: spacing.md,
+    flexDirection: 'row',
+  },
   primaryButton: {
     flex: 1,
     minHeight: 48,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  codePanel: {
+    marginTop: spacing.md,
+  },
+  codeInput: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.base,
+    fontSize: typography.body.fontSize,
+  },
+  codeError: {
+    marginTop: spacing.sm,
+    fontSize: typography.subhead.fontSize,
+    fontWeight: typography.subhead.fontWeight,
+    lineHeight: typography.subhead.lineHeight,
+  },
+  codeSubmitButton: {
+    marginTop: spacing.md,
+  },
+  codePending: {
+    marginTop: spacing.md,
+    fontSize: typography.subhead.fontSize,
+    fontWeight: typography.subhead.fontWeight,
+    lineHeight: typography.subhead.lineHeight,
   },
   primaryButtonLabel: {
     fontSize: typography.bodyMedium.fontSize,
