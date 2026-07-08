@@ -50,3 +50,56 @@ export interface SubmitInput {
   accessCode?: string | null;
   timingTip?: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Pending-submission GeoJSON transform (get_my_pending_submissions → map)
+// ---------------------------------------------------------------------------
+
+/**
+ * A single row from `get_my_pending_submissions` (authed-only; the server scopes
+ * to `submitter_id = auth.uid() and status = 'pending'`, D-27 / T-04-14 — there is
+ * NO client-side "my submissions" filter). `lat`/`lng` are the st_y/st_x extraction,
+ * identical to the published-path readers.
+ */
+export interface PendingSubmissionRpcRow {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  policy_tag: string | null;
+  confirmation_count: number;
+  expires_at: string;
+}
+
+/**
+ * Properties carried on each pending-pin GeoJSON feature. Unlike the published
+ * `LocationFeatureProperties`, these carry verification progress
+ * (`confirmationCount` / `expiresAt`) so the pending-status sheet (D-27) reads
+ * them without a second fetch.
+ */
+export interface PendingSubmissionProperties {
+  id: string;
+  name: string;
+  policyTag: string | null;
+  confirmationCount: number;
+  expiresAt: string;
+}
+
+/** A single GeoJSON Point feature for one pending submission. Coordinates are [lng, lat]. */
+export interface PendingSubmissionFeature {
+  type: 'Feature';
+  geometry: {
+    type: 'Point';
+    coordinates: [number, number];
+  };
+  properties: PendingSubmissionProperties;
+}
+
+/**
+ * The FeatureCollection fed to the map's separate pending `ShapeSource`. Mirrors
+ * `LocationFeatureCollection`'s shape but with pending-specific properties.
+ */
+export interface PendingSubmissionFeatureCollection {
+  type: 'FeatureCollection';
+  features: PendingSubmissionFeature[];
+}
