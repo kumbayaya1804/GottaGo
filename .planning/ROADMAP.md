@@ -175,7 +175,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Submission DB layer: submissions staging columns + submit_location/get_my_pending_submissions/withdraw_submission RPCs + pgTAP + live push + type regen [wave 1]
+- [x] 04-01-PLAN.md — Submission DB layer: submissions staging columns + submit_location/get_my_pending_submissions/withdraw_submission RPCs + pgTAP + live push + type regen [wave 1]
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -388,7 +388,7 @@ Plans:
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
 | 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
 | 3. Read Path & Map | 5/5 | Complete   | 2026-07-07 |
-| 4. GPS Service & Submission | 0/2 | Not started | - |
+| 4. GPS Service & Submission | 1/6 | In Progress|  |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
 | 7. Reports & Moderation Inputs | 0/2 | Not started | - |
