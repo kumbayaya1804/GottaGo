@@ -179,8 +179,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 04-02-PLAN.md — Access-code update DB layer: locations code columns + update_access_code (stage-then-confirm D-24)/confirm_access_code/get_access_code RPCs + pgTAP + push [wave 2, depends 04-01]
-- [ ] 04-03-PLAN.md — Submission client services (TDD): useGpsSample, submitLocation, submitSchema, types [wave 2, depends 04-01]
+- [x] 04-02-PLAN.md — Access-code update DB layer: locations code columns + update_access_code (stage-then-confirm D-24)/confirm_access_code/get_access_code RPCs + pgTAP + push [wave 2, depends 04-01]
+- [x] 04-03-PLAN.md — Submission client services (TDD): useGpsSample, submitLocation, submitSchema, types [wave 2, depends 04-01]
 
 **Wave 3** *(blocked on Wave 2)*
 
@@ -388,7 +388,7 @@ Plans:
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
 | 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
 | 3. Read Path & Map | 5/5 | Complete   | 2026-07-07 |
-| 4. GPS Service & Submission | 1/6 | In Progress|  |
+| 4. GPS Service & Submission | 3/6 | In Progress|  |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
 | 7. Reports & Moderation Inputs | 0/2 | Not started | - |
