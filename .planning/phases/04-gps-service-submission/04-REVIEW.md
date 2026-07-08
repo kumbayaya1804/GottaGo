@@ -1,6 +1,7 @@
 ---
 phase: 04-gps-service-submission
 reviewed: 2026-07-08T02:01:08Z
+fixed: 2026-07-08T06:45:00Z
 depth: standard
 files_reviewed: 27
 files_reviewed_list:
@@ -45,6 +46,22 @@ status: issues_found
 **Depth:** standard
 **Files Reviewed:** 27
 **Status:** issues_found
+
+## Resolution (2026-07-08)
+
+All 9 findings addressed post-review, before phase verification:
+
+- **CR-01** (Hours field silently discarded): fixed — wired to a `Controller`, `submitSchema.hours` changed from `Record<string,string>` to a free-text `string` matching the actual single-input UI. Commit `958e2cf`.
+- **CR-02** (access-code overwrite abuse gap): fixed — `update_access_code` now rejects staging over a different user's pending proposal (same-user re-staging still allowed). New migration `20260708000000_phase4_code_review_fixes.sql`, pushed live. Commit `1b33cfb`.
+- **WR-01** (`get_access_code` null return): fixed — raises `'location not available'` instead of returning a falsely-typed `null`.
+- **WR-02** (future-dated GPS timestamp): fixed — `submit_location` now rejects `p_captured_at` more than 5s ahead of the server clock.
+- **WR-03** (`confirm_access_code` visibility-filter gap): fixed — the promoting `UPDATE` re-applies the same `deleted_at`/`shadowban_status`/`suppressed_at` filters as the initial `SELECT`.
+- **WR-04** (`withdraw_submission` silent no-op): fixed — raises `'submission not available'` on a zero-row match.
+- **WR-05** (door-code length parity): fixed — client `maxLength={100}` added to the update-code input; server-side `CHECK (char_length(pending_access_code) <= 100)` added for defense in depth.
+- **IN-01** (no server-side enum validation): fixed — `CHECK` constraints added on `submissions.policy_tag` and `access_sensitivity`.
+- **IN-02** (`confirmAccessCode`/`getAccessCode` no call site): accepted as-is, not a defect — confirmed intentional (infra-ahead-of-UI), tracked for the confirmation-flow UI in a future phase.
+
+pgTAP suites (`phase4_submit.test.sql`, `phase4_access_code.test.sql`) updated to cover the CR-02/WR-02/WR-04 behavior changes; plan counts bumped accordingly. Full jest suite green (381/381) and `tsc --noEmit` clean after all fixes.
 
 ## Summary
 
