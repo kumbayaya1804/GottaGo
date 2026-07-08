@@ -384,33 +384,60 @@ export type Database = {
       }
       submissions: {
         Row: {
+          access_code_confirmed_at: string | null
+          access_instructions: string | null
+          access_sensitivity: string | null
+          address: string | null
           confirmation_count: number | null
+          coordinates: unknown
           created_at: string | null
           expires_at: string
+          hours: Json | null
           id: string
           location_id: string | null
+          name: string | null
+          policy_tag: string | null
           status: string
           submitter_id: string | null
+          timing_tip: string | null
           updated_at: string | null
         }
         Insert: {
+          access_code_confirmed_at?: string | null
+          access_instructions?: string | null
+          access_sensitivity?: string | null
+          address?: string | null
           confirmation_count?: number | null
+          coordinates?: unknown
           created_at?: string | null
           expires_at?: string
+          hours?: Json | null
           id?: string
           location_id?: string | null
+          name?: string | null
+          policy_tag?: string | null
           status?: string
           submitter_id?: string | null
+          timing_tip?: string | null
           updated_at?: string | null
         }
         Update: {
+          access_code_confirmed_at?: string | null
+          access_instructions?: string | null
+          access_sensitivity?: string | null
+          address?: string | null
           confirmation_count?: number | null
+          coordinates?: unknown
           created_at?: string | null
           expires_at?: string
+          hours?: Json | null
           id?: string
           location_id?: string | null
+          name?: string | null
+          policy_tag?: string | null
           status?: string
           submitter_id?: string | null
+          timing_tip?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -814,6 +841,18 @@ export type Database = {
               isSetofReturn: true
             }
           }
+      get_my_pending_submissions: {
+        Args: never
+        Returns: {
+          confirmation_count: number
+          expires_at: string
+          id: string
+          lat: number
+          lng: number
+          name: string
+          policy_tag: string
+        }[]
+      }
       get_profile_stats: { Args: never; Returns: Json }
       search_locations_bbox: {
         Args: {
@@ -867,8 +906,29 @@ export type Database = {
         }[]
       }
       set_gps_consent: { Args: never; Returns: undefined }
+      submit_location: {
+        Args: {
+          p_access_code?: string
+          p_access_sensitivity?: string
+          p_accuracy_m: number
+          p_address?: string
+          p_captured_at: string
+          p_hours?: Json
+          p_lat: number
+          p_lng: number
+          p_mocked: boolean
+          p_name: string
+          p_policy_tag: string
+          p_timing_tip?: string
+        }
+        Returns: string
+      }
       update_profile: {
         Args: { new_display_name?: string; new_family_mode?: boolean }
+        Returns: undefined
+      }
+      withdraw_submission: {
+        Args: { p_submission_id: string }
         Returns: undefined
       }
     }
