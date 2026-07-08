@@ -54,6 +54,18 @@ jest.mock('../../../features/locations/formatDistance', () => ({
   usesMilesForLocale: () => true,
 }));
 
+// --- Mock useSession (the Phase 4 Update-door-code gate consumes it) so this suite does
+// not pull the real SessionProvider → supabase → AsyncStorage native module. Default:
+// signed out — the D-24 code-update behavior is covered in LocationDetailSheet.updateCode.test.
+jest.mock('../../../features/auth/useSession', () => ({
+  useSession: () => null,
+}));
+
+// --- The Update-door-code stage wrapper is imported by the sheet but never invoked here.
+jest.mock('../../../features/submit/updateAccessCode', () => ({
+  updateAccessCode: jest.fn(),
+}));
+
 import LocationDetailSheet from '../../(components)/LocationDetailSheet';
 
 const ID = '11111111-1111-1111-1111-111111111111';
