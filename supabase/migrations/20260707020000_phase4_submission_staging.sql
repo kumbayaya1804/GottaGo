@@ -27,7 +27,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 alter table public.submissions
   add column if not exists name                     text,
-  add column if not exists coordinates              geography(Point, 4326),
+  add column if not exists coordinates              extensions.geography(Point, 4326),
   add column if not exists address                  text,
   add column if not exists policy_tag               text,
   add column if not exists access_sensitivity       text,
@@ -97,7 +97,7 @@ begin
   values
     (auth.uid(), 'pending', 1,                           -- confirmation_count=1 = creator-initial (SC3)
      p_name,
-     st_setsrid(st_makepoint(p_lng, p_lat), 4326)::geography,   -- lng FIRST
+     extensions.st_setsrid(extensions.st_makepoint(p_lng, p_lat), 4326)::extensions.geography,   -- lng FIRST
      p_address, p_policy_tag, p_access_sensitivity, p_hours,
      p_access_code, now(), p_timing_tip)                 -- D-22: code_confirmed_at defaults to created_at
   returning id into v_id;
@@ -139,8 +139,8 @@ begin
   return query
   select s.id,
          s.name,
-         st_y(s.coordinates::geometry)::double precision as lat,
-         st_x(s.coordinates::geometry)::double precision as lng,
+         extensions.st_y(s.coordinates::extensions.geometry)::double precision as lat,
+         extensions.st_x(s.coordinates::extensions.geometry)::double precision as lng,
          s.policy_tag,
          s.confirmation_count,
          s.expires_at
