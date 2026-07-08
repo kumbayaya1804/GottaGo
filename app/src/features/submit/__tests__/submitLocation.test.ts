@@ -34,9 +34,9 @@ function baseInput(overrides: Partial<SubmitInput> = {}): SubmitInput {
     policyTag: 'public_facility',
     address: 'North parking lot',
     sensitive: false,
-    hours: null,
-    accessCode: null,
-    timingTip: null,
+    hours: undefined,
+    accessCode: undefined,
+    timingTip: undefined,
     ...overrides,
   };
 }
@@ -56,10 +56,10 @@ describe('submitLocation', () => {
       p_captured_at: new Date(1799999999000).toISOString(),
       p_policy_tag: 'public_facility',
       p_address: 'North parking lot',
-      p_access_sensitivity: null,
-      p_hours: null,
-      p_access_code: null,
-      p_timing_tip: null,
+      p_access_sensitivity: undefined,
+      p_hours: undefined,
+      p_access_code: undefined,
+      p_timing_tip: undefined,
     });
   });
 
@@ -74,25 +74,25 @@ describe('submitLocation', () => {
     );
   });
 
-  it('maps sensitive:false to p_access_sensitivity null (D-09)', async () => {
+  it('maps sensitive:false to p_access_sensitivity undefined — omits the key so the RPC default (null) applies (D-09)', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: 'id', error: null });
 
     await submitLocation(baseInput({ sensitive: false }));
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith(
       'submit_location',
-      expect.objectContaining({ p_access_sensitivity: null })
+      expect.objectContaining({ p_access_sensitivity: undefined })
     );
   });
 
-  it('sends p_access_code null when policyTag is code_required but accessCode is absent (D-19 optional)', async () => {
+  it('sends p_access_code undefined when policyTag is code_required but accessCode is absent (D-19 optional)', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: 'id', error: null });
 
     await submitLocation(baseInput({ policyTag: 'code_required', accessCode: undefined }));
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith(
       'submit_location',
-      expect.objectContaining({ p_access_code: null })
+      expect.objectContaining({ p_access_code: undefined })
     );
   });
 
@@ -107,14 +107,14 @@ describe('submitLocation', () => {
     );
   });
 
-  it('omits p_access_code (null) when policyTag is not code_required, even if accessCode is present (D-17)', async () => {
+  it('omits p_access_code (undefined) when policyTag is not code_required, even if accessCode is present (D-17)', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: 'id', error: null });
 
     await submitLocation(baseInput({ policyTag: 'public_facility', accessCode: '1234' }));
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith(
       'submit_location',
-      expect.objectContaining({ p_access_code: null })
+      expect.objectContaining({ p_access_code: undefined })
     );
   });
 
@@ -131,14 +131,14 @@ describe('submitLocation', () => {
     await expect(submitLocation(baseInput())).resolves.toBe('submission-id-456');
   });
 
-  it('maps a missing address to p_address null (D-04 free-text-only submissions)', async () => {
+  it('maps a missing address to p_address undefined (D-04 free-text-only submissions)', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: 'id', error: null });
 
     await submitLocation(baseInput({ address: undefined }));
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith(
       'submit_location',
-      expect.objectContaining({ p_address: null })
+      expect.objectContaining({ p_address: undefined })
     );
   });
 
