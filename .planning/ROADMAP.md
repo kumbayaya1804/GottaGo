@@ -184,8 +184,8 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 04-04-PLAN.md — Pending/withdraw/code client services (TDD): useMyPendingSubmissions, withdrawSubmission, updateAccessCode [wave 3, depends 04-02/04-03]
-- [ ] 04-05-PLAN.md — SubmitFlow 3-step wizard (RHF+Zod) + sensitivity confirm + Success screen; Places autocomplete deferred (OQ-1) [wave 3, depends 04-03]
+- [x] 04-04-PLAN.md — Pending/withdraw/code client services (TDD): useMyPendingSubmissions, withdrawSubmission, updateAccessCode [wave 3, depends 04-02/04-03]
+- [x] 04-05-PLAN.md — SubmitFlow 3-step wizard (RHF+Zod) + sensitivity confirm + Success screen; Places autocomplete deferred (OQ-1) [wave 3, depends 04-03]
 
 **Wave 4** *(blocked on Wave 3)*
 
@@ -388,7 +388,7 @@ Plans:
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
 | 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
 | 3. Read Path & Map | 5/5 | Complete   | 2026-07-07 |
-| 4. GPS Service & Submission | 3/6 | In Progress|  |
+| 4. GPS Service & Submission | 5/6 | In Progress|  |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
 | 7. Reports & Moderation Inputs | 0/2 | Not started | - |
