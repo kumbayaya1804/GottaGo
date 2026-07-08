@@ -21,7 +21,7 @@ Goal: globally available crowdsourced bathroom discovery with GPS-verified data,
 - [x] **Phase 1.5: UX Foundation & Design System** — Design contract (flow maps, wireframes, design system, nav model, emergency UX rules, error-state matrix, component checklist) that all client-facing phases implement against
 - [x] **Phase 2: Auth & Profiles** — Email/password + Google OAuth (Android-only until Apple Developer enrolled), SessionProvider, profile auto-creation, protected routes, account deletion, privacy/TOS links, GPS consent UX
 - [x] **Phase 3: Read Path & Map** — search_locations_bbox + search_locations_nearby RPCs, MapScreen renders real locations, emergency mode reads (completed 2026-07-07)
-- [ ] **Phase 4: GPS Service & Submission** — GpsService hook, submit_location SECURITY DEFINER RPC, SubmitFlow screen, pending-state lifecycle
+- [x] **Phase 4: GPS Service & Submission** — GpsService hook, submit_location SECURITY DEFINER RPC, SubmitFlow screen, pending-state lifecycle (completed 2026-07-08)
 - [ ] **Phase 5: Trust Engine & Verification** — verify_location RPC, trigger chain, confidence recalc, publish-on-N-verifications gate, VerifyFlow screen
 - [ ] **Phase 6: Decay, Aggregates & Flags** — confidence decay scheduled job (floor enforced), respect_signal_log triggers, respect_signal_90d concurrent refresh, availability_flags RPC
 - [ ] **Phase 7: Reports & Moderation Inputs** — report_location RPC (all 5 report types), auto-suppress trigger (sets locations.suppressed_at), admin SECURITY DEFINER functions for shadowban/suppress
@@ -189,7 +189,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 04-06-PLAN.md — Pending-pin map layer + PendingStatusSheet + withdraw + LocationDetailSheet Update-door-code UI [wave 4, depends 04-04/04-02]
+- [x] 04-06-PLAN.md — Pending-pin map layer + PendingStatusSheet + withdraw + LocationDetailSheet Update-door-code UI [wave 4, depends 04-04/04-02]
 
 ---
 
@@ -388,7 +388,7 @@ Plans:
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
 | 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
 | 3. Read Path & Map | 5/5 | Complete   | 2026-07-07 |
-| 4. GPS Service & Submission | 5/6 | In Progress|  |
+| 4. GPS Service & Submission | 6/6 | Complete   | 2026-07-08 |
 | 5. Trust Engine & Verification | 0/2 | Not started | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
 | 7. Reports & Moderation Inputs | 0/2 | Not started | - |
