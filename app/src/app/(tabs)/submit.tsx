@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,18 +6,23 @@ import {
   Pressable,
   Switch,
   ScrollView,
+  ActivityIndicator,
   StyleSheet,
   useColorScheme,
 } from 'react-native';
 import { useForm, Controller, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'expo-router';
+import { useMutation } from '@tanstack/react-query';
 import { Colors } from '../../constants/Colors';
 import { spacing } from '../../constants/spacing';
 import { typography } from '../../constants/typography';
 import { radius } from '../../constants/radius';
 import { useSession } from '../../features/auth/useSession';
 import { submitSchema, type SubmitSchema } from '../../features/submit/submitSchema';
+import { getGpsSample } from '../../features/submit/useGpsSample';
+import { submitLocation } from '../../features/submit/submitLocation';
+import type { GpsSample, GpsDenied, SubmitInput } from '../../features/submit/types';
 import AuthRequiredModal from '../(components)/AuthRequiredModal';
 import SensitivityConfirmModal from '../(components)/SensitivityConfirmModal';
 
@@ -39,10 +44,44 @@ import SensitivityConfirmModal from '../(components)/SensitivityConfirmModal';
 // [LOCKED copy — verbatim from 04-UI-SPEC.md Copywriting Contract; do not paraphrase]
 const CTA_NEXT = 'Next →';
 const CTA_BACK = 'Back';
+const CTA_AT_LOCATION = "I'm at This Location"; // wireframes.md #14
+const CTA_BACK_TO_MAP = 'Back to Map'; // wireframes.md #15
+const CTA_RETRY = 'Retry';
 const SENSITIVITY_LABEL = 'Not suitable for kids'; // D-10
 const SENSITIVITY_EXPLAINER = 'Hides this location from users who have Family mode enabled.'; // D-12
 const PIN_LABEL = 'Door code (optional) — only shown to signed-in users'; // D-19
 const ADDRESS_AFFORDANCE = 'No address? Describe the location instead'; // D-04
+const SUCCESS_HEADING = 'Location Submitted!'; // wireframes.md #15
+const SUCCESS_BODY =
+  "It'll appear publicly after 2 GPS verifications. You can see it on the map now."; // wireframes.md #15
+// [LOCKED error matrix — design-system.md §15 / 04-UI-SPEC.md; map the RPC's generic
+// rejection to these friendly strings only — never surface the specific reason (SC7).]
+const ERR_01 = "We can't find your location. Use search to browse bathrooms near an address.";
+const ERR_02 = 'GPS accuracy too low — move to an open area and try again.';
+const ERR_03 = 'GPS fix is stale — wait a moment and retry.';
+const ERR_08 = "Couldn't submit your location. Check your connection and try again.";
+
+// GPS confirm thresholds (advisory client pre-checks; the RPC re-validates, Pitfall 1).
+const MAX_ACCURACY_M = 50;
+const MAX_FIX_AGE_MS = 60_000;
+
+/** Flatten the wizard form + GPS sample into the `submitLocation` payload (D-05/D-17). */
+function buildInput(values: SubmitSchema, sample: GpsSample): SubmitInput {
+  return {
+    name: values.name,
+    lat: sample.coord.lat,
+    lng: sample.coord.lng,
+    accuracy: sample.accuracy,
+    mocked: sample.mocked,
+    timestamp: sample.timestamp,
+    policyTag: values.policyTag,
+    address: values.address || null,
+    sensitive: values.accessSensitivity,
+    hours: values.hours ?? null,
+    accessCode: values.accessCode || null,
+    timingTip: values.timingTip || null,
+  };
+}
 
 type PolicyTag = SubmitSchema['policyTag'];
 
@@ -76,11 +115,14 @@ export default function SubmitScreen() {
   const [describeMode, setDescribeMode] = useState(false);
   const [accessibility, setAccessibility] = useState<Record<string, boolean>>({});
   const [confirmVisible, setConfirmVisible] = useState(false);
+  const [sample, setSample] = useState<GpsSample | GpsDenied | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
 
   const {
     control,
     trigger,
     watch,
+    getValues,
     formState: { errors },
   } = useForm<SubmitSchema>({
     // `accessSensitivity` has a zod `.default(false)`, so the schema's INPUT type marks
@@ -97,6 +139,28 @@ export default function SubmitScreen() {
   });
 
   const policyTag = watch('policyTag');
+
+  const mutation = useMutation({
+    mutationFn: (input: SubmitInput) => submitLocation(input),
+    onSuccess: () => setStep('success'),
+  });
+
+  // Read a single high-accuracy GPS fix (SC1). Re-runnable for the ERR-03 stale Retry.
+  const loadSample = useCallback(async () => {
+    setGpsLoading(true);
+    try {
+      setSample(await getGpsSample());
+    } finally {
+      setGpsLoading(false);
+    }
+  }, []);
+
+  // Fetch the fix on entering Step 3 (only if one isn't already loaded).
+  useEffect(() => {
+    if (step === 3 && sample === null && !gpsLoading) {
+      void loadSample();
+    }
+  }, [step, sample, gpsLoading, loadSample]);
 
   // D-18: the entire wizard requires sign-in from the start. Render the inline
   // AuthRequiredModal gate (never a hard redirect) and do NOT mount the form.
@@ -117,6 +181,36 @@ export default function SubmitScreen() {
   async function goToStep2() {
     const ok = await trigger(['name', 'policyTag']);
     if (ok) setStep(2);
+  }
+
+  // Derived GPS state. `sample` is the denied sentinel, a real fix, or null (loading).
+  const isDenied = sample !== null && 'denied' in sample;
+  const gpsSample = sample !== null && !('denied' in sample) ? sample : null;
+  const isStale = gpsSample !== null && Date.now() - gpsSample.timestamp > MAX_FIX_AGE_MS;
+  const accuracyPoor =
+    gpsSample !== null && gpsSample.accuracy !== null && gpsSample.accuracy > MAX_ACCURACY_M;
+  const gpsValid =
+    gpsSample !== null &&
+    gpsSample.accuracy !== null &&
+    gpsSample.accuracy <= MAX_ACCURACY_M &&
+    !gpsSample.mocked &&
+    !isStale;
+
+  function doSubmit() {
+    setConfirmVisible(false);
+    if (gpsSample === null) return;
+    mutation.mutate(buildInput(getValues(), gpsSample));
+  }
+
+  // On the 56pt CTA: fire the D-15 confirm dialog first if sensitivity is ON (T-04-19),
+  // otherwise submit directly. The CTA is already gated on `gpsValid` via `disabled`.
+  function handleAtLocationPress() {
+    if (!gpsValid) return;
+    if (getValues('accessSensitivity')) {
+      setConfirmVisible(true);
+    } else {
+      doSubmit();
+    }
   }
 
   const progressDots = [1, 2, 3];
@@ -382,9 +476,122 @@ export default function SubmitScreen() {
       {step === 3 && (
         <View>
           <Text style={[styles.title, { color: colors.textPrimary }]}>GPS Confirm</Text>
-          <Text style={[styles.subhead, { color: colors.textSecondary }]}>
-            Confirming you are physically at this location…
-          </Text>
+
+          {gpsLoading && (
+            <View style={styles.gpsRow}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={[styles.subhead, { color: colors.textSecondary }]}>
+                Reading your location…
+              </Text>
+            </View>
+          )}
+
+          {/* Live accuracy readout — every status pairs color + glyph + text (WCAG 1.4.1,
+              design-system.md §18.4). This app ships no icon library; an accessible text
+              glyph stands in for the Ionicons checkmark/warning marks. */}
+          {!gpsLoading && gpsSample !== null && gpsSample.accuracy !== null && (
+            <View style={styles.gpsRow}>
+              <Text
+                style={[
+                  styles.gpsGlyph,
+                  { color: accuracyPoor ? colors.warningAmber : colors.successGreen },
+                ]}
+              >
+                {accuracyPoor ? '⚠' : '✓'}
+              </Text>
+              <Text
+                style={[
+                  styles.body,
+                  { color: accuracyPoor ? colors.warningAmber : colors.successGreen },
+                ]}
+              >
+                {`GPS accuracy: ±${Math.round(gpsSample.accuracy)}m (${accuracyPoor ? 'poor' : 'good'})`}
+              </Text>
+            </View>
+          )}
+
+          {/* Inline GPS error area — generic RPC rejection maps to LOCKED copy only (SC7). */}
+          {!gpsLoading && isDenied && (
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[styles.gpsError, { color: colors.errorRed }]}
+            >
+              {ERR_01}
+            </Text>
+          )}
+          {!gpsLoading && accuracyPoor && (
+            <View style={styles.gpsErrorRow} accessibilityLiveRegion="polite">
+              <Text style={[styles.gpsGlyph, { color: colors.warningAmber }]}>⚠</Text>
+              <Text style={[styles.gpsError, { color: colors.warningAmber }]}>{ERR_02}</Text>
+            </View>
+          )}
+          {!gpsLoading && !accuracyPoor && isStale && (
+            <View>
+              <Text
+                accessibilityLiveRegion="polite"
+                style={[styles.gpsError, { color: colors.warningAmber }]}
+              >
+                {ERR_03}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={CTA_RETRY}
+                style={[styles.secondaryButton, { borderColor: colors.primary }]}
+                onPress={() => void loadSample()}
+              >
+                <Text style={[styles.secondaryButtonLabel, { color: colors.primary }]}>
+                  {CTA_RETRY}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* ERR-08: RPC failure — inline, form preserved, Retry re-submits (SC7). */}
+          {mutation.isError && (
+            <View>
+              <View style={styles.gpsErrorRow} accessibilityLiveRegion="assertive">
+                <Text style={[styles.gpsGlyph, { color: colors.errorRed }]}>⚠</Text>
+                <Text style={[styles.gpsError, { color: colors.errorRed }]}>{ERR_08}</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={CTA_RETRY}
+                style={[styles.secondaryButton, { borderColor: colors.primary }]}
+                onPress={doSubmit}
+              >
+                <Text style={[styles.secondaryButtonLabel, { color: colors.primary }]}>
+                  {CTA_RETRY}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* 56pt primary CTA — enabled only for a present, non-mocked, fresh, ≤50m fix. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={CTA_AT_LOCATION}
+            accessibilityState={{ disabled: !gpsValid || mutation.isPending }}
+            disabled={!gpsValid || mutation.isPending}
+            style={[
+              styles.primaryButton,
+              { backgroundColor: !gpsValid || mutation.isPending ? colors.border : colors.primary },
+            ]}
+            onPress={handleAtLocationPress}
+          >
+            {mutation.isPending ? (
+              <ActivityIndicator color={colors.textInverse} />
+            ) : (
+              <Text
+                style={[
+                  styles.primaryButtonLabel,
+                  { color: !gpsValid ? colors.textDisabled : colors.textInverse },
+                ]}
+              >
+                {CTA_AT_LOCATION}
+              </Text>
+            )}
+          </Pressable>
+
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={CTA_BACK}
@@ -396,10 +603,30 @@ export default function SubmitScreen() {
         </View>
       )}
 
-      {/* D-15 confirm dialog — wired to the Step-3 final submit in Task 2. */}
+      {step === 'success' && (
+        <View style={styles.successBlock}>
+          <Text style={[styles.successGlyph, { color: colors.successGreen }]}>✓</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{SUCCESS_HEADING}</Text>
+          <Text style={[styles.body, styles.successBody, { color: colors.textSecondary }]}>
+            {SUCCESS_BODY}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={CTA_BACK_TO_MAP}
+            style={[styles.primaryButton, styles.successCta, { backgroundColor: colors.primary }]}
+            onPress={() => router.replace('/(tabs)')}
+          >
+            <Text style={[styles.primaryButtonLabel, { color: colors.textInverse }]}>
+              {CTA_BACK_TO_MAP}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* D-15 confirm dialog — fires before submit when sensitivity is ON. */}
       <SensitivityConfirmModal
         visible={confirmVisible}
-        onConfirm={() => setConfirmVisible(false)}
+        onConfirm={doSubmit}
         onCancel={() => setConfirmVisible(false)}
       />
     </ScrollView>
@@ -567,5 +794,45 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  gpsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  gpsGlyph: {
+    fontSize: typography.h3.fontSize,
+    fontWeight: typography.h3.fontWeight,
+    lineHeight: typography.h3.lineHeight,
+  },
+  gpsErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  gpsError: {
+    flex: 1,
+    fontSize: typography.subhead.fontSize,
+    fontWeight: typography.subhead.fontWeight,
+    lineHeight: typography.subhead.lineHeight,
+  },
+  successBlock: {
+    alignItems: 'center',
+    paddingTop: spacing.xxl,
+  },
+  successGlyph: {
+    fontSize: typography.display.fontSize,
+    fontWeight: typography.display.fontWeight,
+    lineHeight: typography.display.lineHeight,
+    marginBottom: spacing.base,
+  },
+  successBody: {
+    textAlign: 'center',
+    marginTop: spacing.md,
+  },
+  successCta: {
+    alignSelf: 'stretch',
   },
 });
