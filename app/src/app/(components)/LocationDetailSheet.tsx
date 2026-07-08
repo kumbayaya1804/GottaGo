@@ -351,6 +351,7 @@ export default function LocationDetailSheet({
                   accessibilityLabel={CODE_INPUT_LABEL}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  maxLength={100}
                   value={codeInput}
                   onChangeText={setCodeInput}
                 />

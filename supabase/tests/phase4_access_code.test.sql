@@ -26,7 +26,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(16);
 
 -- ─── Fixtures: two authenticated test users (proposer A + confirmer B) ────────
 insert into auth.users (instance_id, id, aud, role, email)
@@ -69,6 +69,29 @@ select is(
      where id = 'c0000000-0000-0000-0000-000000000001'),
   'a0000000-0000-0000-0000-000000000001'::uuid,
   'update_access_code records the proposer in pending_code_proposed_by');
+
+-- ═══ Section 1b. A DIFFERENT user cannot clobber A's pending proposal (CR-02) ══
+select set_config('request.jwt.claims',
+  json_build_object('sub','a0000000-0000-0000-0000-000000000002','role','authenticated')::text, true);
+
+select throws_ok(
+  $$ select public.update_access_code('c0000000-0000-0000-0000-000000000001'::uuid, 'ATTACKER-CODE') $$,
+  'P0001', 'code update already pending',
+  'update_access_code rejects a different user overwriting an already-pending proposal (CR-02)');
+
+select is(
+  (select pending_access_code from public.locations
+     where id = 'c0000000-0000-0000-0000-000000000001'),
+  'NEW-CODE',
+  'the rejected overwrite attempt leaves A''s original pending_access_code unchanged');
+
+-- The ORIGINAL proposer may still re-stage their own proposal (e.g. fixing a typo).
+select set_config('request.jwt.claims',
+  json_build_object('sub','a0000000-0000-0000-0000-000000000001','role','authenticated')::text, true);
+
+select lives_ok(
+  $$ select public.update_access_code('c0000000-0000-0000-0000-000000000001'::uuid, 'NEW-CODE') $$,
+  'the original proposer may re-stage their own pending proposal without the CR-02 guard firing');
 
 -- ═══ Section 2. Same-user confirm does NOT promote (D-24) ═════════════════════
 -- Still impersonating proposer A — confirming your own proposal must be refused.

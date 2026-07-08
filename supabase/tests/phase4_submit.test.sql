@@ -26,7 +26,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(20);
 
 -- ─── Fixtures: two authenticated test users ──────────────────────────────────
 insert into auth.users (instance_id, id, aud, role, email)
@@ -98,6 +98,11 @@ select throws_ok(
   'P0001', 'gps rejected',
   'submit_location rejects a fix older than max_gps_age_s (61s > 60s) with the same generic error');
 
+select throws_ok(
+  $$ select public.submit_location('FutureDated', 44.05, -123.09, 10::numeric, false, now() + interval '10 seconds', 'chill_spot') $$,
+  'P0001', 'gps rejected',
+  'submit_location rejects a p_captured_at set in the future beyond the 5s clock-skew allowance (WR-02)');
+
 -- ═══ Section 3. Anonymous callers are rejected (auth gate) ════════════════════
 select set_config('request.jwt.claims', '', true);
 
@@ -140,8 +145,12 @@ select is(
   'get_my_pending_submissions never returns another user''s pending rows');
 
 -- ═══ Section 5. withdraw_submission is owner-scoped ═══════════════════════════
--- User B (still impersonated) attempts to withdraw user A's row → no-op
-select public.withdraw_submission((select id from sub_a1));
+-- User B (still impersonated) attempts to withdraw user A's row → raises (WR-04 fix:
+-- a zero-row match now raises 'submission not available' instead of a silent no-op).
+select throws_ok(
+  $$ select public.withdraw_submission((select id from sub_a1)) $$,
+  'P0001', 'submission not available',
+  'withdraw_submission by a non-owner raises submission not available');
 select is(
   (select count(*) from public.submissions where id = (select id from sub_a1)),
   1::bigint,
