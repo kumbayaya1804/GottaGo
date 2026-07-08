@@ -52,6 +52,28 @@ jest.mock('../../(components)/LocationDetailSheet', () => ({
   },
 }));
 
+// --- Spy the pending sheet too (it pulls in @gorhom/bottom-sheet; MapScreen only wires it).
+const mockPendingSheetSpy = jest.fn();
+jest.mock('../../(components)/PendingStatusSheet', () => ({
+  __esModule: true,
+  default: (props: unknown) => {
+    mockPendingSheetSpy(props);
+    return null;
+  },
+}));
+
+// --- Controllable auth session (the pending layer is submitter-only, enabled: !!session).
+let mockSessionValue: { session: { user: { id: string } } | null } | null;
+jest.mock('../../../features/auth/useSession', () => ({
+  useSession: () => mockSessionValue,
+}));
+
+// --- The authed-only pending-submissions fetch (separate source, server-scoped).
+const mockUseMyPendingSubmissions = jest.fn();
+jest.mock('../../../features/submit/useMyPendingSubmissions', () => ({
+  useMyPendingSubmissions: (...args: unknown[]) => mockUseMyPendingSubmissions(...args),
+}));
+
 import MapScreen from '../../(tabs)/index';
 
 const VIEWPORT = { minLng: -123.1, minLat: 44.04, maxLng: -123.08, maxLat: 44.06 };
@@ -88,6 +110,9 @@ beforeEach(() => {
   });
   mockUseLocationsBbox.mockResolvedValue(EMPTY_FC);
   mockUseDeniedLocationState.mockReturnValue({ permission: 'granted', showManualSearch: false });
+  // Default: signed out — the pending layer must stay dark for anon (T-04-20).
+  mockSessionValue = null;
+  mockUseMyPendingSubmissions.mockResolvedValue(EMPTY_FC);
   useFiltersStore.setState({ ...EMPTY_FILTERS });
 });
 
@@ -178,5 +203,26 @@ describe('MapScreen', () => {
     const button = await findByText('Clear filters');
     fireEvent.press(button);
     expect(useFiltersStore.getState().chillSpot).toBe(false);
+  });
+
+  it('does NOT fetch pending submissions when signed out (enabled: !!session, T-04-20)', async () => {
+    mockSessionValue = null;
+    renderScreen();
+    // Give any (incorrectly) enabled query a tick to fire.
+    await waitFor(() => expect(mockSheetSpy).toHaveBeenCalled());
+    expect(mockUseMyPendingSubmissions).not.toHaveBeenCalled();
+  });
+
+  it('fetches the submitter-only pending submissions when signed in', async () => {
+    mockSessionValue = { session: { user: { id: 'user-1' } } };
+    renderScreen();
+    await waitFor(() => expect(mockUseMyPendingSubmissions).toHaveBeenCalled());
+  });
+
+  it('mounts the PendingStatusSheet with no submission selected initially', () => {
+    mockSessionValue = { session: { user: { id: 'user-1' } } };
+    renderScreen();
+    const lastProps = mockPendingSheetSpy.mock.calls.at(-1)?.[0];
+    expect(lastProps).toMatchObject({ submission: null });
   });
 });

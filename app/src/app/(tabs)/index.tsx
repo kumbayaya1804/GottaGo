@@ -8,7 +8,7 @@ import Mapbox, {
   SymbolLayer,
   UserLocation,
 } from '@rnmapbox/maps';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../constants/Colors';
 import { spacing } from '../../constants/spacing';
 import { typography } from '../../constants/typography';
@@ -18,8 +18,15 @@ import { useCurrentPosition } from '../../features/locations/useCurrentPosition'
 import { useLocationsBbox } from '../../features/locations/useLocationsBbox';
 import { useDeniedLocationState } from '../../features/locations/useDeniedLocationState';
 import { useFiltersStore } from '../../features/filters/useFiltersStore';
+import { useSession } from '../../features/auth/useSession';
+import { useMyPendingSubmissions } from '../../features/submit/useMyPendingSubmissions';
 import type { LocationFeatureCollection } from '../../features/locations/types';
+import type {
+  PendingSubmissionFeatureCollection,
+  PendingSubmissionProperties,
+} from '../../features/submit/types';
 import LocationDetailSheet from '../(components)/LocationDetailSheet';
+import PendingStatusSheet from '../(components)/PendingStatusSheet';
 import FilterChipRow from '../(components)/FilterChipRow';
 
 /**
@@ -44,6 +51,13 @@ Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '');
 /** Dev-seed center (Eugene, OR — D-31) used only until the first GPS fix. */
 const SEED_CENTER: [number, number] = [-123.09, 44.05];
 const EMPTY_FC: LocationFeatureCollection = { type: 'FeatureCollection', features: [] };
+const EMPTY_PENDING_FC: PendingSubmissionFeatureCollection = {
+  type: 'FeatureCollection',
+  features: [],
+};
+// '< Pending >' label on the submitter-only pin — status carried by color+text, never
+// color-only (design-system §18.4). The dashed-outline visual is device-verified (checkpoint).
+const PENDING_PIN_LABEL = '< Pending >';
 const ZOOM_OUT_COPY = 'Zoom in to see individual locations';
 const BANNER_COPY = "Couldn't load bathrooms here.";
 // [LOCKED ERR-01] — verbatim, do not paraphrase (03-UI-SPEC.md).
@@ -73,6 +87,20 @@ export default function MapScreen() {
   const { coords } = useCurrentPosition();
   const { showManualSearch } = useDeniedLocationState();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedPending, setSelectedPending] = useState<PendingSubmissionProperties | null>(null);
+
+  // Signed-in submitter's own pending pins (SC9). Scoping is entirely server-side
+  // (`submitter_id = auth.uid()`, T-04-20) — this is a SEPARATE authed-only query, never a
+  // client-side "my rows" filter and never a JOIN into Phase 3's search RPCs.
+  const session = useSession()?.session ?? null;
+  const queryClient = useQueryClient();
+  const pendingQuery = useQuery({
+    queryKey: ['pendingSubmissions', session?.user?.id],
+    queryFn: () => useMyPendingSubmissions(),
+    // Defense in depth: the RPC returns nothing for anon anyway, but never even fire it.
+    enabled: !!session,
+  });
+  const pendingCollection = pendingQuery.data ?? EMPTY_PENDING_FC;
 
   const activeRpcFilters = useFiltersStore((s) => s.activeRpcFilters);
   const clearAllFilters = useFiltersStore((s) => s.clearAll);
@@ -137,6 +165,16 @@ export default function MapScreen() {
     if (typeof id === 'string') setSelectedId(id);
   }, []);
 
+  // Pending pins live in their OWN source, so they get their own handler — the published
+  // branch above stays untouched. The tapped feature already carries confirmationCount /
+  // expiresAt (get_my_pending_submissions), so the pending sheet needs no second fetch (D-27).
+  const handlePendingPress = useCallback((event: ShapePressEvent) => {
+    const props = event.features?.[0]?.properties;
+    if (props && typeof props.id === 'string') {
+      setSelectedPending(props as unknown as PendingSubmissionProperties);
+    }
+  }, []);
+
   return (
     <View style={styles.screen}>
       <MapView
@@ -181,6 +219,36 @@ export default function MapScreen() {
                 circleRadius: 8,
                 circleStrokeWidth: 2,
                 circleStrokeColor: colors.background,
+              }}
+            />
+          </ShapeSource>
+        )}
+
+        {/* SEPARATE submitter-only pending layer (RESEARCH Pattern 4) — NOT clustered with
+            id="locations" and NOT a merged feature collection. Gated on an active session so
+            anon never even mounts it; visibility is server-scoped, not client-filtered. */}
+        {!belowPinThreshold && !showManualSearch && !!session && (
+          <ShapeSource
+            id="pendingLocations"
+            shape={pendingCollection as never}
+            onPress={handlePendingPress as never}
+          >
+            <CircleLayer
+              id="pendingPin"
+              style={{
+                circleColor: colors.pinPending,
+                circleRadius: 8,
+                circleStrokeWidth: 2,
+                circleStrokeColor: colors.background,
+              }}
+            />
+            <SymbolLayer
+              id="pendingBadge"
+              style={{
+                textField: PENDING_PIN_LABEL,
+                textSize: 10,
+                textColor: colors.pinPending,
+                textOffset: [0, 1.6] as never,
               }}
             />
           </ShapeSource>
@@ -280,6 +348,19 @@ export default function MapScreen() {
         userLat={coords?.userLat ?? null}
         userLng={coords?.userLng ?? null}
         onDismiss={() => setSelectedId(null)}
+      />
+
+      <PendingStatusSheet
+        submission={selectedPending}
+        onDismiss={() => setSelectedPending(null)}
+        onWithdrawn={() => {
+          // Pin vanishes from the map entirely (D-29): drop the sheet + refetch the
+          // now-shorter pending set for this submitter.
+          queryClient.invalidateQueries({
+            queryKey: ['pendingSubmissions', session?.user?.id],
+          });
+          setSelectedPending(null);
+        }}
       />
     </View>
   );
