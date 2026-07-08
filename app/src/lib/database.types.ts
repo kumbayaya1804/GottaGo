@@ -172,6 +172,7 @@ export type Database = {
       }
       locations: {
         Row: {
+          access_code_confirmed_at: string | null
           access_instructions: string | null
           access_sensitivity: string | null
           address: string | null
@@ -189,6 +190,8 @@ export type Database = {
           is_open_now: boolean | null
           last_verified_at: string | null
           name: string
+          pending_access_code: string | null
+          pending_code_proposed_by: string | null
           policy_tag: string | null
           respect_signal_score: number | null
           shadowban_status: boolean
@@ -198,6 +201,7 @@ export type Database = {
           verification_count: number | null
         }
         Insert: {
+          access_code_confirmed_at?: string | null
           access_instructions?: string | null
           access_sensitivity?: string | null
           address?: string | null
@@ -215,6 +219,8 @@ export type Database = {
           is_open_now?: boolean | null
           last_verified_at?: string | null
           name: string
+          pending_access_code?: string | null
+          pending_code_proposed_by?: string | null
           policy_tag?: string | null
           respect_signal_score?: number | null
           shadowban_status?: boolean
@@ -224,6 +230,7 @@ export type Database = {
           verification_count?: number | null
         }
         Update: {
+          access_code_confirmed_at?: string | null
           access_instructions?: string | null
           access_sensitivity?: string | null
           address?: string | null
@@ -241,6 +248,8 @@ export type Database = {
           is_open_now?: boolean | null
           last_verified_at?: string | null
           name?: string
+          pending_access_code?: string | null
+          pending_code_proposed_by?: string | null
           policy_tag?: string | null
           respect_signal_score?: number | null
           shadowban_status?: boolean
@@ -720,6 +729,10 @@ export type Database = {
     }
     Functions: {
       check_display_name_available: { Args: { name: string }; Returns: boolean }
+      confirm_access_code: {
+        Args: { p_location_id: string }
+        Returns: undefined
+      }
       count_locations_within:
         | {
             Args: { p_lat: number; p_lon: number; p_radius_m?: number }
@@ -730,6 +743,7 @@ export type Database = {
             Returns: number
           }
       delete_account: { Args: never; Returns: undefined }
+      get_access_code: { Args: { p_location_id: string }; Returns: string }
       get_location_detail: {
         Args: { location_id: string; user_lat?: number; user_lng?: number }
         Returns: {
@@ -763,6 +777,7 @@ export type Database = {
               user_lng: number
             }
             Returns: {
+              access_code_confirmed_at: string | null
               access_instructions: string | null
               access_sensitivity: string | null
               address: string | null
@@ -780,6 +795,8 @@ export type Database = {
               is_open_now: boolean | null
               last_verified_at: string | null
               name: string
+              pending_access_code: string | null
+              pending_code_proposed_by: string | null
               policy_tag: string | null
               respect_signal_score: number | null
               shadowban_status: boolean
@@ -809,6 +826,7 @@ export type Database = {
               user_lng: number
             }
             Returns: {
+              access_code_confirmed_at: string | null
               access_instructions: string | null
               access_sensitivity: string | null
               address: string | null
@@ -826,6 +844,8 @@ export type Database = {
               is_open_now: boolean | null
               last_verified_at: string | null
               name: string
+              pending_access_code: string | null
+              pending_code_proposed_by: string | null
               policy_tag: string | null
               respect_signal_score: number | null
               shadowban_status: boolean
@@ -922,6 +942,10 @@ export type Database = {
           p_timing_tip?: string
         }
         Returns: string
+      }
+      update_access_code: {
+        Args: { p_code: string; p_location_id: string }
+        Returns: undefined
       }
       update_profile: {
         Args: { new_display_name?: string; new_family_mode?: boolean }
