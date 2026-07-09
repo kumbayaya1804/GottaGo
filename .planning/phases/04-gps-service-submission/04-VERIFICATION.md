@@ -1,6 +1,7 @@
 ---
 phase: 04-gps-service-submission
 verified: 2026-07-08T00:00:00Z
+updated: 2026-07-09T22:23:06Z
 status: human_needed
 score: 10/10 success criteria code-verified; 2 items require device confirmation
 overrides_applied: 0
@@ -18,11 +19,13 @@ human_verification:
 **Phase Goal:** Users physically present at a bathroom can submit it. GPS sample is validated server-side. Submitted locations enter pending state awaiting verification. Access codes and timing tips are writable in this phase — before Phase 8 attempts to display them.
 **Verified:** 2026-07-08
 **Status:** human_needed
-**Re-verification:** No — initial verification
+**Re-verification:** 2026-07-09 post-review bookkeeping update; device UAT still pending
+
+**Post-review update (2026-07-09):** Final review-fix commit `bf93a37` (`fix phase 4 review findings`) is in `HEAD`. Antigravity and Codex both APPROVE the 32-file review queue, `.claude/review-queue.txt` is empty, and the review-fix migrations `20260708010000_phase4_drop_direct_submission_insert.sql` plus `20260708020000_phase4_codex_review_fixes.sql` are now part of the Phase 4 verification scope. This update does not close the two human-only device walkthroughs below.
 
 ## Verification Method
 
-Read all 6 PLAN/SUMMARY pairs, 04-CONTEXT.md (D-01..D-30 decisions), 04-RESEARCH.md, 04-VALIDATION.md, 04-REVIEW.md, and cross-referenced every claim against the actual codebase: 3 migrations (`20260707020000_phase4_submission_staging.sql`, `20260707030000_phase4_access_code_update.sql`, `20260708000000_phase4_code_review_fixes.sql`), 2 pgTAP suites, 9 client `features/submit/*` modules + tests, and 4 UI files (`submit.tsx`, `PendingStatusSheet.tsx`, `WithdrawConfirmModal.tsx`, `SensitivityConfirmModal.tsx`, `LocationDetailSheet.tsx`, `index.tsx`). Independently ran `cd app && npx tsc --noEmit` (clean) and `cd app && npm test` (47 suites / 381 tests, all green) rather than trusting the SUMMARY.md-reported numbers. Verified all documented commit hashes exist in `git log`. Confirmed the code-review-fix migration (`20260708000000_phase4_code_review_fixes.sql`) is live and its `create or replace function` bodies actually contain the claimed fixes (CR-02 ownership guard, WR-01 non-null guarantee, WR-02 future-timestamp rejection, WR-03 visibility-filter parity, WR-04 not-found exception, WR-05 length CHECK, IN-01 enum CHECKs) by reading the SQL directly, not the review report's prose.
+Read all 6 PLAN/SUMMARY pairs, 04-CONTEXT.md (D-01..D-30 decisions), 04-RESEARCH.md, 04-VALIDATION.md, 04-REVIEW.md, and cross-referenced every claim against the actual codebase: 5 migrations (`20260707020000_phase4_submission_staging.sql`, `20260707030000_phase4_access_code_update.sql`, `20260708000000_phase4_code_review_fixes.sql`, `20260708010000_phase4_drop_direct_submission_insert.sql`, `20260708020000_phase4_codex_review_fixes.sql`), 2 pgTAP suites, 9 client `features/submit/*` modules + tests, and 4 UI files (`submit.tsx`, `PendingStatusSheet.tsx`, `WithdrawConfirmModal.tsx`, `SensitivityConfirmModal.tsx`, `LocationDetailSheet.tsx`, `index.tsx`). Independently ran `cd app && npx tsc --noEmit` (clean) and `cd app && npm test` (47 suites / 381 tests, all green) rather than trusting the SUMMARY.md-reported numbers. Verified all documented commit hashes exist in `git log`. Confirmed the code-review-fix migration (`20260708000000_phase4_code_review_fixes.sql`) is live and its `create or replace function` bodies actually contain the claimed fixes (CR-02 ownership guard, WR-01 non-null guarantee, WR-02 future-timestamp rejection, WR-03 visibility-filter parity, WR-04 not-found exception, WR-05 length CHECK, IN-01 enum CHECKs) by reading the SQL directly, not the review report's prose. Post-review recheck confirmed `20260708010000` drops direct authenticated `submissions` INSERT access and `20260708020000` enforces null/blank/overlong door-code rejection plus trim-before-stage behavior.
 
 ## Goal Achievement
 
@@ -50,8 +53,10 @@ Read all 6 PLAN/SUMMARY pairs, 04-CONTEXT.md (D-01..D-30 decisions), 04-RESEARCH
 | `supabase/migrations/20260707020000_phase4_submission_staging.sql` | submissions staging columns + submit_location/get_my_pending_submissions/withdraw_submission | VERIFIED | Present, all 9 columns added, 3 RPCs with correct auth-gate + grant triple. Superseded in body (not schema) by the 20260708000000 fix migration via `create or replace`. |
 | `supabase/migrations/20260707030000_phase4_access_code_update.sql` | locations code columns + update/confirm/get RPCs | VERIFIED | Present, 3 nullable columns added, 3 RPCs with correct stage-then-confirm logic. |
 | `supabase/migrations/20260708000000_phase4_code_review_fixes.sql` | Post-review hardening (CR-02, WR-01..05, IN-01) | VERIFIED | Present and live-pushed; read directly — CR-02 ownership guard, WR-01/03/04 exception-raising fixes, WR-02 future-timestamp rejection, WR-05 length CHECK, IN-01 enum CHECKs all confirmed present in the SQL body, not just claimed in 04-REVIEW.md. |
-| `supabase/tests/phase4_submit.test.sql` | pgTAP suite, 20 assertions | VERIFIED (file); NOT EXECUTED (tracked override) | `select plan(20)` matches 20 actual assertions counted directly. Never run — no Docker (same carryover as Phase 3; tracked todo `2026-07-07-run-pgtap-suite-on-docker-capable-machine.md` exists). |
-| `supabase/tests/phase4_access_code.test.sql` | pgTAP suite, 16 assertions | VERIFIED (file); NOT EXECUTED (tracked override) | `select plan(16)` matches 16 actual assertions (15 `is`/`ok`/`throws_ok` + 1 `lives_ok`) counted directly. Same tracked override. |
+| `supabase/migrations/20260708010000_phase4_drop_direct_submission_insert.sql` | Remove direct authenticated INSERT bypass on `submissions` | VERIFIED | Present in `HEAD`; drops the direct `submissions_insert_auth` policy so submitted rows must go through the RPC path. |
+| `supabase/migrations/20260708020000_phase4_codex_review_fixes.sql` | Codex review-fix hardening for door-code input validation | VERIFIED | Present in `HEAD`; rejects null, blank/whitespace-only, and overlong `update_access_code` proposals, stages trimmed values, and preserves the different-proposer conflict guard. |
+| `supabase/tests/phase4_submit.test.sql` | pgTAP suite, 21 assertions | VERIFIED (file); NOT EXECUTED (tracked override) | `select plan(21)` matches 21 actual assertions counted directly. Never run — no Docker (same carryover as Phase 3; tracked todo `2026-07-07-run-pgtap-suite-on-docker-capable-machine.md` exists and now names Phase 4). |
+| `supabase/tests/phase4_access_code.test.sql` | pgTAP suite, 21 assertions | VERIFIED (file); NOT EXECUTED (tracked override) | `select plan(21)` matches 21 actual assertions counted directly. Same tracked override. |
 | `app/src/lib/database.types.ts` | Regenerated types incl. all 6 new RPCs | VERIFIED | `submit_location`, `get_my_pending_submissions`, `withdraw_submission`, `update_access_code`, `confirm_access_code`, `get_access_code` all present (grep-confirmed at their line numbers). |
 | `app/src/features/submit/useGpsSample.ts` | High-accuracy GPS hook | VERIFIED | Matches spec exactly; 100% test coverage claim consistent with 8 passing tests. |
 | `app/src/features/submit/submitLocation.ts` | submit_location RPC wrapper | VERIFIED | D-09/D-17 mappings correct; raw error rethrow confirmed by reading the code (`if (error) throw error`). |
@@ -96,7 +101,7 @@ No hardcoded/static empty returns found in any RPC or client module reviewed.
 |----------|---------|--------|--------|
 | Full jest suite green | `cd app && npm test` | 47 suites / 381 tests passed | PASS |
 | TypeScript compiles clean | `cd app && npx tsc --noEmit` | No output / exit 0 | PASS |
-| pgTAP suite assertion counts match declared plan() | grep-counted vs `select plan(N)` | 20/20 and 16/16 | PASS |
+| pgTAP suite assertion counts match declared plan() | grep-counted vs `select plan(N)` | 21/21 and 21/21 | PASS |
 | pgTAP suites actually execute | N/A — no Docker in this environment | Not run | SKIP (tracked override, see Carryover Risk) |
 
 ### Probe Execution
@@ -142,11 +147,12 @@ No blockers found. Both info items are explicitly disclosed, reasoned, and track
 
 ### Gaps Summary
 
-No blocking gaps found. All 6 requirement IDs and all 10 ROADMAP success criteria have direct, independently-verified code evidence (migrations read line-by-line, client modules read and cross-checked against their tests, jest suite and `tsc` re-run independently rather than trusting SUMMARY.md's reported numbers). The phase's own code review (04-REVIEW.md) caught 2 critical + 5 warning + 2 info issues; 8 of 9 were fixed in a follow-up migration/commit that this verification confirmed is live and correct by reading the SQL directly; the 9th (IN-02) was accepted as an intentional, disclosed, non-blocking deferral.
+No blocking gaps found. All 6 requirement IDs and all 10 ROADMAP success criteria have direct, independently-verified code evidence (migrations read line-by-line, client modules read and cross-checked against their tests, jest suite and `tsc` re-run independently rather than trusting SUMMARY.md's reported numbers). The phase's own code review (04-REVIEW.md) caught 2 critical + 5 warning + 2 info issues; the follow-up migrations/commits addressed the blocking and warning-class issues, and the final external review gate closed on 2026-07-09 with both Antigravity and Codex APPROVE. The remaining IN-02 item remains an intentional, disclosed, non-blocking deferral.
 
 The only open items are the two device-UAT walkthroughs both plans explicitly deferred (consistent with this project's `workflow.human_verify_mode = end-of-phase` default and Phase 3's precedent of 7 similarly-deferred items) and the pre-existing/carried-over pgTAP-never-executed risk (both Phase 3's suite and the two new Phase 4 suites), already tracked in `.planning/todos/pending/2026-07-07-run-pgtap-suite-on-docker-capable-machine.md`. Neither blocks phase progression per this project's established conventions — they route to `human_needed` status for the developer's explicit sign-off, not to `gaps_found`.
 
 ---
 
 _Verified: 2026-07-08_
+_Updated: 2026-07-09 (external review gate closed; human-needed status preserved)_
 _Verifier: Claude (gsd-verifier)_

@@ -1,14 +1,17 @@
 # Execution State
-<!-- updated: 2026-07-07T09:15:00.000Z (savepoint — context running low mid Phase 4 discuss-phase) -->
+<!-- updated: 2026-07-09T22:23:06Z (Phase 4 review gate closed; device UAT still pending) -->
 
 ## Current Position
 - **Phase 3 (Read Path & Map): FULLY CLOSED.** All 5 plans (03-01..03-05, 4 waves) executed, merged, tested (294/294 Jest tests, 100% coverage on `src/features/**`/`src/lib/**`, clean tsc). Cross-AI review (Antigravity + Codex, 7 findings) resolved pre-execution; internal code review (`03-REVIEW.md`) found 2 more criticals post-execution (CR-01 null-viewport crash in MapScreen's denied-GPS "Search this area"; CR-02 `filter_chill_spot` violated the project's own D-08 null-include contract) — both fixed and pushed live via a follow-up migration (`20260707010000_phase3_chill_spot_null_include_fix.sql`). `03-VERIFICATION.md`: 12/13 must-haves; the 13th (pgTAP suite execution) accepted as a **tracked, user-signed-off override** (no Docker in this environment — see pending todo `2026-07-07-run-pgtap-suite-on-docker-capable-machine.md`). 7 device-UAT items deferred by design (`workflow.human_verify_mode` default = end-of-phase), listed in full in `03-VERIFICATION.md` § Human Verification Required — not yet performed.
 - **Migration-history drift discovered and reconciled during Phase 3 Wave 1 (2026-07-06/07):** remote had 5 tracking-table entries with no local file (from a prior session applying Phase 2 SQL directly via the Supabase MCP tool); reconciled via `supabase migration repair --status reverted` on the 5 orphans + a real `supabase db push --include-all` re-running all pending migrations. Local/remote migration history now matches exactly (16 entries as of Phase 3 close, +1 for the CR-02 fix = 17). **Supabase CLI is now correctly linked and authenticated in this environment** (contradicts the older `project-context.md` note that `supabase db push` fails — that's now fixed; a personal access token is sourced via `source ~/.supabase-gsd-token`, never embedded literally in any command).
-- **Phase 4 (GPS Service & Submission): DISCUSS-PHASE IN PROGRESS, not yet complete.** `/gsd:discuss-phase 4` started 2026-07-07. 4 gray areas selected: Non-building locations (**DONE** — 5 decisions locked), access_sensitivity submission UX, Access code (PIN) field framing, Pending-pin tap behavior (all 3 **NOT YET DISCUSSED**). Checkpoint written: `.planning/phases/04-gps-service-submission/04-DISCUSS-CHECKPOINT.json` — **resume from there**, do not re-ask the Non-building locations questions.
+- **Phase 4 (GPS Service & Submission): CODE/REVIEW GATE CLOSED.** All 6 plans (04-01..04-06) and 6 summaries exist; `.planning/ROADMAP.md` and `.planning/STATE.md` mark Phase 4 complete and ready for Phase 5. The final review-fix batch is committed at `bf93a37` (`fix phase 4 review findings`), and both saved external reviewer artifacts now say **APPROVE** over the 32-file queue. `.claude/review-queue.txt` is empty. GSD `progress` still reports Phase 04 as **Needs Review** only because `04-VERIFICATION.md` deliberately remains `status: human_needed` for two device-only walkthroughs.
+- **Next recommended action:** do not resume Phase 4 discuss-phase. Either run the two Phase 4 device-UAT walkthroughs to clear `human_needed`, or proceed with Phase 5 planning while carrying those checkpoints and the pgTAP Docker override forward explicitly.
 - TDD Guard: **ON**.
 - Reviewer workflow (still current): Claude only writes/updates `.claude/antigravity-prompt-latest.md` and `.claude/codex-prompt-latest.md`. User runs both CLIs himself and they write their own `-review-latest.md` files. Claude does NOT invoke either CLI. This was followed correctly for Phase 3's pre-execution cross-AI review (`03-REVIEWS.md`); the post-execution code review (`03-REVIEW.md`) used the project's *internal* `gsd-code-review` skill (`gsd-code-reviewer` subagent), which is a different, Claude-invocable mechanism — not a violation of the external-reviewer rule.
 
-## Phase 4 Discuss-Phase Progress (2026-07-07)
+## Historical Phase 4 Discuss-Phase Progress (superseded 2026-07-09)
+
+This section is retained only for decision provenance. It is no longer the active recovery point; Phase 4 discussion, planning, execution, verification, and external review are complete except for the explicitly deferred device-UAT and Docker pgTAP checks.
 
 **Non-building locations (parks, trailheads, port-a-potties) — 5 decisions locked, all "Recommended" option chosen:**
 1. No street address → free-text location description replaces the address field (e.g. "North parking lot restroom, Alton Baker Park").
@@ -19,18 +22,21 @@
 
 This closes the open design question flagged in `PROJECT.md` on 2026-07-05/06 ("whether non-building locations need a distinct location/structure-type dimension") — answer: **no**, existing schema/tags suffice.
 
-**Remaining areas to discuss (in this order, per the original selection):**
-- **access_sensitivity submission UX** — ROADMAP requires the submitter to set `access_sensitivity` (community-correctable, not admin-only), but Phase 1.5's 3-step Submit Flow wizard never specified where/how. Draft questions already prepared (not yet asked): how does the submitter indicate sensitivity (toggle vs. picker vs. defer-to-reports-only), what's the default state, which step does it live in.
-- **Access code (PIN) field framing** — Phase 1.5 always shows an optional PIN field in Step 2 regardless of policy tag. Question: stay always-visible, or only appear/emphasize when policy tag = "Code Required"?
-- **Pending-pin tap behavior** — the submitter's own gray dashed pending pin (Phase 1.5, visible only to submitter). Question: does tapping it open the normal `LocationDetailSheet` (with a "Pending — N of 2 verifications" banner) or a dedicated lightweight "your submission" mini-view?
+**Originally selected discussion areas (later resolved during Phase 4):**
 
-**Key architectural fact surfaced during this discussion (relevant to research/planning, not yet a locked decision — do NOT ask the user, this is Claude's/researcher's job per `docs/schema-contract.md`):** the live `submissions` table already exists (`id, location_id [nullable FK], submitter_id, status ['pending'|'published'|'expired'|'rejected'], confirmation_count, expires_at [14-day default], created_at, updated_at`). `schema-contract.md` states "Client code must NOT insert directly to locations — go through submissions + verification gate." `locations` itself has NO `status`/`submitter_id` column (confirmed in Phase 3 research). The exact mechanism for how a submitted bathroom's actual data (name, coordinates, policy_tag, hours, access_code, timing_tips) gets stored pre-publication, and how "pending, visible only to submitter" gets enforced in the search RPCs (a JOIN against `submissions` inside `search_locations_bbox`/`_nearby`, most likely, extending the Phase 3 RPCs), is an OPEN RESEARCH QUESTION for `/gsd:plan-phase 4`'s researcher — not resolved in this discuss-phase session, and correctly so per discuss-phase's philosophy (technical architecture is the researcher/planner's job, not something to ask the user).
+The bullets below record the eventual Phase 4 resolutions, not current open questions.
+- **access_sensitivity submission UX** — resolved as a Step 1 sensitivity toggle with explanatory copy and a D-15 confirmation dialog before submit when sensitivity is ON.
+- **Access code (PIN) field framing** — resolved as a conditional Step 2 PIN field that appears only when policy tag is `code_required`; submitted values are staged through the RPC path and later update proposals use the stage-then-confirm flow.
+- **Pending-pin tap behavior** — resolved as a dedicated pending submission surface (`PendingStatusSheet`) rather than the normal published-location detail sheet.
 
-## Recovery Instructions (if resuming this exact mid-discussion state)
-1. Read `AGENTS.md` → `docs/context-router.md` → `.planning/STATE.md` → this file.
-2. Re-run `/gsd:discuss-phase 4` — its own `check_existing` step will detect `.planning/phases/04-gps-service-submission/04-DISCUSS-CHECKPOINT.json` and offer to resume; choose "Resume". It will skip Non-building locations (already answered) and proceed straight to access_sensitivity submission UX.
-3. If the checkpoint resume prompt doesn't fire for any reason, manually re-enter discuss-phase for the 3 remaining areas listed above — do NOT re-ask Non-building locations questions, they are locked (see decisions above).
-4. After all 4 areas are discussed, the workflow writes `04-CONTEXT.md` + `04-DISCUSSION-LOG.md`, commits, and offers `/gsd:plan-phase 4` as the next step.
+**Historical architectural note surfaced during this discussion:** the live `submissions` table already existed (`id, location_id [nullable FK], submitter_id, status ['pending'|'published'|'expired'|'rejected'], confirmation_count, expires_at [14-day default], created_at, updated_at`). Phase 4 has since resolved the pre-publication storage and submitter-only pending visibility path through the staged `submissions` columns plus `submit_location`, `get_my_pending_submissions`, and `withdraw_submission`; direct authenticated inserts were removed by `20260708010000_phase4_drop_direct_submission_insert.sql`.
+
+## Recovery Instructions (current as of 2026-07-09)
+1. Read `AGENTS.md` -> `docs/context-router.md` -> `.planning/STATE.md` -> this file.
+2. Treat `.planning/STATE.md`, `.planning/ROADMAP.md`, and commit `bf93a37` as the current Phase 4 handoff. They supersede the old Phase 4 discuss checkpoint.
+3. Do not re-enter `/gsd:discuss-phase 4` unless the user explicitly wants to revisit settled decisions.
+4. If the goal is to make `gsd-tools progress` report Phase 04 as `Complete`, first perform the two tests in `04-HUMAN-UAT.md`, then update `04-HUMAN-UAT.md` and `04-VERIFICATION.md` honestly. Do not mark `status: passed` before those device checks are actually done.
+5. Otherwise, proceed to Phase 5 discussion/planning and keep the Phase 4 device-UAT and pgTAP Docker checks as tracked carry-forward items.
 
 ---
 
@@ -115,7 +121,8 @@ Process/tooling commits (historical, unchanged):
 
 ## Human Checkpoints
 - [ ] Phase 3's 7 device-verification items (Mapbox rendering/gestures, RPC-failure banner, Nearby screen-reader pass, family_mode end-to-end + display-name preservation, filter AND-logic/session-persist, denied-GPS fallback) — listed in full in `03-VERIFICATION.md` § Human Verification Required. NOT yet performed.
-- [ ] pgTAP suite (`supabase/tests/phase3_read_rpcs.test.sql`, 24 assertions) — NOT yet run anywhere (no Docker). Tracked as override + todo.
+- [ ] Phase 4's 2 device-verification items (SubmitFlow real GPS/permission/mock-location walkthrough; pending-pin/withdraw/code-update device walkthrough) - listed in `04-HUMAN-UAT.md` and `04-VERIFICATION.md`. NOT yet performed.
+- [ ] pgTAP suites (`supabase/tests/phase3_read_rpcs.test.sql`, 24 assertions; `supabase/tests/phase4_submit.test.sql`, 21 assertions; `supabase/tests/phase4_access_code.test.sql`, 21 assertions) - NOT yet run anywhere (no Docker). Tracked as override + todo.
 
 ## Test Suite State (as of Phase 3 close, commit `03e47b4`+)
 - 38 suites, 294 tests, 100% coverage on `src/features/**` + `src/lib/**`. jest@29.7.0 pinned. `npx tsc --noEmit` clean. `app/node_modules` reinstalled via `npm ci` after the worktree-cleanup incident above — confirmed working.

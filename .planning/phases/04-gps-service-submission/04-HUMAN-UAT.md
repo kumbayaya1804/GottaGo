@@ -3,12 +3,16 @@ status: partial
 phase: 04-gps-service-submission
 source: [04-VERIFICATION.md]
 started: 2026-07-08T07:10:00Z
-updated: 2026-07-08T07:10:00Z
+updated: 2026-07-09T22:23:06Z
 ---
 
 ## Current Test
 
 [awaiting human testing]
+
+## Status Note (2026-07-09)
+
+Phase 4 code, static verification, and external review gate are closed at commit `bf93a37`; both Antigravity and Codex approve the 32-file queue. These two tests remain pending because they require real device/GPS/Mapbox behavior. Do not mark this UAT file `complete` or `resolved` until the walkthroughs below are actually performed.
 
 ## Tests
 
