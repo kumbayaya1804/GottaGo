@@ -26,7 +26,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(21);
 
 -- ─── Fixtures: two authenticated test users (proposer A + confirmer B) ────────
 insert into auth.users (instance_id, id, aud, role, email)
@@ -46,11 +46,38 @@ values ('c0000000-0000-0000-0000-000000000001',
         'code_required',
         'OLD-CODE');
 
--- ═══ Section 1. update_access_code STAGES without overwriting (proposer A) ════
+-- ═══ Section 0. update_access_code rejects null/blank/whitespace/overlong (Codex) ═
 select set_config('request.jwt.claims',
   json_build_object('sub','a0000000-0000-0000-0000-000000000001','role','authenticated')::text, true);
 
-select public.update_access_code('c0000000-0000-0000-0000-000000000001'::uuid, 'NEW-CODE');
+select throws_ok(
+  $$ select public.update_access_code('c0000000-0000-0000-0000-000000000001'::uuid, null) $$,
+  'P0001', 'code cannot be blank',
+  'update_access_code rejects a null p_code');
+
+select throws_ok(
+  $$ select public.update_access_code('c0000000-0000-0000-0000-000000000001'::uuid, '') $$,
+  'P0001', 'code cannot be blank',
+  'update_access_code rejects an empty-string p_code');
+
+select throws_ok(
+  $$ select public.update_access_code('c0000000-0000-0000-0000-000000000001'::uuid, '   ') $$,
+  'P0001', 'code cannot be blank',
+  'update_access_code rejects a whitespace-only p_code');
+
+select throws_ok(
+  $$ select public.update_access_code('c0000000-0000-0000-0000-000000000001'::uuid, repeat('x', 101)) $$,
+  'P0001', 'code is too long',
+  'update_access_code rejects a p_code over 100 characters');
+
+select is(
+  (select pending_access_code from public.locations
+     where id = 'c0000000-0000-0000-0000-000000000001'),
+  null::text,
+  'none of the rejected proposals above staged anything (pending_access_code still null)');
+
+-- ═══ Section 1. update_access_code STAGES without overwriting (proposer A) ════
+select public.update_access_code('c0000000-0000-0000-0000-000000000001'::uuid, '  NEW-CODE  ');
 
 select is(
   (select access_instructions from public.locations

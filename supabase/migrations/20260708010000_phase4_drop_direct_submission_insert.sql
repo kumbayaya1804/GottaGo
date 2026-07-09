@@ -1,0 +1,27 @@
+-- Phase 4 security fix — close the direct-INSERT bypass of submit_location's
+-- server-side GPS validation (discovered while preparing cross-AI review packets,
+-- 2026-07-08, not part of the earlier 04-REVIEW.md findings).
+--
+-- The pre-existing `submissions_insert_auth` RLS policy
+--   (INSERT, WITH CHECK (auth.uid() = submitter_id))
+-- predates Phase 4 and let any signed-in user POST directly to
+-- /rest/v1/submissions, bypassing `submit_location` entirely: no accuracy check,
+-- no freshness check, no mock-detection check, and an attacker-controlled
+-- confirmation_count/coordinates/access_sensitivity. This directly undermined
+-- ROADMAP Phase 4 SC2 ("Mocked locations are rejected at the RPC layer") and
+-- SC7 ("GPS accuracy/staleness rejected server-side") — both trivially bypassed
+-- by not calling the RPC at all.
+--
+-- Safe to drop: `submissions` and `submit_location` are both owned by `postgres`
+-- (verified live); `relforcerowsecurity=false` means the table owner bypasses
+-- RLS for its own operations, so `submit_location`'s internal INSERT does not
+-- depend on this policy and is unaffected by dropping it. No client code
+-- reads/writes `submissions` directly (`grep -rn "from('submissions')" app/src`
+-- returns zero matches) — every access goes through the SECURITY DEFINER RPCs
+-- (submit_location, get_my_pending_submissions, withdraw_submission), all of
+-- which run as the table owner and are unaffected.
+--
+-- `submissions_select_published` (SELECT) and `submissions_service_all` (ALL,
+-- service_role) are left untouched — this migration removes ONLY the direct
+-- client INSERT bypass.
+drop policy if exists submissions_insert_auth on public.submissions;

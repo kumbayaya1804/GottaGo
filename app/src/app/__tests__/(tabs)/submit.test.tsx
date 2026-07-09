@@ -154,6 +154,21 @@ describe('SubmitScreen — Step 2 conditional PIN (D-17)', () => {
     await advanceToStep2(utils, 'Code Required');
     await waitFor(() => expect(utils.getByText(PIN_LABEL)).toBeTruthy());
   });
+
+  it('blocks advancing to Step 3 when an overlong Timing tip fails Zod validation', async () => {
+    const utils = await renderWizard();
+    await advanceToStep2(utils, 'Chill Spot');
+    await waitFor(() => expect(utils.getByLabelText('Timing tip')).toBeTruthy());
+    fireEvent.changeText(utils.getByLabelText('Timing tip'), 'a'.repeat(281));
+    await act(async () => {
+      fireEvent.press(utils.getAllByText(CTA_NEXT)[0]);
+      await Promise.resolve();
+    });
+    // Still on Step 2 — the Step 3 GPS confirm heading never renders.
+    expect(utils.queryByText('GPS Confirm')).toBeNull();
+    expect(utils.getByLabelText('Timing tip')).toBeTruthy();
+    expect(mockSubmitLocation).not.toHaveBeenCalled();
+  });
 });
 
 describe('SubmitScreen — Step 3 GPS gate (SC8 / ERR-02)', () => {
@@ -238,6 +253,24 @@ describe('SubmitScreen — sensitivity confirm gate (D-15)', () => {
     expect(mockSubmitLocation).toHaveBeenCalledWith(
       expect.objectContaining({ hours: 'Open 7am-10pm' })
     );
+  });
+
+  it('a fast double-press of the submit CTA calls submitLocation only once (re-entrancy guard)', async () => {
+    const utils = await renderWizard();
+    await advanceToStep2(utils, 'Chill Spot');
+    await advanceToStep3(utils);
+    await waitFor(() => {
+      const cta = utils.getByLabelText(CTA_AT_LOCATION);
+      expect(cta.props.accessibilityState.disabled).toBe(false);
+    });
+    await act(async () => {
+      // Both presses fire before mutation.isPending has a chance to re-render and
+      // disable the button — the submittingRef guard, not React state, must catch this.
+      fireEvent.press(utils.getByLabelText(CTA_AT_LOCATION));
+      fireEvent.press(utils.getByLabelText(CTA_AT_LOCATION));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(mockSubmitLocation).toHaveBeenCalledTimes(1));
   });
 });
 

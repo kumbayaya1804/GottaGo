@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -117,6 +117,7 @@ export default function SubmitScreen() {
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [sample, setSample] = useState<GpsSample | GpsDenied | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const submittingRef = useRef(false);
 
   const {
     control,
@@ -143,6 +144,9 @@ export default function SubmitScreen() {
   const mutation = useMutation({
     mutationFn: (input: SubmitInput) => submitLocation(input),
     onSuccess: () => setStep('success'),
+    onSettled: () => {
+      submittingRef.current = false;
+    },
   });
 
   // Read a single high-accuracy GPS fix (SC1). Re-runnable for the ERR-03 stale Retry.
@@ -183,6 +187,11 @@ export default function SubmitScreen() {
     if (ok) setStep(2);
   }
 
+  async function goToStep3() {
+    const ok = await trigger(['hours', 'accessCode', 'timingTip']);
+    if (ok) setStep(3);
+  }
+
   // Derived GPS state. `sample` is the denied sentinel, a real fix, or null (loading).
   const isDenied = sample !== null && 'denied' in sample;
   const gpsSample = sample !== null && !('denied' in sample) ? sample : null;
@@ -198,7 +207,8 @@ export default function SubmitScreen() {
 
   function doSubmit() {
     setConfirmVisible(false);
-    if (gpsSample === null) return;
+    if (gpsSample === null || submittingRef.current) return;
+    submittingRef.current = true;
     mutation.mutate(buildInput(getValues(), gpsSample));
   }
 
@@ -416,11 +426,15 @@ export default function SubmitScreen() {
                 style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.surface }]}
                 placeholder="e.g. Open 7am–10pm"
                 placeholderTextColor={colors.textDisabled}
+                maxLength={200}
                 value={value ?? ''}
                 onChangeText={onChange}
               />
             )}
           />
+          {errors.hours?.message && (
+            <Text style={[styles.fieldError, { color: colors.errorRed }]}>{errors.hours.message}</Text>
+          )}
 
           {/* D-17: PIN field renders ONLY for the code_required policy. */}
           {policyTag === 'code_required' && (
@@ -435,12 +449,16 @@ export default function SubmitScreen() {
                     style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.surface }]}
                     placeholder="1234"
                     placeholderTextColor={colors.textDisabled}
+                    maxLength={100}
                     value={value ?? ''}
                     onChangeText={onChange}
                   />
                 )}
               />
               <Text style={[styles.subhead, { color: colors.textSecondary }]}>{PIN_LABEL}</Text>
+              {errors.accessCode?.message && (
+                <Text style={[styles.fieldError, { color: colors.errorRed }]}>{errors.accessCode.message}</Text>
+              )}
             </View>
           )}
 
@@ -454,11 +472,15 @@ export default function SubmitScreen() {
                 style={[styles.input, { borderColor: colors.border, color: colors.textPrimary, backgroundColor: colors.surface }]}
                 placeholder="e.g. Busiest at lunch"
                 placeholderTextColor={colors.textDisabled}
+                maxLength={280}
                 value={value ?? ''}
                 onChangeText={onChange}
               />
             )}
           />
+          {errors.timingTip?.message && (
+            <Text style={[styles.fieldError, { color: colors.errorRed }]}>{errors.timingTip.message}</Text>
+          )}
 
           <View style={styles.navRow}>
             <Pressable
@@ -473,7 +495,7 @@ export default function SubmitScreen() {
               accessibilityRole="button"
               accessibilityLabel={CTA_NEXT}
               style={[styles.primaryButtonFlex, { backgroundColor: colors.primary }]}
-              onPress={() => setStep(3)}
+              onPress={goToStep3}
             >
               <Text style={[styles.primaryButtonLabel, { color: colors.textInverse }]}>{CTA_NEXT}</Text>
             </Pressable>

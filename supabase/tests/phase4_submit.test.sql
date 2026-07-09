@@ -26,7 +26,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(21);
 
 -- ─── Fixtures: two authenticated test users ──────────────────────────────────
 insert into auth.users (instance_id, id, aud, role, email)
@@ -170,6 +170,24 @@ select is(
   (select count(*) from public.submissions where status = 'withdrawn'),
   0::bigint,
   'withdraw never introduces a status=withdrawn value (DELETE, not a status flip)');
+
+-- ═══ Section 7. Direct client INSERT on submissions is denied (2026-07-08 fix) ═
+-- The pre-existing `submissions_insert_auth` RLS policy let a signed-in user
+-- bypass submit_location's GPS validation entirely via a raw INSERT. Dropped in
+-- 20260708010000_phase4_drop_direct_submission_insert.sql. This asserts a real
+-- RLS denial under the `authenticated` role (not the SECURITY DEFINER function,
+-- which runs as the table owner and is unaffected) — mirrors the existing
+-- phase3_read_rpcs.test.sql "base-table access denied" role-switching pattern.
+select set_config('request.jwt.claims',
+  json_build_object('sub','a0000000-0000-0000-0000-000000000001','role','authenticated')::text, true);
+set local role authenticated;
+select throws_ok(
+  $$ insert into public.submissions (submitter_id, status, confirmation_count, name)
+     values ('a0000000-0000-0000-0000-000000000001'::uuid, 'pending', 1, 'Bypass Attempt') $$,
+  '42501',
+  null,
+  'authenticated role cannot INSERT into submissions directly, even self-attributed (RPC-only write path, submit_location is the sole gate)');
+reset role;
 
 select set_config('request.jwt.claims', '', true);
 select * from finish();

@@ -1,70 +1,69 @@
-# Codex Review - Phase 3 Read Path & Map Plans
+# Codex Review - Phase 4: GPS Service & Submission Fix Re-review
 
-**VERDICT: REQUEST CHANGES**
+**VERDICT: APPROVE**
 
-## Summary
+### Reviewed Queue
+- app/src/app/(components)/LocationDetailSheet.tsx
+- app/src/app/(components)/PendingStatusSheet.tsx
+- app/src/app/(components)/SensitivityConfirmModal.tsx
+- app/src/app/(components)/WithdrawConfirmModal.tsx
+- app/src/app/(tabs)/index.tsx
+- app/src/app/(tabs)/submit.tsx
+- app/src/app/__tests__/(components)/LocationDetailSheet.test.tsx
+- app/src/app/__tests__/(components)/LocationDetailSheet.updateCode.test.tsx
+- app/src/app/__tests__/(components)/PendingStatusSheet.test.tsx
+- app/src/app/__tests__/(tabs)/MapScreen.test.tsx
+- app/src/app/__tests__/(tabs)/submit.test.tsx
+- app/src/features/submit/__tests__/submitLocation.test.ts
+- app/src/features/submit/__tests__/submitSchema.test.ts
+- app/src/features/submit/__tests__/updateAccessCode.test.ts
+- app/src/features/submit/__tests__/useGpsSample.test.ts
+- app/src/features/submit/__tests__/useMyPendingSubmissions.test.ts
+- app/src/features/submit/__tests__/withdrawSubmission.test.ts
+- app/src/features/submit/submitLocation.ts
+- app/src/features/submit/submitSchema.ts
+- app/src/features/submit/types.ts
+- app/src/features/submit/updateAccessCode.ts
+- app/src/features/submit/useGpsSample.ts
+- app/src/features/submit/useMyPendingSubmissions.ts
+- app/src/features/submit/withdrawSubmission.ts
+- app/src/lib/database.types.ts
+- supabase/migrations/20260707020000_phase4_submission_staging.sql
+- supabase/migrations/20260707030000_phase4_access_code_update.sql
+- supabase/migrations/20260708000000_phase4_code_review_fixes.sql
+- supabase/migrations/20260708010000_phase4_drop_direct_submission_insert.sql
+- supabase/tests/phase4_access_code.test.sql
+- supabase/tests/phase4_submit.test.sql
+- supabase/migrations/20260708020000_phase4_codex_review_fixes.sql
 
-The Phase 3 plan set is close: the wave ordering is coherent, the server-side moderation/family_mode boundary is mostly in the right layer, and the test plan correctly separates SQL/RPC correctness from React Native rendering checks. I would not start Wave 1 yet because two requirements are currently planned in a way that will fail later waves: the `family_mode` toggle writes through an RPC signature that cannot support family-mode-only calls, and the denied-GPS/manual-search flow no longer has a real city/address search mechanism despite the roadmap and UI spec still requiring one. There is also a medium configuration gap around `max_pins_per_viewport` being seeded but not actually used as the tunable source of truth.
+### Findings
+- None.
 
-## Reviewed Files
+### Open Questions
+- None affecting merge safety.
 
-- `.claude/codex-prompt-latest.md`
-- `CODEX.md`
-- `CLAUDE.md`
-- `docs/agent-harness.md`
-- `docs/review-severity.md`
-- `docs/stale-info-scan.md`
-- `.planning/stale-info-scan-latest.md`
-- `.planning/PROJECT.md`
-- `.planning/ROADMAP.md`
-- `.planning/phases/03-read-path-map/03-CONTEXT.md`
-- `.planning/phases/03-read-path-map/03-RESEARCH.md`
-- `.planning/phases/03-read-path-map/03-PATTERNS.md`
-- `.planning/phases/03-read-path-map/03-VALIDATION.md`
-- `.planning/phases/03-read-path-map/03-UI-SPEC.md`
-- `.planning/phases/03-read-path-map/03-01-PLAN.md`
-- `.planning/phases/03-read-path-map/03-02-PLAN.md`
-- `.planning/phases/03-read-path-map/03-03-PLAN.md`
-- `.planning/phases/03-read-path-map/03-04-PLAN.md`
-- `.planning/phases/03-read-path-map/03-05-PLAN.md`
-- `app/src/features/auth/gpsConsent.ts`
-- `app/src/features/profile/updateProfile.ts`
-- `supabase/migrations/20260627000004_profile_rpcs.sql`
+### Verification
+- `npx.cmd tsc --noEmit` from `app` - exit 0.
+- `npm.cmd test -- --runInBand --runTestsByPath "src/app/__tests__/(tabs)/submit.test.tsx"` from `app` - all 14 focused submit component tests reported PASS, then the command timed out because Jest did not exit after printing the open-handle warning.
+- `npm.cmd test -- --runInBand --detectOpenHandles --runTestsByPath "src/app/__tests__/(tabs)/submit.test.tsx"` from `app` - all 14 focused submit component tests reported PASS, then the command timed out with no actionable open-handle detail before timeout.
+- `npm.cmd test -- --runInBand --runTestsByPath "src/app/__tests__/(tabs)/submit.test.tsx" --forceExit` from `app` - exit 0, all 14 focused submit component tests PASS, with Jest's expected force-exit warning.
+- Static pgTAP plan count check: `supabase/tests/phase4_access_code.test.sql` has `plan(21)` and 21 pgTAP assertions; `supabase/tests/phase4_submit.test.sql` has `plan(21)` and 21 pgTAP assertions.
+- `git diff --check -- 'app/src/app/(tabs)/submit.tsx' 'app/src/app/__tests__/(tabs)/submit.test.tsx' supabase/migrations/20260708020000_phase4_codex_review_fixes.sql supabase/tests/phase4_access_code.test.sql .claude/review-queue.txt` - exit 0.
+- `supabase test db` / pgTAP was not run here; this environment does not currently provide the Docker-backed Supabase test runner evidence.
+- Live Supabase policy/RPC state was not independently queried from this Codex run; this approval is based on queued migration/test/application code review plus the verification above.
 
-## Strengths
+### Runtime Boundary Check
+- Door-code RPC: `20260708020000_phase4_codex_review_fixes.sql` replaces `update_access_code` so it rejects `p_code is null`, blank/whitespace-only values after `btrim`, and values longer than 100 characters before staging. It stages the trimmed value and keeps the different-proposer conflict guard. `phase4_access_code.test.sql` now covers null, empty string, whitespace-only, overlong input, no staging for rejected proposals, and trim-before-stage behavior.
+- Submit wizard: `submit.tsx` now gates Step 2 with `trigger(['hours', 'accessCode', 'timingTip'])`, renders Step 2 field errors, applies UI `maxLength` bounds, and uses `submittingRef` as a synchronous final-submit guard. `submit.test.tsx` now proves an overlong timing tip does not advance to GPS/submit and a fast double press calls `submitLocation` once.
+- Direct submission INSERT bypass: `20260708010000_phase4_drop_direct_submission_insert.sql` remains queued and drops the auth direct-insert policy. `phase4_submit.test.sql` remains aligned statically with the expected direct-insert denial coverage.
+- Mock boundary: the focused React tests mock GPS/session/RPC wrappers and prove UI control flow. Database enforcement remains covered here by migration text plus static pgTAP inspection, not by executed pgTAP.
 
-- The security-critical read boundary is correctly assigned to SQL RPCs: all three read RPCs are planned to enforce `deleted_at is null`, `suppressed_at is null`, `shadowban_status = false`, and server-derived `family_mode` via `auth.uid()` instead of client filtering (`03-01-PLAN.md:161-165`, `03-01-PLAN.md:173-178`).
-- The plan explicitly avoids `setof locations`, `select l.*`, and `access_instructions` in new public read RPCs, which addresses the highest-risk column-leak path from the existing radius RPC (`03-01-PLAN.md:164-171`).
-- The wave dependency chain is mostly sound: 03-01 creates RPCs/types, 03-02 builds tested data contracts, 03-03/04/05 consume those contracts in screens (`03-02-PLAN.md:93-127`, `03-03-PLAN.md:81-98`, `03-04-PLAN.md:68-85`, `03-05-PLAN.md:67-82`).
-- The validation plan hits the right layers: pgTAP for moderation/family_mode/access-code/nearest-N RPC behavior, Jest for mapping and state, and device verification for Mapbox, bottom-sheet gestures, screen reader output, and filter/permission behavior (`03-VALIDATION.md:41-54`, `03-VALIDATION.md:79-85`).
+### Approved
+- The previous MAJOR finding for `update_access_code` server-side null/blank/overlong validation is fixed by `20260708020000_phase4_codex_review_fixes.sql` and matching pgTAP additions.
+- The previous MAJOR finding for Step 2 bypassing Zod validation is fixed in `submit.tsx` and covered by `submit.test.tsx`.
+- The previous MAJOR finding for final-submit double tap re-entrancy is fixed in `submit.tsx` and covered by `submit.test.tsx`.
+- No remaining Codex request-change findings were found in the inspected scope.
 
-## Concerns
-
-- **[HIGH] `update_profile` cannot support the planned family-mode-only write.** Plan 03-01 replaces `update_profile` with `update_profile(new_display_name text, new_family_mode boolean default null)` and keeps `display_name = new_display_name` (`03-01-PLAN.md:166`, `03-01-PLAN.md:179`). But Plan 03-02 defines `setFamilyMode(value)` as `supabase.rpc('update_profile', { new_family_mode: value })` (`03-02-PLAN.md:200`, `03-02-PLAN.md:204`), and Plan 03-04 wires the Settings switch through that family-mode-only call (`03-04-PLAN.md:128-135`). PostgREST will not have the required `new_display_name` argument for that call, or the implementation will risk clearing `display_name` if it later defaults to null without coalescing. This breaks ROADMAP SC12 before the toggle can work. Required fix: make both fields optional in the RPC contract (`new_display_name text default null, new_family_mode boolean default null`) and update with `display_name = coalesce(new_display_name, display_name)` plus `family_mode = coalesce(new_family_mode, family_mode)`, or create a dedicated authenticated `set_family_mode` RPC. Add SQL/client tests that prove a family-mode-only call changes only `family_mode`, and a display-name-only call still works.
-
-- **[HIGH] The denied-GPS "manual city/address search" requirement is not actually planned.** PROJECT requires searching bathrooms in any city/area with manual city/address search when GPS is denied (`.planning/PROJECT.md:29-32`), ROADMAP repeats that Phase 3 requirement and SC6 (`.planning/ROADMAP.md:117-126`), and the UI spec's locked GPS-denied state says the map opens to manual city/address search with Google Places and an active focused search bar (`03-UI-SPEC.md:127`). Plan 03-05 instead says no Google Places or external geocoding dependency, and that denied mode "recenters/keeps the last viewport and relies on pan + Search this area" (`03-05-PLAN.md:76-77`, `03-05-PLAN.md:98`, `03-05-PLAN.md:128`). That is a pan-and-refetch fallback, not a city/address search. Required fix: either implement a minimal address/city resolution contract in Phase 3, including key management, privacy/logging constraints, empty/error states, and tests, or explicitly revise PROJECT/ROADMAP/UI-SPEC before review so the phase no longer claims city/address search.
-
-- **[MEDIUM] `max_pins_per_viewport` is seeded but not used as the authoritative tunable.** The plan says `app_config.max_pins_per_viewport` is the bbox RPC limit source (`03-01-PLAN.md:34`, `03-01-PLAN.md:62-65`, `03-01-PLAN.md:135`), but the actual RPC contract still accepts `max_pins integer default 200` and applies `limit max_pins` (`03-01-PLAN.md:162`), while the client hook passes `max_pins` (`03-02-PLAN.md:168`). The pgTAP item only checks that bbox respects a passed max, not that changing `app_config` changes server behavior (`03-01-PLAN.md:196`). This undercuts D-32's admin-tunable requirement. Required fix: have the RPC resolve the cap from `app_config` server-side when no lower caller limit is intended, clamp any caller-provided limit defensively, and add a test that updates `app_config` then observes the changed cap.
-
-- **[MEDIUM] The current-position source for map/detail/Nearby distance is under-specified and partially misidentified.** Plan 03-03 tells implementers to read `app/src/features/auth/gpsConsent.ts` as the Phase 2 GPS-permission/location source (`03-03-PLAN.md:106-109`) and to track current coordinates from that source or `expo-location` (`03-03-PLAN.md:118`). The actual `gpsConsent.ts` only requests foreground permission and records consent; it never exposes current coordinates (`app/src/features/auth/gpsConsent.ts:19-29`). Since LocationDetail distance and Nearby sorting depend on forwarding real `userLat/userLng`, the plans should name one tested source for current position instead of leaving duplicated screen-level Expo Location calls in thin screens. Required fix: add or name a small current-location hook/service, with permission-denied/null/stale cases, then have Map and Nearby consume it consistently.
-
-## Suggestions
-
-- Add one acceptance criterion to 03-01 that explicitly exercises all intended `update_profile` call shapes against the generated `database.types.ts` args, not only a grep for `new_family_mode`.
-- Add one SC coverage table to the phase summary before execution. Right now SC2/3/4/8/9/11 are well covered, but SC6 and SC12 need the fixes above.
-- Treat manual device checks as gates only after the automated contracts are corrected; otherwise device verification will discover issues that the plan could catch earlier.
-
-## Risk Assessment
-
-Overall risk is **MEDIUM-HIGH** until the above fixes land. The core security posture is directionally good: public reads are server-filtered, sensitive columns are omitted, and SQL-layer tests are planned. The execution risk is that two visible Phase 3 commitments, city/address search and family-mode activation, currently do not line up with their implementation contracts. Starting Wave 1 without correcting them would produce downstream churn in 03-02 through 03-05 and could leave ROADMAP SC6/SC12 falsely marked complete.
-
-## Verification
-
-- Re-read `.claude/codex-prompt-latest.md` from disk for the active review scope.
-- Read the standing review contract and severity rules from `CODEX.md`, `CLAUDE.md`, `docs/agent-harness.md`, `docs/review-severity.md`, `docs/stale-info-scan.md`, and `.planning/stale-info-scan-latest.md`.
-- Read the requested Phase 3 planning packet from disk, including PROJECT, ROADMAP, CONTEXT, RESEARCH, and all five plan files.
-- Also inspected `03-PATTERNS.md`, `03-VALIDATION.md`, `03-UI-SPEC.md`, `gpsConsent.ts`, `updateProfile.ts`, and the existing `update_profile` migration to verify the suspected contract mismatches.
-- Ran targeted `rg`/line-window checks for `update_profile`, `new_family_mode`, `max_pins_per_viewport`, `max_pins`, denied GPS/manual search, geocoding, and current-location references.
-- No implementation tests were run because this is a pre-execution plan review.
-
-**VERDICT: REQUEST CHANGES**
+### Gate Notes
+- `.claude/review-queue.txt` and both prompt packets now include the new Codex fix migration. The saved Antigravity verdict still predates that migration and must be refreshed before the full review gate can be treated as complete.
+- The focused Jest assertions pass, but the normal Jest process still leaves open handles and needs `--forceExit` for a clean process exit in this environment. Treat that as a remaining test-harness caveat, not evidence of failing assertions.
