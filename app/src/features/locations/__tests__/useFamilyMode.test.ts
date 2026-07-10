@@ -32,8 +32,14 @@ import { useSession } from '../../auth/useSession';
 const mockUseSession = useSession as jest.Mock;
 
 function makeWrapper() {
+  // gcTime: 0 on both queries and mutations — otherwise each test's query/mutation
+  // schedules a default 5-minute gc timer that outlives the test (the QueryClient
+  // here is never cleared/unmounted), leaving Jest unable to exit.
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false, gcTime: 0 },
+    },
   });
   const wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client }, children);

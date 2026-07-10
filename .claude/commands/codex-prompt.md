@@ -7,6 +7,8 @@ Generate `.claude/codex-prompt-latest.md` for the files in `.claude/review-queue
 1. Read `.claude/review-queue.txt`. If missing or empty, report that there is nothing to review and stop.
 2. Read `docs/context-router.md` and `.claude/skills/review_packet_generator.md`.
 3. Collect Tier 0 context:
+   - stage the exact queue, including deletions, and inspect `git diff --cached`
+   - run `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`
    - queue entries
    - `git status --short`
    - `git diff HEAD -- <queue files>`
@@ -26,6 +28,7 @@ Generate `.claude/codex-prompt-latest.md` for the files in `.claude/review-queue
 <!-- review-manifest
 reviewer: codex
 generated_at: <ISO timestamp>
+scope_hash: <staged scope hash>
 queue:
   - <path>
 diff_base: HEAD
@@ -40,6 +43,9 @@ codex exec --sandbox workspace-write "You are Codex reviewing Gotta Go. Read .cl
 ```
 
 If the user chooses read-only sandboxing, tell them to capture stdout into `.claude/codex-review-latest.md`.
+
+The verdict must repeat the packet's exact `scope_hash:` line. If any queued path is
+re-staged afterward, regenerate both reviewer packets and obtain both verdicts again.
 
 ## Output
 

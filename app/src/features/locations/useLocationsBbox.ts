@@ -30,7 +30,7 @@ export interface BboxRpcFilters {
 /**
  * Maps a snake_case location row (shared by bbox / nearby / detail RPCs) to the
  * public camelCase `MapLocation`, applying null-safe display defaults. Exported
- * so `useNearby` and `useLocationDetail` reuse the identical mapping.
+ * so `fetchNearby` and `fetchLocationDetail` reuse the identical mapping.
  */
 export function toMapLocation(row: BboxRpcRow): MapLocation {
   return {
@@ -53,7 +53,7 @@ export function toMapLocation(row: BboxRpcRow): MapLocation {
  * FeatureCollection ready for a Mapbox `ShapeSource`. Point coordinates are
  * `[lng, lat]` (GeoJSON order). Throws when the RPC errors.
  */
-export async function useLocationsBbox(
+export async function fetchLocationsBbox(
   viewport: BboxViewport,
   filters: BboxRpcFilters = {},
 ): Promise<LocationFeatureCollection> {

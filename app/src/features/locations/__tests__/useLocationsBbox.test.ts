@@ -4,7 +4,7 @@ jest.mock('../../../lib/supabase', () => ({
   supabase: { rpc: jest.fn() },
 }));
 
-import { useLocationsBbox, toMapLocation } from '../useLocationsBbox';
+import { fetchLocationsBbox, toMapLocation } from '../useLocationsBbox';
 import { bboxRows } from '../../../test/fixtures/locations';
 
 const mockSupabase = jest.requireMock('../../../lib/supabase').supabase as {
@@ -49,11 +49,11 @@ describe('toMapLocation', () => {
   });
 });
 
-describe('useLocationsBbox', () => {
+describe('fetchLocationsBbox', () => {
   it('calls search_locations_bbox with snake_case viewport + filter args', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: bboxRows, error: null });
 
-    await useLocationsBbox(viewport, {
+    await fetchLocationsBbox(viewport, {
       filter_open_now: true,
       filter_wheelchair: true,
       max_pins: 200,
@@ -73,7 +73,7 @@ describe('useLocationsBbox', () => {
   it('defaults to no filters when none are supplied', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: bboxRows, error: null });
 
-    await useLocationsBbox(viewport);
+    await fetchLocationsBbox(viewport);
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith('search_locations_bbox', {
       min_lng: -123.1,
@@ -86,7 +86,7 @@ describe('useLocationsBbox', () => {
   it('transforms rows into a GeoJSON FeatureCollection with [lng,lat] geometry', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: bboxRows, error: null });
 
-    const fc = await useLocationsBbox(viewport);
+    const fc = await fetchLocationsBbox(viewport);
 
     expect(fc.type).toBe('FeatureCollection');
     expect(fc.features).toHaveLength(4);
@@ -111,7 +111,7 @@ describe('useLocationsBbox', () => {
   it('returns an empty FeatureCollection when the RPC returns null data', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
-    const fc = await useLocationsBbox(viewport);
+    const fc = await fetchLocationsBbox(viewport);
 
     expect(fc).toEqual({ type: 'FeatureCollection', features: [] });
   });
@@ -122,6 +122,6 @@ describe('useLocationsBbox', () => {
       error: new Error('bbox rpc failed'),
     });
 
-    await expect(useLocationsBbox(viewport)).rejects.toThrow('bbox rpc failed');
+    await expect(fetchLocationsBbox(viewport)).rejects.toThrow('bbox rpc failed');
   });
 });

@@ -115,6 +115,8 @@ Use this format and save/print it:
 
 **VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
 
+scope_hash: sha256:<exact packet fingerprint>
+
 ### Reviewed Queue
 - List every queued file inspected for this verdict.
 
@@ -139,3 +141,6 @@ Verdict rules:
 - BLOCK: must not merge because it creates or preserves a security issue, privacy leak, data-integrity risk, migration danger, or production-breaking defect.
 - REQUEST CHANGES: directionally acceptable but has logic errors, missing required tests, incomplete error handling, or significant maintainability risk.
 - APPROVE: inspected change is ready to merge with only non-blocking notes, if any.
+
+The verdict must repeat the exact `scope_hash` from the packet. A missing or different
+fingerprint is not approval for the staged bytes.

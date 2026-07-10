@@ -17,7 +17,7 @@ import { Colors } from '../../constants/Colors';
 import { spacing } from '../../constants/spacing';
 import { typography } from '../../constants/typography';
 import { radius } from '../../constants/radius';
-import { useLocationDetail } from '../../features/locations/useLocationDetail';
+import { fetchLocationDetail } from '../../features/locations/useLocationDetail';
 import { formatDistance, usesMilesForLocale } from '../../features/locations/formatDistance';
 import { useSession } from '../../features/auth/useSession';
 import { updateAccessCode } from '../../features/submit/updateAccessCode';
@@ -30,7 +30,7 @@ import AuthRequiredModal from './AuthRequiredModal';
  *
  * Distance contract (T-03-11 / D-22): the sheet does NOT compute distance. It
  * forwards the `userLat`/`userLng` it receives (MapScreen sources them from
- * `useCurrentPosition`, 03-02) into `useLocationDetail(id, userLat, userLng)`;
+ * `useCurrentPosition`, 03-02) into `fetchLocationDetail(id, userLat, userLng)`;
  * the server echoes `distanceM` (ST_Distance) which is rendered as-is, and is
  * simply absent when no coords were forwarded — never a client-side guess.
  *
@@ -158,7 +158,7 @@ export default function LocationDetailSheet({
     // Keyed on the forwarded coords so a new fix refreshes the RPC-echoed distance.
     queryKey: ['locationDetail', locationId, userLat, userLng],
     queryFn: () =>
-      useLocationDetail(locationId as string, userLat ?? undefined, userLng ?? undefined),
+      fetchLocationDetail(locationId as string, userLat ?? undefined, userLng ?? undefined),
     enabled: locationId !== null,
   });
 
@@ -240,20 +240,31 @@ export default function LocationDetailSheet({
       handleIndicatorStyle={{ backgroundColor: colors.border }}
     >
       <BottomSheetView style={styles.content}>
-        {detail === undefined ? (
+        {detailQuery.isError ? (
+          <View accessibilityLiveRegion="assertive">
+            <Text style={[styles.body, { color: colors.textSecondary }]}>
+              Couldn&apos;t load this location. Check your connection and try again.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading location details"
+              onPress={() => void detailQuery.refetch()}
+              style={[
+                styles.primaryButton,
+                styles.errorRetryButton,
+                { backgroundColor: colors.primary },
+              ]}
+            >
+              <Text style={[styles.primaryButtonLabel, { color: colors.textInverse }]}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : detail === undefined ? (
           // On open: animated skeleton bars until the detail resolves (<300ms).
           <View accessibilityLabel="Loading location details">
             <View style={[styles.skeletonTitle, { backgroundColor: colors.skeletonBase }]} />
             <View style={[styles.skeletonLine, { backgroundColor: colors.skeletonBase }]} />
             <View style={[styles.skeletonLine, { backgroundColor: colors.skeletonBase }]} />
           </View>
-        ) : detailQuery.isError ? (
-          <Text
-            accessibilityLiveRegion="assertive"
-            style={[styles.body, { color: colors.textSecondary }]}
-          >
-            Couldn&apos;t load this location. Close and try again.
-          </Text>
         ) : (
           <View accessibilityRole="summary" accessibilityLabel={`Details for ${detail.name}`}>
             {/* Peek tier: name / distance / policy badge / confidence badge */}
@@ -499,6 +510,9 @@ const styles = StyleSheet.create({
     fontSize: typography.subhead.fontSize,
     fontWeight: typography.subhead.fontWeight,
     lineHeight: typography.subhead.lineHeight,
+  },
+  errorRetryButton: {
+    marginTop: spacing.md,
   },
   primaryButtonLabel: {
     fontSize: typography.bodyMedium.fontSize,

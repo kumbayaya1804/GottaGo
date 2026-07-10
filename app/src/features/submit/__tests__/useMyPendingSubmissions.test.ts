@@ -12,7 +12,7 @@ jest.mock('../../../lib/supabase', () => ({
   },
 }));
 
-import { useMyPendingSubmissions } from '../useMyPendingSubmissions';
+import { fetchMyPendingSubmissions } from '../useMyPendingSubmissions';
 
 const mockSupabase = jest.requireMock('../../../lib/supabase').supabase as {
   rpc: jest.Mock;
@@ -35,11 +35,11 @@ function pendingRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe('useMyPendingSubmissions', () => {
+describe('fetchMyPendingSubmissions', () => {
   it('calls the get_my_pending_submissions RPC with no argument', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: [], error: null });
 
-    await useMyPendingSubmissions();
+    await fetchMyPendingSubmissions();
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith('get_my_pending_submissions');
     // No second argument object — the RPC takes no params (authed-only, server-scoped).
@@ -49,7 +49,7 @@ describe('useMyPendingSubmissions', () => {
   it('maps each row to a GeoJSON Point feature with [lng, lat] coordinates', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: [pendingRow()], error: null });
 
-    const result = await useMyPendingSubmissions();
+    const result = await fetchMyPendingSubmissions();
 
     expect(result.type).toBe('FeatureCollection');
     expect(result.features).toHaveLength(1);
@@ -61,7 +61,7 @@ describe('useMyPendingSubmissions', () => {
   it('carries id, name, policyTag, confirmationCount and expiresAt in feature properties (D-27, no refetch)', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: [pendingRow()], error: null });
 
-    const result = await useMyPendingSubmissions();
+    const result = await fetchMyPendingSubmissions();
 
     expect(result.features[0].properties).toEqual({
       id: 'sub-1',
@@ -75,7 +75,7 @@ describe('useMyPendingSubmissions', () => {
   it('returns an empty FeatureCollection when data is an empty array', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: [], error: null });
 
-    const result = await useMyPendingSubmissions();
+    const result = await fetchMyPendingSubmissions();
 
     expect(result).toEqual({ type: 'FeatureCollection', features: [] });
   });
@@ -83,7 +83,7 @@ describe('useMyPendingSubmissions', () => {
   it('returns an empty FeatureCollection when data is null (no crash)', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
-    const result = await useMyPendingSubmissions();
+    const result = await fetchMyPendingSubmissions();
 
     expect(result).toEqual({ type: 'FeatureCollection', features: [] });
   });
@@ -92,6 +92,6 @@ describe('useMyPendingSubmissions', () => {
     const rpcError = new Error('rpc failed');
     mockSupabase.rpc.mockResolvedValue({ data: null, error: rpcError });
 
-    await expect(useMyPendingSubmissions()).rejects.toBe(rpcError);
+    await expect(fetchMyPendingSubmissions()).rejects.toBe(rpcError);
   });
 });

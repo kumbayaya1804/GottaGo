@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: MVP — Global proof of concept
-status: ready_to_plan
-last_updated: 2026-07-09T22:23:06Z
-last_activity: 2026-07-09
+milestone_name: milestone
+status: planning
+last_updated: "2026-07-10"
+last_activity: 2026-07-10
 progress:
   total_phases: 12
-  completed_phases: 4
-  total_plans: 18
+  completed_phases: 5
+  total_plans: 19
   completed_plans: 19
-  percent: 33
-stopped_at: Phase 04 complete (6/6), external review gate closed; ready to discuss Phase 5
+  percent: 42
 ---
 
 ## Roadmap Evolution
@@ -25,6 +24,12 @@ stopped_at: Phase 04 complete (6/6), external review gate closed; ready to discu
 - 2026-07-07 — Phase 3 executed (all 5 plans, 3 waves fully autonomous + 1 wave with deferred device checkpoints). Cross-AI review (Antigravity + Codex, 7 findings) resolved pre-execution; internal code review found 2 more criticals (CR-01 null-viewport crash, CR-02 D-08 chill_spot violation) post-execution, both fixed and pushed live. VERIFICATION.md: 12/13 must-haves, pgTAP-execution gap accepted as a tracked override (no Docker in this environment) — see pending todo. 7 device-UAT items deferred by design, not gaps.
 - 2026-07-07 — Phase 4 discuss-phase started. 1 of 4 selected gray areas complete (Non-building locations — closes the 2026-07-05/06 open PROJECT.md design question: no new location_type field, free-text description replaces street address when none exists, GPS fix is always the canonical coordinate source). Checkpoint saved: `.planning/phases/04-gps-service-submission/04-DISCUSS-CHECKPOINT.json`. Superseded by the 2026-07-09 Phase 4 closure update in `.beads/context/execution-state.md`.
 - 2026-07-09 - Phase 4 code/review gate closed after final review-fix commit `bf93a37` (`fix phase 4 review findings`). Antigravity and Codex both APPROVE the 32-file queue; `.claude/review-queue.txt` is empty. GSD `progress` still reports Phase 04 as `Needs Review` only because `04-VERIFICATION.md` honestly remains `status: human_needed` for two deferred device-UAT walkthroughs.
+- 2026-07-09 - Phase 5 readiness audit created at `.planning/phases/05-trust-engine-verification/05-READINESS.md`. It reconciles Phase 4's staging model with the trust-engine roadmap and identifies eight discussion gates: pending-candidate discovery, pre-publication event modeling, the unmeasurable 48-hour no-flag route, numeric confidence authority, trust/decay formulas, missing push infrastructure, the personal-impact metric definition, and discarded accessibility selections.
+- 2026-07-09 - Codex contingency orchestration documented in `docs/codex-model-routing.md`: Sol/high is the default orchestrator while Claude is rate-limited; Terra/Luna are bounded delegates; max/ultra are task-specific; the independent Antigravity + Codex review gate remains mandatory.
+- 2026-07-09 - Whole-project pre-Phase-5 audit saved at `.planning/project-audit-2026-07-09.md` and stale-info scan refreshed. At audit time, Phase 5 executable planning waited on the Phase 3 PostGIS fix, verification-event write hardening, clean lint/Jest exit, schema/source-document reconciliation, and the Phase 5 decision worksheet. This dated condition is historical and superseded by the 2026-07-10 entry below.
+- 2026-07-09 - Claude recovery handoff saved at `.planning/CLAUDE-HANDOFF-2026-07-09.md` with the authoritative read order, exact P0 remediation sequence, verification evidence, review state, worktree safety notes, and Phase 5 decisions that must not be guessed.
+- 2026-07-09 - Global `artifact-qa-gate` Codex skill upgraded for GPT-5.6 Sol and Gotta Go: risk-scaled evidence ladder, scope/persistence controls, delegated-work verification, failed/non-exiting command handling, completion contract, and a progressively loaded Gotta Go QA profile. Skill validation passed; the global skill is outside this repo's review queue.
+- 2026-07-10 - PostGIS remediation and the clean app baseline are complete; the verification-event INSERT policy removal is live. Round 4 live review found broad client table ACLs still present, so local forward migration `20260710121534` now revokes all `anon` privileges and leaves `authenticated` with SELECT only. Codex Round 5's detail-fetch/provider-failure dead ends and Round 6's duplicate Map permission request/Nearby denied dead end are fixed. Map uses one real-hook permission boundary with retry/manual browsing; Nearby distinguishes pending, denied, and unavailable states and opens OS settings for denied recovery. The orphaned duplicate hook and its tests were removed. Codex Round 7's stale-verdict bypass is fixed with a deterministic staged-queue SHA-256 fingerprint enforced across both packets/verdicts; 15/15 hook fixtures include post-approval byte-change rejection. The app gate remains 46/46 suites, 389/389 tests, and 100% configured coverage. Current next action is fresh Round 8 Antigravity plus separate Codex review over 49 files, then commit, then separately authorized migration push/live ACL verification. Only after that should item 4 authority-doc refresh precede Phase 5 decisions/plans.
 
 ### Quick Tasks Completed
 
@@ -47,4 +52,4 @@ stopped_at: Phase 04 complete (6/6), external review gate closed; ready to discu
 
 2 device-verification items deferred by design from Phase 4: SubmitFlow real GPS/permission/mock-location walkthrough, plus pending-pin/withdraw/code-update device walkthrough. Full steps live in `.planning/phases/04-gps-service-submission/04-HUMAN-UAT.md` and `.planning/phases/04-gps-service-submission/04-VERIFICATION.md`.
 
-Last activity: 2026-07-09
+Last activity: 2026-07-10

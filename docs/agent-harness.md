@@ -26,7 +26,10 @@ This document defines how Claude, Antigravity, Codex, and GSD coordinate on Gott
    BLOCK stops the line. REQUEST CHANGES requires a fix and re-review. Security, privacy, RLS, GPS integrity, and data-loss conflicts default to the stricter interpretation.
 
 7. Reviewer independence is preserved.
-   Claude cannot self-approve. Antigravity and Codex inspect actual files from disk and cite exact `file:line` evidence.
+   The implementing orchestrator cannot self-approve. Antigravity and a separate Codex review run inspect actual files from disk and cite exact `file:line` evidence.
+
+8. Codex orchestration is an explicit contingency.
+   When the human explicitly assigns orchestration to Codex, including during a Claude availability or rate-limit interruption, GPT-5.6 Sol may temporarily own GSD-compatible planning, scoped implementation, verification, packet preparation, and finding resolution. Terra and Luna may receive bounded delegated tasks under `docs/codex-model-routing.md`. This does not let the implementing Sol session self-approve or replace Antigravity and the separate Codex review run.
 
 ## Current Reviewer Execution Model
 
@@ -54,13 +57,14 @@ Artifacts do not replace inspecting actual files from disk.
 2. Claude works through GSD unless the user explicitly bypasses it.
 3. Claude verifies locally and records commands, results, and blockers.
 4. Claude ensures `.claude/review-queue.txt` matches current changed files.
-5. Claude runs `/antigravity-review` to generate the Antigravity packet.
-6. User runs Antigravity and saves the verdict artifact.
-7. Claude runs `/codex-prompt` to generate the Codex packet.
-8. User runs Codex and saves the verdict artifact.
-9. Claude resolves all BLOCK and REQUEST CHANGES findings.
-10. Affected files re-enter the queue and reviewers re-review.
-11. Commit only after both reviewers APPROVE and relevant stale-info findings are resolved or explicitly deferred.
+5. Claude stages the exact queue, inspects the staged diff, and computes the staged `scope_hash`.
+6. Claude runs `/antigravity-review` to generate the Antigravity packet.
+7. User runs Antigravity and saves the verdict artifact with the same `scope_hash`.
+8. Claude runs `/codex-prompt` to generate the Codex packet.
+9. User runs Codex and saves the verdict artifact with the same `scope_hash`.
+10. Claude resolves all BLOCK and REQUEST CHANGES findings.
+11. Affected files re-enter the queue; changed bytes are re-staged, re-fingerprinted, and reviewers re-review.
+12. Commit only after both reviewers APPROVE and relevant stale-info findings are resolved or explicitly deferred.
 
 ## Scope Rules
 
@@ -75,6 +79,7 @@ Every packet includes:
 
 - Task goal and phase.
 - Current `.claude/review-queue.txt` entries.
+- Deterministic `scope_hash` computed from the staged queue bytes.
 - Git status and diff for queued files.
 - Full queued file contents or an explicit diff.
 - Relevant context selected by `docs/context-router.md`.
@@ -124,7 +129,7 @@ BLOCKING STALE INFO and UPDATE REQUIRED findings that affect the current task mu
 - Empty queue: report that there is nothing to review.
 - Missing prompt: generate the prompt before asking a reviewer to act.
 - Missing reviewer tool: give the exact manual CLI command or prompt; do not claim review completed.
-- Stale reviewer verdict: regenerate the packet and request re-review.
+- Stale reviewer verdict or staged-scope hash mismatch: regenerate both packets and request both reviews again.
 - Failed verification: report the command and failure; do not approve or commit.
 - Conflicting reviewer findings: document both sides and choose the stricter safety interpretation unless the user decides otherwise.
 - Scope drift: stop and update the task, queue, or packet before continuing.
@@ -138,7 +143,7 @@ A commit is allowed only when all are true:
 - Relevant stale-info findings are resolved or explicitly deferred.
 - `.claude/antigravity-review-latest.md` is APPROVE for the current packet scope.
 - `.claude/codex-review-latest.md` is APPROVE for the current packet scope.
-- Prompt packets include a `review-manifest`, and both verdicts mention every staged queued file.
+- Prompt packets include a `review-manifest` and current staged `scope_hash`; both verdicts repeat that hash and mention every staged queued file.
 - Reviewer conflicts are documented and resolved.
 - The commit message records verification and reviewer verdicts.
 

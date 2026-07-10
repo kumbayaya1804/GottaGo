@@ -7,6 +7,7 @@ Generate lean, evidence-rich Antigravity and Codex packets. Packets must let rev
 ## Inputs
 
 - `.claude/review-queue.txt`
+- staged index for every queued path (`git add -A -- <queued paths>`)
 - `docs/context-router.md`
 - `git status --short`
 - `git diff HEAD -- <queued files>`
@@ -50,6 +51,7 @@ Each packet starts with:
 <!-- review-manifest
 reviewer: antigravity|codex
 generated_at: <ISO timestamp>
+scope_hash: <output of node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash>
 queue:
   - <path>
 diff_base: HEAD
@@ -58,6 +60,20 @@ context_tier: 0|1|2
 ```
 
 Each reviewer verdict must include a `### Reviewed Queue` section listing every queued file inspected. The pre-commit gate checks that staged files in `.claude/review-queue.txt` appear in both prompt packets and both saved verdicts.
+
+Before either packet is generated, stage the exact queue (including deletions), inspect
+`git diff --cached`, and compute the deterministic staged fingerprint:
+
+```powershell
+$files = Get-Content .claude/review-queue.txt
+git add -A -- $files
+node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash
+```
+
+Put that exact `scope_hash` in both packet manifests. Each reviewer must copy the same
+line into its verdict after confirming the staged scope. The pre-commit hook recomputes
+the hash from the index and rejects a missing or stale fingerprint, so any re-staged
+queued byte requires regenerated packets and fresh verdicts.
 
 ## Runtime Boundary And Mock Audit
 
@@ -75,5 +91,6 @@ Auth, routing, GPS, Supabase writes, RLS-sensitive reads, trust/shadowban logic,
 - Prefer excerpts, diffs, and dependency chains over full-doc dumps.
 - Do not include secrets, tokens, private `.env` values, service-role keys, or precise user location data.
 - Do not reuse a verdict if its packet manifest, queue, or diff is stale.
+- Do not edit or re-stage queued files after review without regenerating both packets and verdicts.
 - Do not clear `.claude/review-queue.txt`; clear it only after commit.
 - Claude prepares packets. The user runs the reviewer CLIs unless explicitly overriding that workflow.

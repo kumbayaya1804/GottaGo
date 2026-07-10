@@ -161,7 +161,7 @@ Plans:
 
   1. GpsService hook returns `{coord, accuracy, mocked, timestamp}` with high-accuracy mode
   2. Mocked locations are rejected at the RPC layer (not just client-side)
-  3. `submit_location` RPC inserts a pending row and fires creator-initial verification event
+  3. `submit_location` RPC inserts a pending row with the creator's initial presence claim (`confirmation_count = 1`); Phase 5 must create the auditable creator-event model before publication logic relies on it
   4. `submit_location` RPC accepts optional `access_code` and `timing_tips` fields and stores them correctly
   5. `submit_location` RPC accepts an `access_sensitivity` value using the same community-set/correctable trust model as `policy_tag` (feeds Phase 3's `family_mode` filter)
   6. Access code write path requires auth; stored value is NOT returned in public search results (only in authenticated LocationDetail reads)
@@ -219,12 +219,16 @@ Plans:
   10. Profile screen shows a private, non-comparative personal impact stat computed from the user's GPS-verified contribution count (e.g., "Your contributions have helped confirm N bathrooms are ready for someone who needs one") — no ranking against other users, no fabricated reach number; this narrows but does not violate the gamification-UI deferral (see PROJECT.md Out of Scope)
   11. All screens pass Phase 1.5 component acceptance checklist before Codex review
 
-**Plans**: TBD
+**Plans**: 6 plans (provisional; executable plans wait for `05-DISCUSSION.md` decisions)
 
 Plans:
 
-- [ ] 05-01: verify_location RPC + AFTER INSERT trigger chain (recalc_confidence, trust_events, publish gate), compute_verification_weight function (produces `verification_events.weight`)
-- [ ] 05-02: VerifyFlow screen, "I'm here" button, accepted/rejected/loading states, "contribution verified" push notification on publish transition, personal impact stat on Profile screen
+- [ ] 05-01: Event model, lifecycle constraints, preservation/regression testing of the completed verification-event direct-write lockdown, pending-candidate discovery RPC, pgTAP coverage, and regenerated types
+- [ ] 05-02: Server-computed trust weight, numeric confidence authority, retry-safe atomic publish transaction, trust events, and shadowban behavior
+- [ ] 05-03: VerifyFlow candidate UI, live GPS capture, generic accepted/rejected/denied/loading states, cache invalidation, and device UAT
+- [ ] 05-04: Server-maintained private personal-impact stat, Profile contract/copy, and tests
+- [ ] 05-05: Device-token lifecycle, private publication outbox, Expo delivery function, idempotency, and notification UAT
+- [ ] 05-06: Conditional 48-hour promotion job only after a measurable pending-objection signal exists; otherwise document a disabled fail-closed deferral
 
 ---
 
@@ -259,10 +263,10 @@ Plans:
 **Boundary with Phase 6:** Phase 6 owns temporary expiring availability flags (`availability_flags`). Phase 7 owns all durable reports (`reports` table). These are separate concepts with separate tables — do not mix.
 
 **Depends on**: Phase 6
-**Requirements**: User can file a durable report for any of the 5 named types: code wrong, permanently closed, currently locked/inaccessible, unsafe/dirty, duplicate; User can report another user's content as abusive/objectionable (`report_user`), independent of reporting a location — closes the Apple Guideline 1.2 / Play UGC requirement to report/block abusive users; Locations with multiple same-type reports are suppressed (sets `locations.suppressed_at IS NOT NULL`); Moderation decisions enforced below UI layer
+**Requirements**: User can file a durable report for the 5 named location-problem types: code wrong, permanently closed, currently locked/inaccessible, unsafe/dirty, duplicate; User can dispute an incorrect `access_sensitivity` tag; User can report another user's content as abusive/objectionable (`report_user`), independent of reporting a location — closes the Apple Guideline 1.2 / Play UGC requirement to report/block abusive users; Locations with multiple same-type reports are suppressed (sets `locations.suppressed_at IS NOT NULL`); Moderation decisions enforced below UI layer
 **Success Criteria** (what must be TRUE):
 
-  1. `report_location` RPC accepts all 5 `report_type` values: 'permanently_closed', 'currently_locked', 'inaccurate_information' (covers code wrong/hours), 'dirty_unsafe', 'moved_relocated' — and inserts with reporter identity never returned in public reads
+  1. `report_location` RPC accepts the 5 user-facing location-problem mappings: 'permanently_closed', 'currently_locked', 'inaccurate_information' (code wrong/hours), 'dirty_unsafe', and new 'duplicate_location'; it also accepts new 'wrong_sensitivity_tag' for the Phase 4 correction contract, with reporter identity never returned in public reads
   2. `report_user` RPC exists — lets a user flag another user's content as abusive/objectionable, reporter identity never returned in public reads (same privacy pattern as `report_location`). No new client-facing "block" UI and no new author attribution added anywhere in the app — this feeds the existing `shadowban_user` admin function below, satisfying Apple 1.2 / Play UGC through report + moderator action rather than self-service blocking
   3. Auto-suppress trigger fires when same-type reports exceed `app_config.report_suppress_threshold` and sets `locations.suppressed_at = now()`
   4. Once `locations.suppressed_at IS NOT NULL`, location is excluded from all public search RPCs (consistent with Phase 3 filters)
@@ -276,8 +280,8 @@ Plans:
 
 Plans:
 
-- [ ] 07-01: report_location RPC (all 5 types), report_user RPC, auto-suppress trigger (sets locations.suppressed_at), admin SECURITY DEFINER moderation functions (shadowban_user, shadowban_location, unsuppress_location)
-- [ ] 07-02: Report UI in LocationDetail, all 5 report type flows, confirmation states, "report user" entry point, "reported location was fixed" push notification on unsuppress/correction
+- [ ] 07-01: report_location RPC (5 location-problem mappings + sensitivity dispute), report_user RPC, required CHECK additions, auto-suppress trigger (sets locations.suppressed_at), admin SECURITY DEFINER moderation functions (shadowban_user, shadowban_location, unsuppress_location)
+- [ ] 07-02: Report UI in LocationDetail, all location-problem and sensitivity-dispute flows, confirmation states, "report user" entry point, "reported location was fixed" push notification on unsuppress/correction
 
 ---
 
@@ -293,7 +297,7 @@ Plans:
   3. Promoted-region coverage targets include confirmed changing-table locations, wheelchair-accessible locations, and Chill Spot policy-tagged locations
   4. Marketing, promotion, owned social handles, and community outreach are ready to drive contributor/user activity in priority regions
   5. Admin import script is idempotent — re-run does not create duplicates (duplicate detection via coordinates proximity query)
-  6. Seeded/promoted locations have `verification_count ≥ 2` OR are within the 48-hour auto-promote window at launch time
+  6. Seeded/promoted locations have `verification_count ≥ 2`; a 48-hour alternative is allowed only if Phase 5 implements a measurable pending-objection signal and an approved publication route
   7. Launch-readiness acceptance query can be parameterized by region and returns published, non-suppressed, non-deleted, verified rows for any promoted area
 
 **Plans**: TBD
@@ -343,7 +347,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. Sentry `beforeSend` strips lat, lng, email, user_id before any event is sent
-  2. pgTAP test suite covers: RLS select/insert/update policies for all 6 tables, shadowban exclusion, soft-delete exclusion, expired flag exclusion
+  2. pgTAP test suite covers RLS and RPC authorization for every client-exposed, user-owned, contribution, trust, moderation, notification, and staging table, plus shadowban, soft-delete, suppression, and expiry exclusions
   3. EAS `production` build profile configured for iOS + Android
   4. App Store metadata, screenshots, privacy policy URL (Termly), and age rating complete
   5. Play Store metadata and content rating complete
@@ -386,12 +390,12 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation & Scaffold | 2/2 | Complete | 2026-06-24 |
 | 1.5. UX Foundation & Design System | 2/2 | Complete | 2026-06-25 |
-| 2. Auth & Profiles | 3/3 | Executed — verification pending | - |
-| 3. Read Path & Map | 5/5 | Complete   | 2026-07-07 |
-| 4. GPS Service & Submission | 6/6 | Complete   | 2026-07-08 |
-| 5. Trust Engine & Verification | 0/2 | Not started | - |
+| 2. Auth & Profiles | 3/3 | Passed | 2026-07-03 |
+| 3. Read Path & Map | 5/5 | Code complete; verification override + device UAT open | 2026-07-07 |
+| 4. GPS Service & Submission | 6/6 | Code/review complete; device UAT open | 2026-07-08 |
+| 5. Trust Engine & Verification | 0/6 | Discussion blocked on readiness decisions + audit remediation | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
 | 7. Reports & Moderation Inputs | 0/2 | Not started | - |
 | 7.5. Growth & Seed Operations | 0/2 | Not started | - |
-| 8. Client UX & Emergency Modes | 0/3 | Not started | - |
+| 8. Client UX & Emergency Modes | 0/4 | Not started | - |
 | 9. Operations & Hardening | 0/3 | Not started | - |

@@ -105,6 +105,17 @@ Read:
 
 Verify with targeted `rg` checks for stale invocation text, full-read mandates, and artifact names.
 
+### Codex Model Or Delegation Decisions
+
+Read:
+- `docs/codex-model-routing.md`.
+- `docs/agent-harness.md` for review independence and approval boundaries.
+- `.beads/context/execution-state.md` for the current orchestrator/recovery state.
+
+Do not load model-routing guidance for ordinary single-agent implementation unless
+model choice, reasoning effort, delegation, or an orchestrator contingency is in
+scope.
+
 ### Stale-Info Scan
 
 Read:

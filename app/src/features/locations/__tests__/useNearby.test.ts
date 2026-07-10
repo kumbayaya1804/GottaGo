@@ -4,7 +4,7 @@ jest.mock('../../../lib/supabase', () => ({
   supabase: { rpc: jest.fn() },
 }));
 
-import { useNearby } from '../useNearby';
+import { fetchNearby } from '../useNearby';
 import { nearbyRows } from '../../../test/fixtures/locations';
 
 const mockSupabase = jest.requireMock('../../../lib/supabase').supabase as {
@@ -15,11 +15,11 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-describe('useNearby', () => {
+describe('fetchNearby', () => {
   it('calls search_locations_nearby with user coords + filters', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: nearbyRows, error: null });
 
-    await useNearby(44.05, -123.09, { result_limit: 20, filter_chill_spot: true });
+    await fetchNearby(44.05, -123.09, { result_limit: 20, filter_chill_spot: true });
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith('search_locations_nearby', {
       user_lat: 44.05,
@@ -32,7 +32,7 @@ describe('useNearby', () => {
   it('defaults to no filters when none supplied', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: nearbyRows, error: null });
 
-    await useNearby(44.05, -123.09);
+    await fetchNearby(44.05, -123.09);
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith('search_locations_nearby', {
       user_lat: 44.05,
@@ -43,7 +43,7 @@ describe('useNearby', () => {
   it('maps rows to camelCase NearbyLocation with distanceM', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: nearbyRows, error: null });
 
-    const result = await useNearby(44.05, -123.09);
+    const result = await fetchNearby(44.05, -123.09);
 
     expect(result[0]).toEqual({
       id: '11111111-1111-1111-1111-111111111111',
@@ -63,7 +63,7 @@ describe('useNearby', () => {
   it('returns a result that is non-decreasing by distanceM', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: nearbyRows, error: null });
 
-    const result = await useNearby(44.05, -123.09);
+    const result = await fetchNearby(44.05, -123.09);
 
     const distances = result.map((r) => r.distanceM);
     const sorted = [...distances].sort((a, b) => a - b);
@@ -76,7 +76,7 @@ describe('useNearby', () => {
   it('returns an empty array when the RPC returns null data', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
-    const result = await useNearby(44.05, -123.09);
+    const result = await fetchNearby(44.05, -123.09);
 
     expect(result).toEqual([]);
   });
@@ -87,6 +87,6 @@ describe('useNearby', () => {
       error: new Error('nearby rpc failed'),
     });
 
-    await expect(useNearby(44.05, -123.09)).rejects.toThrow('nearby rpc failed');
+    await expect(fetchNearby(44.05, -123.09)).rejects.toThrow('nearby rpc failed');
   });
 });

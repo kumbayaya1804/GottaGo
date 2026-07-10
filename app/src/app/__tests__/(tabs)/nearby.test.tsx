@@ -29,7 +29,7 @@ jest.mock('../../../features/locations/useCurrentPosition', () => ({
 // --- Controllable nearby fetch.
 const mockUseNearby = jest.fn();
 jest.mock('../../../features/locations/useNearby', () => ({
-  useNearby: (...args: unknown[]) => mockUseNearby(...args),
+  fetchNearby: (...args: unknown[]) => mockUseNearby(...args),
 }));
 
 // --- Controllable filters store (session-persisted; drives filtered-empty vs truly-empty).
@@ -192,11 +192,50 @@ describe('NearbyScreen', () => {
 
   it('forwards null coords into the sheet and is not a dead end when GPS is denied', async () => {
     mockUseCurrentPosition.mockReturnValue({ coords: null, status: 'denied', isStale: false });
-    const { findByText } = await renderScreen();
+    const { findByLabelText, findByText } = await renderScreen();
     expect(await findByText('Location needed')).toBeTruthy();
+    expect(
+      await findByText(
+        'Location permission is off. Open settings to enable it and see nearby bathrooms.',
+      ),
+    ).toBeTruthy();
+    fireEvent.press(await findByLabelText('Open location settings'));
+    expect(mockOpenSettings).toHaveBeenCalledTimes(1);
     const lastProps = mockSheetSpy.mock.calls.at(-1)?.[0];
     expect(lastProps).toMatchObject({ userLat: null, userLng: null });
     // Without coords, useNearby is never invoked (nothing to sort by).
+    expect(mockUseNearby).not.toHaveBeenCalled();
+  });
+
+  it('shows a distinct non-actionable pending state while permission is still resolving', async () => {
+    mockUseCurrentPosition.mockReturnValue({
+      coords: null,
+      status: 'undetermined',
+      isStale: false,
+    });
+
+    const { findByText, queryByLabelText } = await renderScreen();
+
+    expect(await findByText('Finding your location')).toBeTruthy();
+    expect(await findByText('Requesting location permission…')).toBeTruthy();
+    expect(queryByLabelText('Open location settings')).toBeNull();
+    expect(queryByLabelText('Retry getting location')).toBeNull();
+  });
+
+  it('shows a retry path when the GPS provider is unavailable', async () => {
+    const retry = jest.fn();
+    mockUseCurrentPosition.mockReturnValue({
+      coords: null,
+      status: 'unavailable',
+      isStale: false,
+      retry,
+    });
+
+    const { getByLabelText, getByText } = await renderScreen();
+
+    expect(getByText("We couldn't get your location. Check your connection and try again.")).toBeTruthy();
+    fireEvent.press(getByLabelText('Retry getting location'));
+    expect(retry).toHaveBeenCalledTimes(1);
     expect(mockUseNearby).not.toHaveBeenCalled();
   });
 });

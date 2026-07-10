@@ -18,7 +18,7 @@ export interface NearbyRpcFilters {
  * `<->` KNN distance; this maps them to camelCase `NearbyLocation` (carrying
  * `distanceM`) preserving that order. Throws when the RPC errors.
  */
-export async function useNearby(
+export async function fetchNearby(
   userLat: number,
   userLng: number,
   filters: NearbyRpcFilters = {},

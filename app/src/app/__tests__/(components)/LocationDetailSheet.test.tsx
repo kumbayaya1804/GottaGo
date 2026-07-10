@@ -45,7 +45,7 @@ jest.mock('@gorhom/bottom-sheet', () => {
 // --- Mock the data hook: assert the exact forwarded args and control the returned shape.
 const mockUseLocationDetail = jest.fn();
 jest.mock('../../../features/locations/useLocationDetail', () => ({
-  useLocationDetail: (...args: unknown[]) => mockUseLocationDetail(...args),
+  fetchLocationDetail: (...args: unknown[]) => mockUseLocationDetail(...args),
 }));
 
 // --- Mock distance formatting so the assertion is locale-independent.
@@ -144,6 +144,22 @@ describe('LocationDetailSheet', () => {
     mockUseLocationDetail.mockResolvedValue({ ...baseDetail, hours: null });
     const { findByText } = renderSheet();
     expect(await findByText('Hours not yet available')).toBeTruthy();
+  });
+
+  it('renders a reachable error state and recovers when the detail fetch is retried', async () => {
+    mockUseLocationDetail
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce(baseDetail);
+
+    const { findByText, getByLabelText, queryByLabelText } = renderSheet();
+
+    expect(
+      await findByText("Couldn't load this location. Check your connection and try again."),
+    ).toBeTruthy();
+    expect(queryByLabelText('Loading location details')).toBeNull();
+
+    fireEvent.press(getByLabelText('Retry loading location details'));
+    expect(await findByText('High Confidence Cafe')).toBeTruthy();
   });
 
   it('Get Directions opens the native maps app with the location lat/lng', async () => {

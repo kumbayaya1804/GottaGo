@@ -1,0 +1,35 @@
+-- Whole-project audit P0-2 fix (2026-07-09 audit, remediated 2026-07-10) — close the
+-- direct-INSERT bypass on verification_events before any Phase 5 trust-engine work
+-- reads from this table.
+--
+-- The pre-existing `verification_events_insert_auth` RLS policy
+--   (INSERT, WITH CHECK (auth.uid() = user_id))
+-- let any signed-in user POST directly to /rest/v1/verification_events with
+-- attacker-controlled weight, distance_from_location_meters, event_type, and
+-- gps_location — as long as user_id matched their own auth.uid(). This is the
+-- same vulnerability class as the submissions_insert_auth bypass fixed in
+-- 20260708010000_phase4_drop_direct_submission_insert.sql, and is more dangerous
+-- here because Phase 5 will aggregate these rows into a numeric trust/confidence
+-- score with no independent server-side check today.
+--
+-- Safe to drop, more so than the submissions case:
+--   - verification_events is owned by `postgres` (verified live) and
+--     relforcerowsecurity=false, so any future SECURITY DEFINER RPC that writes
+--     to this table runs as the table owner and is unaffected by dropping this
+--     policy.
+--   - No client code reads or writes verification_events directly today
+--     (`grep -rn "verification_events" app/src` matches only generated type
+--     definitions in database.types.ts, no `.from('verification_events')` calls).
+--   - No existing SECURITY DEFINER RPC or edge function inserts new rows into
+--     this table today (the only current writers are get_my_public_profile-style
+--     anonymization on account deletion, which sets user_id to null on existing
+--     rows, and a read-only count in the profile stats RPC) — so dropping this
+--     policy removes the ONLY current insert path, and does so at zero data risk
+--     (verified live: 0 rows in the table).
+--
+-- `verification_events_insert_service` (INSERT, service_role), and the two
+-- SELECT policies (`verification_events_select_own`,
+-- `verification_events_select_service`) are left untouched. Phase 5 must
+-- introduce a hardened SECURITY DEFINER RPC as the only client-reachable write
+-- path for verification events; direct table inserts must not be reinstated.
+drop policy if exists verification_events_insert_auth on public.verification_events;

@@ -120,6 +120,6 @@ export interface LocationFeatureCollection {
 /**
  * The caller's live coordinates, or `null` when unknown (permission
  * denied/undetermined or before the first GPS fix). Produced by
- * `useCurrentPosition` and forwarded into `useLocationDetail` / `useNearby`.
+ * `useCurrentPosition` and forwarded into `fetchLocationDetail` / `fetchNearby`.
  */
 export type CurrentPosition = { userLat: number; userLng: number } | null;

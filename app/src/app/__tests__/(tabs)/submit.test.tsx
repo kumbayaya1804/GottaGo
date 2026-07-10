@@ -60,7 +60,13 @@ function freshSample(accuracy: number) {
 
 async function renderWizard() {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      // gcTime: 0 here too — otherwise each test's completed mutation schedules a
+      // default 5-minute gc timer that outlives the test and the QueryClient
+      // (never unmounted/cleared), which is what left Jest unable to exit.
+      mutations: { retry: false, gcTime: 0 },
+    },
   });
   const utils = render(
     <QueryClientProvider client={queryClient}>

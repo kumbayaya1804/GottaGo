@@ -43,7 +43,7 @@ jest.mock('@gorhom/bottom-sheet', () => {
 
 const mockUseLocationDetail = jest.fn();
 jest.mock('../../../features/locations/useLocationDetail', () => ({
-  useLocationDetail: (...args: unknown[]) => mockUseLocationDetail(...args),
+  fetchLocationDetail: (...args: unknown[]) => mockUseLocationDetail(...args),
 }));
 
 jest.mock('../../../features/locations/formatDistance', () => ({

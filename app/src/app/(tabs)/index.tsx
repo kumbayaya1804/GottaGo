@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, useColorScheme } from 'react-native';
 import Mapbox, {
   MapView,
@@ -15,11 +15,10 @@ import { typography } from '../../constants/typography';
 import { radius } from '../../constants/radius';
 import { useMapViewport } from '../../features/locations/useMapViewport';
 import { useCurrentPosition } from '../../features/locations/useCurrentPosition';
-import { useLocationsBbox } from '../../features/locations/useLocationsBbox';
-import { useDeniedLocationState } from '../../features/locations/useDeniedLocationState';
+import { fetchLocationsBbox } from '../../features/locations/useLocationsBbox';
 import { useFiltersStore } from '../../features/filters/useFiltersStore';
 import { useSession } from '../../features/auth/useSession';
-import { useMyPendingSubmissions } from '../../features/submit/useMyPendingSubmissions';
+import { fetchMyPendingSubmissions } from '../../features/submit/useMyPendingSubmissions';
 import type { LocationFeatureCollection } from '../../features/locations/types';
 import type {
   PendingSubmissionFeatureCollection,
@@ -69,6 +68,8 @@ const FILTERED_EMPTY_HEADING = 'No bathrooms match your filters';
 const FILTERED_EMPTY_BODY = 'Try clearing filters or searching this area.';
 const SEARCH_THIS_AREA = 'Search this area';
 const CLEAR_FILTERS = 'Clear filters';
+const LOCATION_UNAVAILABLE_COPY =
+  "We couldn't get your location. Retry or search the visible map area.";
 
 /** Shape of the ShapeSource press event we consume (single pin vs. cluster). */
 interface ShapePressEvent {
@@ -84,10 +85,17 @@ export default function MapScreen() {
   const cameraRef = useRef<Camera>(null);
 
   const { viewport, belowPinThreshold, onRegionChange } = useMapViewport();
-  const { coords } = useCurrentPosition();
-  const { showManualSearch } = useDeniedLocationState();
+  const { coords, status: positionStatus, retry: retryPosition } = useCurrentPosition();
+  const [manualBrowseEnabled, setManualBrowseEnabled] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedPending, setSelectedPending] = useState<PendingSubmissionProperties | null>(null);
+  const showManualSearch = positionStatus === 'denied';
+  const positionUnavailable = positionStatus === 'unavailable';
+  const manualSearchActive = (showManualSearch || positionUnavailable) && !manualBrowseEnabled;
+
+  useEffect(() => {
+    if (coords !== null) setManualBrowseEnabled(false);
+  }, [coords]);
 
   // Signed-in submitter's own pending pins (SC9). Scoping is entirely server-side
   // (`submitter_id = auth.uid()`, T-04-20) — this is a SEPARATE authed-only query, never a
@@ -96,7 +104,7 @@ export default function MapScreen() {
   const queryClient = useQueryClient();
   const pendingQuery = useQuery({
     queryKey: ['pendingSubmissions', session?.user?.id],
-    queryFn: () => useMyPendingSubmissions(),
+    queryFn: () => fetchMyPendingSubmissions(),
     // Defense in depth: the RPC returns nothing for anon anyway, but never even fire it.
     enabled: !!session,
   });
@@ -117,15 +125,15 @@ export default function MapScreen() {
     queryKey: ['locationsBbox', viewport, filters],
     // CR-01 (code review): defensive null guard — refetch() can be invoked imperatively
     // (bypassing the `enabled` gate below) before the first viewport commit lands.
-    queryFn: () => (viewport !== null ? useLocationsBbox(viewport, filters) : EMPTY_FC),
-    enabled: viewport !== null && !belowPinThreshold && !showManualSearch,
+    queryFn: () => (viewport !== null ? fetchLocationsBbox(viewport, filters) : EMPTY_FC),
+    enabled: viewport !== null && !belowPinThreshold && !manualSearchActive,
   });
 
   // On error, TanStack retains the last successful `data`, so previously-loaded
   // pins stay on the map under the banner (D-28) rather than clearing to empty.
   const featureCollection = bboxQuery.data ?? EMPTY_FC;
   const isEmptyResult =
-    bboxQuery.isSuccess && featureCollection.features.length === 0 && !showManualSearch;
+    bboxQuery.isSuccess && featureCollection.features.length === 0 && !manualSearchActive;
 
   const styleURL = colorScheme === 'dark' ? Mapbox.StyleURL.Dark : Mapbox.StyleURL.Light;
 
@@ -192,7 +200,7 @@ export default function MapScreen() {
         />
         <UserLocation visible />
 
-        {!belowPinThreshold && !showManualSearch && (
+        {!belowPinThreshold && !manualSearchActive && (
           <ShapeSource
             id="locations"
             shape={featureCollection as never}
@@ -227,7 +235,7 @@ export default function MapScreen() {
         {/* SEPARATE submitter-only pending layer (RESEARCH Pattern 4) — NOT clustered with
             id="locations" and NOT a merged feature collection. Gated on an active session so
             anon never even mounts it; visibility is server-scoped, not client-filtered. */}
-        {!belowPinThreshold && !showManualSearch && !!session && (
+        {!belowPinThreshold && !manualSearchActive && !!session && (
           <ShapeSource
             id="pendingLocations"
             shape={pendingCollection as never}
@@ -255,25 +263,32 @@ export default function MapScreen() {
         )}
       </MapView>
 
-      {!showManualSearch && (
+      {!manualSearchActive && (
         <View style={styles.chipRowContainer}>
           <FilterChipRow />
         </View>
       )}
 
-      {showManualSearch && (
+      {manualSearchActive && (
         <View style={styles.centerOverlay} pointerEvents="box-none">
           <View style={[styles.card, { backgroundColor: colors.mapOverlay }]}>
-            <Text style={[styles.cardText, { color: colors.textPrimary }]}>{DENIED_COPY}</Text>
+            <Text style={[styles.cardText, { color: colors.textPrimary }]}>
+              {positionUnavailable ? LOCATION_UNAVAILABLE_COPY : DENIED_COPY}
+            </Text>
+            {positionUnavailable && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry getting location"
+                onPress={retryPosition}
+                style={styles.cardButton}
+              >
+                <Text style={[styles.cardButtonText, { color: colors.primary }]}>Retry</Text>
+              </Pressable>
+            )}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={SEARCH_THIS_AREA}
-              onPress={() => {
-                // CR-01 (code review): viewport is still null until the first debounced
-                // onRegionChange commit; refetch() bypasses the query's `enabled` gate,
-                // so guard here to avoid dereferencing a null viewport in queryFn.
-                if (viewport !== null) bboxQuery.refetch();
-              }}
+              onPress={() => setManualBrowseEnabled(true)}
               style={styles.cardButton}
             >
               <Text style={[styles.cardButtonText, { color: colors.primary }]}>
@@ -284,7 +299,7 @@ export default function MapScreen() {
         </View>
       )}
 
-      {belowPinThreshold && !showManualSearch && (
+      {belowPinThreshold && !manualSearchActive && (
         <View style={styles.centerOverlay} pointerEvents="none">
           <View style={[styles.card, { backgroundColor: colors.mapOverlay }]}>
             <Text style={[styles.cardText, { color: colors.textPrimary }]}>{ZOOM_OUT_COPY}</Text>

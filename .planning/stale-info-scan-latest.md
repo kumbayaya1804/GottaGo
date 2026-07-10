@@ -1,71 +1,126 @@
-# Stale Information Scan - 2026-07-03
+# Stale Information Scan - 2026-07-09
 
-Trigger: Phase transition (Phase 2 execution complete, verification pending) + full project audit 2026-07-03
-Branch: master
-Commit: 9986c4e (audit bookkeeping fixes)
-Next review due: 2026-08-02 — or at the Phase 2 → Phase 3 transition if that comes first (a transition triggers its own scan per docs/stale-info-scan.md)
+Status: HISTORICAL SNAPSHOT. The 2026-07-10 remediation status below is the
+only current portion of this file; every section beginning with "Historical
+Snapshot Body" is preserved evidence from the 2026-07-09 scan and must not be
+read as current execution state.
 
-## Commands Run
+Trigger: Whole-project audit before Phase 5 discussion/planning; Phase 4 transition and Codex harness/model-routing changes.
+Branch: `master` (ahead of `origin/master`; dirty worktree preserved).
+Commit: `30272ce` at scan start.
+Next review due: after the blocking remediation batch, before Phase 5 plans are reviewed, or 2026-08-08, whichever comes first.
 
-- `git status --short` — 25 working-tree entries, all accounted for: the in-flight audit-cleanup code batch awaiting Antigravity+Codex review (8 deletions in `app/components/`, `app/constants/Colors.ts` → `app/src/constants/Colors.ts` move, 11 import-path edits, tsconfig/eslint exclusion cleanup), regenerated `.claude/*-prompt-latest.md` packets, and draft `.planning/project-audit-2026-07-03.md`. No unexplained drift.
-- `git log --oneline -8` — latest: 9986c4e (audit bookkeeping), e504607 (Plan 02-02 savepoint), c33bc1a (WU-02-T6 test)
-- `rg -n "Gemini|gemini-review|GEMINI\.md|file:///" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md SPEC.md docs .planning .claude` — no Gemini workflow instructions remain (only the scan pattern itself in docs/stale-info-scan.md and historical attribution in .planning/research/ARCHITECTURE.md:220,316). `file:///` links found in `.claude/antigravity-review-latest.md:28` and `.claude/skills/*.md` (see WATCH).
-- `rg -n "service_role|EXPO_PUBLIC|NEXT_PUBLIC|eyJ|sk\." app supabase docs` — 56 matches, all benign: RLS/service-role policy patterns in migrations, `EXPO_PUBLIC_*` env var NAMES in `app/jest.setup.ts` / `app/src/lib/supabase.ts` / its test (no values), one `eyJ`-substring false positive inside a sha512 integrity hash in `app/package-lock.json`. No literal secrets.
-- `rg -n "stale-info-scan|agent-harness|codex-prompt-latest|antigravity-review-latest|codex-review-latest|review-queue" ...` — harness artifact references consistent across AGENTS.md, AGENTS_ROSTER.md, CLAUDE.md, CODEX.md, ANTIGRAVITY.md, docs/agent-harness.md, hooks, and all four slash commands (`/antigravity-review`, `/codex-prompt`, `/review-gate`, `/stale-info-scan` all exist in `.claude/commands/`).
-- `rg -n -i "claude-(opus|sonnet|haiku|fable|mythos)-[0-9]"` (excl. lockfiles/node_modules) — only hits are the alias examples in docs/stale-info-scan.md:102 and `.planning/config.json` `model_profile_overrides`. No dated snapshot IDs anywhere.
-- `claude-api` skill model catalog consulted — `claude-opus-4-8`, `claude-sonnet-5`, `claude-haiku-4-5` are all Active, current-tier aliases with no same-tier successor (Fable 5 is a separate above-Opus tier, not an Opus successor). Catalog cache date 2026-06-24.
-- `app/package.json` inspected — scripts (`test`, `test:coverage`, `typecheck`, `lint`) match docs/verification.md; expo ~55.0.26, react-native 0.83.6, react 19.2.0, jest 29.7.0 (pinned), jest-expo ^55.0.18, @rnmapbox/maps ^10.3.1, @supabase/supabase-js ^2.106.0, TanStack Query 5, zustand 5, zod 4, msw 2 — all consistent with CLAUDE.md / PROJECT.md constraints.
-- `supabase/config.toml` inspected — present, project_id "Gotta_Go", standard local config.
-- `supabase/migrations/` listed — 12 migrations, latest 20260701211135_profile_stats_rpc.sql.
-- `app/src/lib/database.types.ts` grepped — generated types include `get_profile_stats`, `update_profile`, `delete_account`, `check_display_name_available`; types are fresh through the latest migration. ✓
-- Review artifacts inspected: `.claude/review-queue.txt` (14 files, matches the uncommitted batch), both `*-prompt-latest.md` (current audit-cleanup packet, full Prompt Packet Requirements met, no secrets), both `*-review-latest.md` (prior WU-02-T6 APPROVEs — see WATCH).
-- `.planning/STATE.md`, `.planning/ROADMAP.md`, `.planning/PROJECT.md`, `SPEC.md`, `docs/schema-contract.md` read and cross-checked.
+## Remediation Status — updated 2026-07-10
 
-## BLOCKING STALE INFO
+The implementation blockers below were remediated or have forward fixes in this
+uncommitted batch. The review gate remains open pending fresh Antigravity + Codex
+verdicts. The item bodies are preserved verbatim as historical evidence; do NOT
+re-execute them.
 
-- None.
+1. **RESOLVED** — PostGIS schema qualification fixed in
+   `20260710010000_phase3_postgis_schema_qualification_fix.sql`, pushed live
+   with user authorization and verified by calling every RPC against the live
+   database. The two legacy Phase 1 radius RPCs the fix initially "repaired"
+   were subsequently DROPPED entirely (`20260710020000` + `20260710030000`,
+   both live-verified) after Codex's first-pass review found the repair had
+   reactivated a full-row exfiltration path (SECURITY DEFINER `setof locations`
+   granted to anon). Zero overloads of either legacy function remain live.
+2. **POLICY RESOLVED LIVE; ACL FORWARD FIX LOCAL** — `verification_events_insert_auth` dropped in
+   `20260710000000_phase5prep_drop_verification_events_direct_insert.sql`,
+   pushed live and verified: only the service-role INSERT policy remains, so RLS
+   denies ordinary client inserts. Round 4 live inspection found broad table-level
+   client grants still present, including `TRUNCATE`. The forward migration
+   `20260710121534_verification_events_client_write_acl_lockdown.sql` revokes all
+   `anon` privileges and leaves `authenticated` with SELECT only; it is local and
+   requires review, commit, fresh deployment authorization, and live verification.
+   pgTAP coverage now asserts both ACLs and denied INSERT (execution remains
+   Docker-blocked).
+3. **RESOLVED LOCALLY, REVIEW OPEN** — Codex Round 2's three findings were fixed.
+   Round 3 Antigravity approved the 41-file scope; Round 3 Codex found one
+   remaining contradiction in the active audit/readiness chain. That chain now
+   marks the dated audit historical and treats verification-event direct-write
+   lockdown as completed work to preserve/test, not future removal work. The
+   Round 4 then produced the ACL fix above. Codex Round 5 found two app recovery
+   dead ends: a failed detail fetch rendered an endless skeleton, and rejected
+   permission/GPS promises left position status undetermined. Both are fixed with
+   explicit error state, retry, Map manual browsing, and regression/lifecycle tests.
+   Codex Round 6 then found the Map still mounted a second permission hook and
+   Nearby's denied state still lacked an action. Map now derives manual-search
+   state from the single real `useCurrentPosition` boundary, and Nearby opens OS
+   settings when permission is denied while preserving a distinct pending state.
+   The omitted `useCurrentPosition` regression file is now queued, and the now-orphaned
+   duplicate permission hook plus its standalone test were removed. The corrected
+   review scope is now 49 files. Codex Round 7's remaining harness finding is also
+   fixed: both packets and verdicts must repeat a deterministic staged-queue SHA-256
+   fingerprint, and the hook rejects approvals after any queued bytes are re-staged.
+   The hook suite is 15/15 including that regression. All earlier verdicts predate
+   the resulting bytes; fresh Round 8 independent
+   verdicts are still required before commit.
+4. **RESOLVED** — verification baseline is clean: lint 0 errors (30
+   pre-existing style warnings), typecheck clean, 46/46 suites / 389/389 tests
+   with clean Jest exit (root cause: missing `gcTime: 0` mutation defaults in
+   two test files), coverage thresholds met. MapScreen `act()` warnings 7 → 1
+   (residual is non-failing and disclosed).
 
-## UPDATE REQUIRED
+Current order: fresh reviews -> commit -> separately authorized ACL migration push
+and live verification -> item 4 authority-doc refresh (PROJECT.md, schema-contract.md,
+SYSTEM_MAP.md, config.json ship sources, and design docs) -> Phase 5 discussion gates
+in `05-DISCUSSION-DRAFT.md`. WATCH items and deferred pgTAP/device UAT remain open.
 
-1. **`docs/schema-contract.md` alignment claim is stale relative to six newer migrations** — Header (docs/schema-contract.md:3) says "aligned with live schema as of 2026-06-24", but six migrations landed after that date: `20260627000000_handle_new_user_trigger`, `20260627000001_display_name_unique_index`, `20260627000002_auth_rpcs`, `20260627000003_nullable_user_fks`, `20260627000004_profile_rpcs`, `20260701211135_profile_stats_rpc`. The contract was partially updated (users-table rules at docs/schema-contract.md:60 reference the SECURITY DEFINER profile-update RPC), but it does not document: the `handle_new_user` provisioning trigger, the `check_display_name_available` / `set_gps_consent` / `update_profile` / `delete_account` / `get_profile_stats` RPCs, or the Phase-2 FK change that made 7 user-FK columns nullable with ON DELETE SET NULL (GDPR erasure path — data-model-relevant for every table section it touches, e.g. `submissions.submitter_id`, `ratings.user_id`). Reviewers and the Phase 3 planner read this contract as the schema reference. Required: refresh the alignment date and reconcile the affected table/RPC sections before Phase 3 planning. (Generated `database.types.ts` IS current, so this is a docs-only gap, not a types gap.)
+## Historical Snapshot Body - 2026-07-09
 
-2. **`.planning/PROJECT.md` evolution items due at the imminent Phase 2 transition** — (a) Footer (.planning/PROJECT.md:182) still says "Last updated: 2026-05-18 after initialization" although content includes 2026-07-01 audit decisions. (b) Every Key Decisions row still shows outcome "— Pending" (lines 140–155), including decisions that are implemented and operating (React Native/Expo, Supabase+PostGIS, Mapbox, jest pin, multi-agent review, 2-verification threshold design). PROJECT.md's own Evolution section requires outcome/requirement updates at each phase transition — Phase 2 verification is the next gate. Required: run the PROJECT.md evolution pass (outcomes, footer date, any validated requirements) when Phase 2 closes.
+Everything below this heading is the preserved pre-remediation scan body,
+including its `CURRENT` and `Blocked Checks` labels. It is not current recovery
+guidance. Use `.planning/STATE.md` and `.beads/context/execution-state.md`.
 
-## WATCH
+## Historical: Commands Run
 
-3. **STATE.md `total_phases: 12` vs 11 phase checkboxes in ROADMAP.md** — `.planning/STATE.md:8` says 12 total phases; `.planning/ROADMAP.md` lists 11 (`1, 1.5, 2–7, 7.5, 8, 9`). `percent: 17` was computed from 12 (2/12), so the counters are internally consistent with 12 but not with the visible roadmap. The `completed_phases` undercount from the prior scan WAS fixed (now 2); this residual denominator mismatch is either a GSD counting convention or a leftover. Verify/correct at Phase 2 verification.
+- `git status --short --branch` and `git diff --stat` - current planning/harness edits inventoried; pre-existing `app/src/lib/database.types.ts` worktree metadata change preserved.
+- `rg --files` across `.planning`, `docs`, `.claude`, `.beads/context`, migrations, tests, and app source - phase and authority inventory completed.
+- Targeted `rg`/readback checks - compared PROJECT, ROADMAP, STATE, phase verification/reviews, schema contract, system map, migrations, generated types, review queue, packets, and verdicts.
+- `npm.cmd run typecheck` - exit 0.
+- `npm.cmd run lint` - exit 1 with 5 errors and 30 warnings.
+- `npm.cmd test -- --runInBand` - all 47 suites / 383 tests reported PASS, but the process did not exit and timed out after 241 seconds.
+- `npm.cmd test -- --runInBand --detectOpenHandles` - same 47/383 PASS result and non-exit timeout; MapScreen emitted repeated unwrapped-`act` warnings.
+- Read-only Terra and Luna audits - completed after one timed-out broad attempt was discarded; findings were reproduced against local files before inclusion.
 
-4. **Review verdict artifacts currently lag the prompt packets (expected mid-cycle state, gate condition)** — `.claude/antigravity-prompt-latest.md` and `.claude/codex-prompt-latest.md` correctly describe the pending audit-cleanup batch (scope matches `.claude/review-queue.txt` exactly), but `.claude/antigravity-review-latest.md` and `.claude/codex-review-latest.md` still hold the prior WU-02-T6 APPROVE verdicts. This is normal while the review is pending — but the uncommitted batch MUST NOT commit until both reviewers return fresh verdicts against the current packets. Clears itself when the review gate runs.
+## Historical: BLOCKING STALE INFO
 
-5. **`file:///` absolute links** — `.claude/antigravity-review-latest.md:28` (Antigravity emits these by design; file is overwritten per review) and `.claude/skills/*.md` (six files use `file:///C:/Users/mrsai/...` links intentionally for Antigravity's `view_file` navigation). Portability-only concern if the repo ever moves paths or machines; no action now. Carried over from prior scans.
+1. Phase 3 search RPCs are treated as complete while a high-priority pending todo and the migration bodies show unqualified PostGIS calls under `SET search_path = public`. Fix via a new migration and verify the real RPC call path before Phase 5 relies on it.
+2. `docs/schema-contract.md` says verification writes are server-owned, but the authoritative base migration still permits authenticated direct inserts into `verification_events`, including caller-supplied weight/distance/event fields. Revoke the policy/privilege before Phase 5 trust aggregation.
+3. The active review queue does not match either latest reviewer packet or verdict; those artifacts approve the previous 32-file Phase 4 scope. No current audit/planning change may commit under those stale approvals.
+4. Local verification is not clean: lint fails and Jest reports all assertions passing but never exits. The harness forbids approval/commit after failed verification unless the blocker is explicitly resolved or deferred.
 
-6. **ROADMAP.md Phases 3–9 plan checkboxes unchecked / plans not yet written** — expected placeholders for future phases, not drift. Revisit at each phase transition.
+## Historical: UPDATE REQUIRED
 
-## CURRENT
+1. `.planning/PROJECT.md` still calls settled Phase 4 decisions open, says schema design is unnecessary, leaves every key decision pending, and retains a May initialization footer.
+2. `docs/schema-contract.md` is aligned only through 2026-06-24 and omits the Phase 4 submissions/access-code model plus `ratings` and `tags`.
+3. `docs/SYSTEM_MAP.md` is a May recovery snapshot with wrong trust, coordinate, confidence, verification-event, and view types. It needs a rewrite or an explicit historical-only banner.
+4. ROADMAP progress previously described Phase 2 as verification-pending, Phase 3/4 as unqualified Complete, Phase 5 as 0/2 after the six-plan split, and Phase 8 as 0/3 despite four plans. Corrected in this scan batch.
+5. Phase 4's roadmap claimed a creator verification event that the implementation deliberately did not create. Corrected to the actual `confirmation_count = 1` presence claim; Phase 5 owns the auditable event model.
+6. Phase 4 accessibility checkboxes are client-only and their selections are discarded. Phase 5 readiness now requires staged tags and atomic publication.
+7. Phase 7 omitted `duplicate_location` from its success-criterion values and did not schedule Phase 4's required `wrong_sensitivity_tag` correction path. Corrected provisionally in ROADMAP.
+8. `.planning/config.json` ship templates reference a nonexistent `REQUIREMENTS.md`; point them at the real requirement authority or add the intended file before using the ship workflow.
+9. Active design docs still contain future-tense Phase 2/3/4 implementation instructions and the older pending-pin JOIN design. Reconcile them against implemented Phase 4 behavior before using them as Phase 5 UI authority.
 
-- **Agent harness consistency** — AGENTS.md, AGENTS_ROSTER.md, CLAUDE.md, CODEX.md, ANTIGRAVITY.md, and docs/agent-harness.md agree on roles (Claude orchestrator/implementer; Antigravity architecture/PostGIS/RLS/trust; Codex implementation/security/tests), artifact names, verdict definitions, and output formats. All referenced slash commands exist. ✓
-- **Gemini remnants** — ANTIGRAVITY.md is now model-agnostic ("regardless of which underlying model powers Antigravity"); no `/gemini-review` or GEMINI.md instructions anywhere in active workflow docs. Remaining "Gemini" strings in `.planning/research/ARCHITECTURE.md:220,316` are historical attribution of prior SYSTEM_MAP.md feedback, not instructions. ✓
-- **Prompt packet quality** — both current packets satisfy docs/agent-harness.md § Prompt Packet Requirements: task goal, changed files matching review-queue.txt, why/context, verification claims (typecheck 0 errors), dependency call chains, runtime-boundary/mock audit sections, output format; no secrets or location data. ✓
-- **Claude model drift** — `.planning/config.json` overrides use current active aliases (opus-4-8 / sonnet-5 / haiku-4-5), no dated snapshots, no retired IDs; verified against the claude-api skill catalog. ✓
-- **Secrets/privacy** — no `.env` values, service-role keys, JWTs, tokens, real emails, or precise coordinates committed or present in reviewer prompts. `app/.env.local` not tracked. ✓
-- **Schema types freshness** — `app/src/lib/database.types.ts` includes all RPCs through the 2026-07-01 migration. ✓
-- **Dependencies & verification commands** — package.json scripts match docs/verification.md (including Windows `npm.cmd` guidance); jest@29.7.0 pin, jest-expo@55 pairing, coverage thresholds paired files (root + app) all intact per CLAUDE.md. ✓
-- **Planning/status accuracy** — ROADMAP Phase 2 correctly unchecked with all three plans (02-01a, 02-01b, 02-02) checked; STATE.md resume signal accurately states Phase 2 verification is the next step and no VERIFICATION.md exists yet. Completed work is not described as future work. ✓
-- **Product/brand** — SPEC.md and PROJECT.md agree on "certainty under urgency", target users (IBS/Crohn's, wheelchair users, parents), global proof-of-concept launch (no hardcoded city), community-reported liability framing, and out-of-scope items. Watch the Gap four-gate framing intact. ✓
-- **In-flight working tree** — the uncommitted changes are the documented, packet-described audit-cleanup batch awaiting the review gate (plus the draft audit report), not unexplained drift. ✓
+## Historical: WATCH
 
-## Resolved Since 2026-06-27 Scan
+1. Phase 1/1.5/3/4 historical review frontmatter retains `issues_found`, `REQUEST CHANGES`, `gaps_found`, or `human_needed`. Preserve history, but state/roadmap must label code completion separately from experiential/database verification.
+2. Seven Phase 3 device checks and two Phase 4 device checks remain pending; Phase 3 and Phase 4 pgTAP suites remain unexecuted without Docker.
+3. Current model aliases in `.planning/config.json` were not live-verified against Anthropic during this scan.
+4. The first broad Terra/Luna audit attempt timed out and returned no usable result; only the successful narrowed retries count as evidence.
 
-- **UR#1 (15 uncommitted strategy-shift files)** — RESOLVED. Committed via the 2026-07-01/02 commit series; PROJECT.md, ROADMAP.md, research docs, and STATE.md are all tracked and current. Working tree now contains only the reviewed audit-cleanup batch.
-- **UR#2 (`.claude/antigravity-prompt-latest.md` said "Gemini 3.5")** — RESOLVED. Packet regenerated for the current review; no model-identity strings remain.
-- **W#3 (ANTIGRAVITY.md "Gemini 3.5" ×3)** — RESOLVED in 9986c4e; capability section now model-agnostic.
-- **W#4 (stale "Last reviewed: 2026-05-20" dates)** — RESOLVED in 9986c4e; docs/agent-harness.md and docs/stale-info-scan.md both now "Last reviewed: 2026-07-03".
-- **W#6 (STATE.md untracked, completed_phases undercount)** — RESOLVED. STATE.md is tracked and `completed_phases: 2` counts Phase 1.5. (Residual `total_phases` denominator question → new WATCH #3.)
-- **W#5 (file:/// links in antigravity-review-latest.md)** — NOT resolved, reclassified: the file is overwritten per review and Antigravity emits file:/// links by design; carried forward as WATCH #5.
+## Historical: CURRENT (as of the 2026-07-09 scan)
 
-## Blocked Checks
+- Migrations remain the schema authority; generated database types match the current committed schema content apart from a preserved worktree line-ending/metadata change.
+- TypeScript compilation is clean.
+- All 47 Jest suites and 383 assertions report PASS before the open-handle timeout.
+- Sol/high is the active human-assigned Codex contingency; Terra/Luna are bounded internal advisors and do not replace independent Antigravity plus separate Codex review.
+- No live Supabase push, Edge Function deploy, cron change, secret write, destructive cleanup, or commit occurred during this scan.
 
-- **Live Supabase schema** — not verified against the live project (no credentialed Supabase query run during this scan). Migrations + freshly generated `database.types.ts` used as proxy evidence; they are internally consistent.
-- **App test suite** — not re-run inside this scan. Verification evidence from earlier this session (2026-07-03): 25 suites / 200 tests passing, 0 typecheck errors, 0 lint errors. Recorded as session evidence, not scan-run output.
-- **External doc freshness** (Expo SDK 55, Mapbox SDK 11.x, @supabase/supabase-js 2.106) — not rechecked; no dependency changes since the decisions were made, so not decision-affecting this cycle.
-- **Anthropic model catalog** — checked via the claude-api skill's cached catalog (cache date 2026-06-24), not a live platform.claude.com fetch; nine days old, low drift risk for alias-level status.
+## Historical: Blocked Checks (as of the 2026-07-09 scan)
+
+- Live Supabase RPC/schema state was not queried; live operations require fresh authorization.
+- pgTAP was not executed because this environment still lacks the Docker-backed local Supabase runner.
+- Device UAT was not executed; no physical-device walkthrough was performed.
+- Coverage was not rerun because the underlying Jest command does not exit cleanly.

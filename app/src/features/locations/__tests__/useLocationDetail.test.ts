@@ -4,7 +4,7 @@ jest.mock('../../../lib/supabase', () => ({
   supabase: { rpc: jest.fn() },
 }));
 
-import { useLocationDetail } from '../useLocationDetail';
+import { fetchLocationDetail } from '../useLocationDetail';
 import {
   detailRowWithDistance,
   detailRowWithoutDistance,
@@ -20,11 +20,11 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-describe('useLocationDetail', () => {
+describe('fetchLocationDetail', () => {
   it('forwards user coords as user_lat/user_lng and maps distance_m → distanceM', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: [detailRowWithDistance], error: null });
 
-    const detail = await useLocationDetail(ID, 44.05, -123.09);
+    const detail = await fetchLocationDetail(ID, 44.05, -123.09);
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith('get_location_detail', {
       location_id: ID,
@@ -39,7 +39,7 @@ describe('useLocationDetail', () => {
   it('omits user coords from the RPC call and yields null distanceM when not supplied', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: [detailRowWithoutDistance], error: null });
 
-    const detail = await useLocationDetail(ID);
+    const detail = await fetchLocationDetail(ID);
 
     expect(mockSupabase.rpc).toHaveBeenCalledWith('get_location_detail', {
       location_id: ID,
@@ -50,7 +50,7 @@ describe('useLocationDetail', () => {
   it('never exposes a door-code / access-code field on the result', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: [detailRowWithDistance], error: null });
 
-    const detail = await useLocationDetail(ID, 44.05, -123.09);
+    const detail = await fetchLocationDetail(ID, 44.05, -123.09);
 
     expect(detail).not.toHaveProperty('accessCode');
     expect(detail).not.toHaveProperty('access_code');
@@ -64,12 +64,12 @@ describe('useLocationDetail', () => {
       error: new Error('detail rpc failed'),
     });
 
-    await expect(useLocationDetail(ID, 44.05, -123.09)).rejects.toThrow('detail rpc failed');
+    await expect(fetchLocationDetail(ID, 44.05, -123.09)).rejects.toThrow('detail rpc failed');
   });
 
   it('throws a not-found error when the RPC returns no row', async () => {
     mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 
-    await expect(useLocationDetail(ID)).rejects.toThrow('Location not found');
+    await expect(fetchLocationDetail(ID)).rejects.toThrow('Location not found');
   });
 });

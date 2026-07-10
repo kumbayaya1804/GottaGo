@@ -10,7 +10,7 @@ import type { LocationDetail, LocationDetailRpcRow } from './types';
  * the Phase 3 RPC does not return one, and this mapper only copies public
  * fields. Throws on RPC error or when no row is found.
  */
-export async function useLocationDetail(
+export async function fetchLocationDetail(
   id: string,
   userLat?: number,
   userLng?: number,

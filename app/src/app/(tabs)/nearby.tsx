@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, FlatList, StyleSheet, useColorScheme } from 'react-native';
+import * as Linking from 'expo-linking';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Colors } from '../../constants/Colors';
@@ -7,7 +8,7 @@ import { spacing } from '../../constants/spacing';
 import { typography } from '../../constants/typography';
 import { radius } from '../../constants/radius';
 import { useCurrentPosition } from '../../features/locations/useCurrentPosition';
-import { useNearby } from '../../features/locations/useNearby';
+import { fetchNearby } from '../../features/locations/useNearby';
 import { useFiltersStore } from '../../features/filters/useFiltersStore';
 import { formatDistance, usesMilesForLocale } from '../../features/locations/formatDistance';
 import type { NearbyLocation } from '../../features/locations/types';
@@ -30,6 +31,12 @@ const FILTERED_EMPTY_HEADING = 'No bathrooms match your filters';
 const CLEAR_FILTERS = 'Clear filters';
 const RETRY = 'Retry';
 const LOCATION_NEEDED = 'Location needed';
+const LOCATION_UNAVAILABLE = 'Location unavailable';
+const FINDING_LOCATION = 'Finding your location';
+const LOCATION_UNAVAILABLE_COPY =
+  "We couldn't get your location. Check your connection and try again.";
+const LOCATION_DENIED_COPY =
+  'Location permission is off. Open settings to enable it and see nearby bathrooms.';
 
 function confidenceLabel(row: NearbyLocation): string {
   return `${row.confidenceTier ?? 'Unrated'} confidence`;
@@ -43,7 +50,7 @@ function rowAccessibilityLabel(row: NearbyLocation, usesMiles: boolean): string 
 export default function NearbyScreen() {
   const colorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = Colors[colorScheme];
-  const { coords } = useCurrentPosition();
+  const { coords, status: positionStatus, retry: retryPosition } = useCurrentPosition();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const filtersStore = useFiltersStore();
@@ -59,7 +66,7 @@ export default function NearbyScreen() {
 
   const nearbyQuery = useQuery({
     queryKey: ['nearby', coords?.userLat, coords?.userLng, filters],
-    queryFn: () => useNearby(coords!.userLat, coords!.userLng, filters),
+    queryFn: () => fetchNearby(coords!.userLat, coords!.userLng, filters),
     enabled: coords !== null,
   });
 
@@ -71,18 +78,46 @@ export default function NearbyScreen() {
       {coords === null && (
         <View style={styles.centerOverlay}>
           <Text style={[styles.cardHeading, { color: colors.textPrimary }]}>
-            {LOCATION_NEEDED}
+            {positionStatus === 'unavailable'
+              ? LOCATION_UNAVAILABLE
+              : positionStatus === 'denied'
+                ? LOCATION_NEEDED
+                : FINDING_LOCATION}
           </Text>
           <Text style={[styles.cardText, { color: colors.textSecondary }]}>
-            Enable location to see bathrooms sorted by distance.
+            {positionStatus === 'unavailable'
+              ? LOCATION_UNAVAILABLE_COPY
+              : positionStatus === 'denied'
+                ? LOCATION_DENIED_COPY
+                : 'Requesting location permission…'}
           </Text>
+          {positionStatus === 'unavailable' && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Retry getting location"
+              onPress={retryPosition}
+              style={styles.cardButton}
+            >
+              <Text style={[styles.cardButtonText, { color: colors.primary }]}>Retry</Text>
+            </Pressable>
+          )}
+          {positionStatus === 'denied' && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open location settings"
+              onPress={() => void Linking.openSettings()}
+              style={styles.cardButton}
+            >
+              <Text style={[styles.cardButtonText, { color: colors.primary }]}>Open settings</Text>
+            </Pressable>
+          )}
         </View>
       )}
 
       {coords !== null && nearbyQuery.isError && (
         <View style={[styles.banner, { backgroundColor: colors.offlineBanner }]}>
           <Text style={[styles.bannerText, { color: colors.offlineBannerText }]}>
-            Couldn't load bathrooms here.
+            Couldn&apos;t load bathrooms here.
           </Text>
           <Pressable
             accessibilityRole="button"

@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       app_config: {
@@ -733,15 +708,6 @@ export type Database = {
         Args: { p_location_id: string }
         Returns: undefined
       }
-      count_locations_within:
-        | {
-            Args: { p_lat: number; p_lon: number; p_radius_m?: number }
-            Returns: number
-          }
-        | {
-            Args: { p_lat: number; p_lon: number; p_radius_m?: number }
-            Returns: number
-          }
       delete_account: { Args: never; Returns: undefined }
       get_access_code: { Args: { p_location_id: string }; Returns: string }
       get_location_detail: {
@@ -762,105 +728,6 @@ export type Database = {
           verification_count: number
         }[]
       }
-      get_locations_in_radius:
-        | {
-            Args: {
-              filter_changing?: boolean
-              filter_chill_spot?: boolean
-              filter_gender_neutral?: boolean
-              filter_high_conf?: boolean
-              filter_no_purchase?: boolean
-              filter_open_now?: boolean
-              filter_wheelchair?: boolean
-              radius_m?: number
-              user_lat: number
-              user_lng: number
-            }
-            Returns: {
-              access_code_confirmed_at: string | null
-              access_instructions: string | null
-              access_sensitivity: string | null
-              address: string | null
-              chill_spot: boolean | null
-              confidence_score: string | null
-              confidence_tier: string | null
-              coordinates: unknown
-              created_at: string | null
-              data_source: string
-              decay_tier: string | null
-              deleted_at: string | null
-              failure_event_count: number | null
-              hours: Json | null
-              id: string
-              is_open_now: boolean | null
-              last_verified_at: string | null
-              name: string
-              pending_access_code: string | null
-              pending_code_proposed_by: string | null
-              policy_tag: string | null
-              respect_signal_score: number | null
-              shadowban_status: boolean
-              suppressed_at: string | null
-              timezone: string
-              updated_at: string | null
-              verification_count: number | null
-            }[]
-            SetofOptions: {
-              from: "*"
-              to: "locations"
-              isOneToOne: false
-              isSetofReturn: true
-            }
-          }
-        | {
-            Args: {
-              filter_changing?: boolean
-              filter_chill_spot?: boolean
-              filter_gender_neutral?: boolean
-              filter_high_conf?: boolean
-              filter_no_purchase?: boolean
-              filter_open_now?: boolean
-              filter_wheelchair?: boolean
-              radius_m?: number
-              user_lat: number
-              user_lng: number
-            }
-            Returns: {
-              access_code_confirmed_at: string | null
-              access_instructions: string | null
-              access_sensitivity: string | null
-              address: string | null
-              chill_spot: boolean | null
-              confidence_score: string | null
-              confidence_tier: string | null
-              coordinates: unknown
-              created_at: string | null
-              data_source: string
-              decay_tier: string | null
-              deleted_at: string | null
-              failure_event_count: number | null
-              hours: Json | null
-              id: string
-              is_open_now: boolean | null
-              last_verified_at: string | null
-              name: string
-              pending_access_code: string | null
-              pending_code_proposed_by: string | null
-              policy_tag: string | null
-              respect_signal_score: number | null
-              shadowban_status: boolean
-              suppressed_at: string | null
-              timezone: string
-              updated_at: string | null
-              verification_count: number | null
-            }[]
-            SetofOptions: {
-              from: "*"
-              to: "locations"
-              isOneToOne: false
-              isSetofReturn: true
-            }
-          }
       get_my_pending_submissions: {
         Args: never
         Returns: {
@@ -1083,9 +950,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

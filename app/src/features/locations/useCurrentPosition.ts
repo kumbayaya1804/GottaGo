@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import * as Location from 'expo-location';
 import type { CurrentPosition } from './types';
 
@@ -6,7 +6,7 @@ import type { CurrentPosition } from './types';
 export const POSITION_FRESHNESS_MS = 60_000;
 
 /** OS foreground-location permission state, normalized to three values. */
-export type PermissionStatus = 'granted' | 'denied' | 'undetermined';
+export type PermissionStatus = 'granted' | 'denied' | 'undetermined' | 'unavailable';
 
 export interface CurrentPositionResult {
   /** Live coordinates, or null when unknown (denied/undetermined/pre-fix). */
@@ -15,6 +15,8 @@ export interface CurrentPositionResult {
   status: PermissionStatus;
   /** True when the last fix is older than POSITION_FRESHNESS_MS. */
   isStale: boolean;
+  /** Retries permission lookup and GPS acquisition after a provider failure. */
+  retry: () => void;
 }
 
 /**
@@ -22,7 +24,7 @@ export interface CurrentPositionResult {
  * requests foreground permission and, on grant, reads the current position.
  *
  * 03-03 (Map) and 03-04 (Nearby) MUST consume this hook for the userLat/userLng
- * they forward into `useLocationDetail(id, userLat, userLng)` / `useNearby(...)`
+ * they forward into `fetchLocationDetail(id, userLat, userLng)` / `fetchNearby(...)`
  * — `gpsConsent.ts` only requests permission + records consent and exposes NO
  * coordinates. This hook does NOT duplicate the consent DB write.
  *
@@ -30,25 +32,36 @@ export interface CurrentPositionResult {
  * so callers simply pass nulls into the distance-aware RPCs.
  */
 export function useCurrentPosition(): CurrentPositionResult {
-  const [state, setState] = useState<CurrentPositionResult>({
+  const [state, setState] = useState<Omit<CurrentPositionResult, 'retry'>>({
     coords: null,
     status: 'undetermined',
     isStale: false,
   });
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((value) => value + 1), []);
 
   useEffect(() => {
-    Location.requestForegroundPermissionsAsync().then((perm) => {
-      if (perm.status !== 'granted') {
-        setState({
-          coords: null,
-          status: perm.status === 'denied' ? 'denied' : 'undetermined',
-          isStale: false,
+    let active = true;
+
+    async function resolvePosition() {
+      try {
+        const perm = await Location.requestForegroundPermissionsAsync();
+        if (!active) return;
+
+        if (perm.status !== 'granted') {
+          setState({
+            coords: null,
+            status: perm.status === 'denied' ? 'denied' : 'undetermined',
+            isStale: false,
+          });
+          return;
+        }
+
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
         });
-        return undefined;
-      }
-      return Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      }).then((pos) => {
+        if (!active) return;
+
         setState({
           coords: {
             userLat: pos.coords.latitude,
@@ -57,9 +70,21 @@ export function useCurrentPosition(): CurrentPositionResult {
           status: 'granted',
           isStale: Date.now() - pos.timestamp > POSITION_FRESHNESS_MS,
         });
-      });
-    });
-  }, []);
+      } catch {
+        if (!active) return;
+        setState({
+          coords: null,
+          status: 'unavailable',
+          isStale: false,
+        });
+      }
+    }
 
-  return state;
+    void resolvePosition();
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
+
+  return { ...state, retry };
 }

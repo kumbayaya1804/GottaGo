@@ -5,11 +5,12 @@ Prepare the full review gate for the current task. This command coordinates GSD 
 ## Order
 
 1. GSD code review for the scoped phase or files.
-2. Antigravity packet generation with `/antigravity-review`.
-3. User-run Antigravity verdict saved to `.claude/antigravity-review-latest.md`.
-4. Codex packet generation with `/codex-prompt`.
-5. User-run Codex verdict saved to `.claude/codex-review-latest.md`.
-6. Fix and re-review all BLOCK and REQUEST CHANGES findings.
+2. Stage the exact queue and compute its deterministic `scope_hash`.
+3. Antigravity packet generation with `/antigravity-review`.
+4. User-run Antigravity verdict saved to `.claude/antigravity-review-latest.md`.
+5. Codex packet generation with `/codex-prompt`.
+6. User-run Codex verdict saved to `.claude/codex-review-latest.md`.
+7. Fix and re-review all BLOCK and REQUEST CHANGES findings.
 
 ## Inputs
 
@@ -19,17 +20,19 @@ Prepare the full review gate for the current task. This command coordinates GSD 
 ## Steps
 
 1. Confirm `.claude/review-queue.txt` lists only current task files. Remove stale entries only with explicit confirmation that they belong to a closed task.
-2. Run the installed GSD code-review command (`/gsd-code-review` or `/gsd:code-review`, depending on runtime) for the same scope.
-3. Run `/antigravity-review` to write `.claude/antigravity-prompt-latest.md`.
-4. Ask the user to run Antigravity with the short command shown by `/antigravity-review`.
-5. After `.claude/antigravity-review-latest.md` exists and is APPROVE, run `/codex-prompt`.
-6. Ask the user to run Codex with the short command shown by `/codex-prompt`.
-7. After `.claude/codex-review-latest.md` exists and is APPROVE, verify freshness:
+2. Stage every queued path (including deletions), inspect `git diff --cached`, and compute `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`.
+3. Run the installed GSD code-review command (`/gsd-code-review` or `/gsd:code-review`, depending on runtime) for the same scope.
+4. Run `/antigravity-review` to write `.claude/antigravity-prompt-latest.md`.
+5. Ask the user to run Antigravity with the short command shown by `/antigravity-review`.
+6. After `.claude/antigravity-review-latest.md` exists and is APPROVE, run `/codex-prompt`.
+7. Ask the user to run Codex with the short command shown by `/codex-prompt`.
+8. After `.claude/codex-review-latest.md` exists and is APPROVE, verify freshness:
    - queue matches changed files
    - prompt manifests match current queue
    - both verdicts reference current scope
+   - both prompts and verdicts repeat the current staged `scope_hash`
    - relevant verification has run or blockers are documented
-8. Commit only after the minimum gate in `docs/agent-harness.md` is satisfied.
+9. Commit only after the minimum gate in `docs/agent-harness.md` is satisfied.
 
 ## Stop Conditions
 

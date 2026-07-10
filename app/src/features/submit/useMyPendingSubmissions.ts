@@ -16,7 +16,7 @@ import type {
  * properties so the pending-status sheet (D-27) needs no second fetch. Throws when the
  * RPC errors.
  */
-export async function useMyPendingSubmissions(): Promise<PendingSubmissionFeatureCollection> {
+export async function fetchMyPendingSubmissions(): Promise<PendingSubmissionFeatureCollection> {
   const { data, error } = await supabase.rpc('get_my_pending_submissions');
   if (error) throw error;
 
