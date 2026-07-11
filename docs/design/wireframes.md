@@ -505,7 +505,7 @@ Route: `/(tabs)/submit` (auth required)
 ```
 
 ← "Back to Map" re-opens map ← pending pin (gray dashed) appears on map for SUBMITTER ONLY
-← Submitter-only visibility requires JOIN on `submissions.submitter_id` in search RPC (not client filter)
+← Submitter-only visibility served by the separate `get_my_pending_submissions` RPC (not a JOIN in the search RPC, not a client filter)
 
 ---
 
@@ -847,8 +847,8 @@ Route: `/(tabs)/index`
 
 ← Same as Bottom Sheet Half but gray dashed pin indicator `┊●┊` + `< Pending >` badge
 ← Body: "Pending — 1 of 2 GPS verifications received…"
-← Action row shows ONLY [GPS Verify] (no Rate/Report for pending)
-← Visibility requires JOIN on `submissions.submitter_id` in search RPC ← submitter-only
+← Action row (NOTE — as implemented Phase 4, this is a withdraw action per 04-CONTEXT.md D-28, not "[GPS Verify]" as drawn here; not re-verified pixel-for-pixel against `PendingStatusSheet` in this doc pass)
+← Visibility served by the separate `get_my_pending_submissions` RPC ← submitter-only, not a JOIN in the search RPC
 
 ---
 

@@ -304,7 +304,7 @@ flowchart TD
     RPCResult{RPC result?}
     Success[Submit Success Screen]
     TapBack[/Tap Back to Map/]
-    MapPending([Map Screen: pending pin visible to submitter only via submissions.submitter_id JOIN])
+    MapPending([Map Screen: pending pin visible to submitter only via the separate get_my_pending_submissions RPC])
     DupInline[Inline: A bathroom at this address may already exist. View existing]
     DupChoice{User choice}
     RPCConfirm[submit_location RPC called with confirm_duplicate true]
@@ -342,9 +342,9 @@ flowchart TD
     style DupInline fill:#FCE8E6,stroke:#EA4335
 ```
 
-> **Server contract:** The client generates a `submission_id` (UUID) when the user enters Submit Step 1 and passes it on every `submit_location` call. The RPC is idempotent on `submission_id`: a repeat call with the same `submission_id` returns the existing `{ status: 'success', location_id }` without creating a new row. On the first call: if no duplicate is found, inserts and returns `{ status: 'success', location_id }`; if a duplicate is found, does NOT insert and returns `{ status: 'duplicate_candidate', candidate: { id, name, address } }`. With `confirm_duplicate: true`: skips the duplicate check and upserts by `submission_id`, returning `{ status: 'success', location_id }`. This makes the happy path a single round-trip and the confirm path safe against double-taps, retries, and network replays.
+> **Server contract (STALE — needs reconciliation before citing as current):** this section originally described a client-generated `submission_id` UUID with `duplicate_candidate`/`confirm_duplicate` idempotency semantics. The live `submit_location` RPC signature (`supabase/migrations/20260707020000_phase4_submission_staging.sql`) takes `p_name, p_lat, p_lng, p_accuracy_m, p_mocked, p_captured_at, p_policy_tag, p_address, p_access_sensitivity, p_hours, p_access_code, p_timing_tip` and returns a plain `uuid` — there is no `submission_id`/`confirm_duplicate` parameter and no duplicate-candidate return shape in the shipped function. Whether client-side or server-side duplicate detection exists at all was not re-verified during this doc pass — check `04-CONTEXT.md`/`04-RESEARCH.md`/`submit.tsx` directly before relying on this diagram's duplicate-handling branch.
 
-> **Pending pin visibility:** The `locations` table has no `submitter_id` column. Submitter-only pending pin visibility requires a server-side JOIN against `submissions.submitter_id` inside the search RPCs — never a client-side filter.
+> **Pending pin visibility (corrected — Phase 4 implemented):** `get_my_pending_submissions()` is a separate, no-arg, `auth.uid()`-scoped RPC — not a JOIN inside the search RPCs. MapScreen renders its result as an independent Mapbox layer, never a client-side filter.
 
 ---
 

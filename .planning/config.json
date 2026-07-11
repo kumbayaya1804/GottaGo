@@ -36,7 +36,7 @@
       {
         "heading": "User Stories & Acceptance Criteria",
         "enabled": true,
-        "source": "REQUIREMENTS.md ## User Stories || REQUIREMENTS.md ## Acceptance Criteria",
+        "source": ".planning/PROJECT.md ## Requirements || .planning/phases/{phase}/{phase}-CONTEXT.md",
         "fallback": "- Acceptance criteria are covered by the linked requirements and verification evidence."
       },
       {
@@ -48,7 +48,7 @@
       {
         "heading": "Success Metrics & Release Criteria",
         "enabled": true,
-        "source": "REQUIREMENTS.md ## Definition of Done || VERIFICATION.md ## Release Criteria",
+        "source": ".planning/ROADMAP.md (phase success criteria) || VERIFICATION.md ## Release Criteria",
         "fallback": "- Release when automated verification and required manual checks pass."
       },
       {

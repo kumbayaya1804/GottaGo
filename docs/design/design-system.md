@@ -278,9 +278,9 @@ Every location carries exactly one `policy_tag` from the DB. The badge renders a
 | code_required | Code Required | emergencyOrange #EA8600 | pinCodeRequired #FDD663 | textPrimary #202124 on dark/light amber | None | Note: white on #EA8600 fails contrast — use textPrimary |
 | public_facility | Public Facility | pinPublicFacility #4285F4 | pinPublicFacility #8AB4F8 | textInverse #FFFFFF | None | |
 | purchase_required | Purchase Required | pinPurchaseRequired #767676 | pinPurchaseRequired #9AA0A6 | textInverse #FFFFFF | None | |
-| (pending) | Pending | surface #F8F9FA | surface #1E1E1E | textSecondary | clock-outline | Dashed border, gray — visible to submitter only via submissions JOIN |
+| (pending) | Pending | surface #F8F9FA | surface #1E1E1E | textSecondary | clock-outline | Dashed border, gray — visible to submitter only via the separate `get_my_pending_submissions` RPC |
 
-ARCHITECTURE NOTE: Pending pin visibility is submitter-only. The `locations` table has no `submitter_id` column. Visibility requires a JOIN against `submissions.submitter_id` inside `search_locations_bbox` RPC. The client-side filter is FORBIDDEN — it is a server-side concern only. Phase 3/4 plans must include this JOIN in the RPC, not a client-side conditional render.
+ARCHITECTURE NOTE (updated — Phase 4 implemented): Pending pin visibility is submitter-only. As built, this is NOT a JOIN inside `search_locations_bbox`/`search_locations_nearby`. `get_my_pending_submissions()` is a separate, no-arg, `auth.uid()`-scoped RPC returning the caller's own pending rows; MapScreen renders it as a second, independent Mapbox `ShapeSource` ("pendingLocations") layered above the main published-locations layer — never merged into the same feature collection and never client-side filtered. See `app/src/app/(tabs)/index.tsx` and `.planning/phases/04-gps-service-submission/04-CONTEXT.md` D-26.
 
 Pin color in Mapbox must be driven by a `match` expression on the `policy_tag` GeoJSON property:
 ```
@@ -322,7 +322,7 @@ Text in badge: `textInverse` (#FFFFFF) for High and Low tiers. `textPrimary` (#2
 | Code Required | pinCodeRequired/emergencyOrange | Filled pin, amber | Authenticated + unauthenticated |
 | Public Facility | pinPublicFacility | Filled pin, blue | Authenticated + unauthenticated |
 | Purchase Required | pinPurchaseRequired | Filled pin, gray | Authenticated + unauthenticated |
-| Pending | pinPending (#9AA0A6 light) | Dashed-outline pin, gray | Submitter only — requires submissions JOIN in RPC |
+| Pending | pinPending (#9AA0A6 light) | Dashed-outline pin, gray | Submitter only — served by the separate `get_my_pending_submissions` RPC, not a JOIN in the search RPC |
 | Cluster | Dominant policy tag color | Circle badge with count, white stroke | All users |
 
 Selected (tapped) pin: scale up 1.2×, add white halo ring. Sheet opens to Peek snap immediately.
@@ -756,7 +756,7 @@ Copy this checklist into each PLAN.md that creates or modifies a screen componen
 
 ### Map Pins (Map-screen components only)
 - [ ] Pin colors driven by Mapbox `match` expression on `policy_tag` — not React state or client-side conditional
-- [ ] Pending pin visible only when `submissions JOIN` returns submitter match — not a client-side filter
+- [x] Pending pin visible only via the separate `get_my_pending_submissions` RPC (server-scoped to `auth.uid()`) rendered as its own ShapeSource — not a client-side filter, not merged into the main search RPC's feature collection (implemented Phase 4)
 - [ ] Overlay icons (wheelchair, changing table) use separate SymbolLayer with `iconOffset: [8, -8]` starting point
 
 ### Bottom Sheet (components using bottom sheet)

@@ -40,7 +40,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 **Submissions**
 - [ ] User can submit a new bathroom location with: name, address, policy tag, access type, hours
-- [ ] User can submit a location that is not inside a building — e.g. a park restroom, trailhead facility, or standalone port-a-potty — where a street address doesn't apply; the submission flow accepts a GPS pin + free-text location description in place of a street address (`address` is already nullable in the live schema — Phase 4's SubmitFlow UX must not force a street address for these). Full design (any new location/structure-type field vs. reusing existing policy tags, icon/marker treatment) is a Phase 4 discuss-phase decision — noted here 2026-07-05, not yet locked.
+- [ ] User can submit a location that is not inside a building — e.g. a park restroom, trailhead facility, or standalone port-a-potty — where a street address doesn't apply; the submission flow accepts a GPS pin + free-text location description in place of a street address (`address` is already nullable in the live schema). **Resolved in Phase 4 discuss-phase** (`04-CONTEXT.md` D-01..D-05): free-text description replaces the address field entirely when absent; no new location/structure-type field (existing "Public Facility" policy tag covers these); no distinct pin/icon styling; GPS fix is always the canonical coordinate, never geocoded from the description.
 - [ ] User can submit/update the bathroom access code (PIN) for a location
 - [ ] User can add timing tips ("avoid 12–1pm lunch rush")
 - [ ] User sets an `access_sensitivity` value at submission, community-correctable the same way `policy_tag` is (Phase 4)
@@ -77,7 +77,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 **Policy Tags & Accessibility**
 - [ ] Each location has a policy tag: Chill Spot, Purchase Required, Code Required, Public Facility
-- [ ] Open design question (2026-07-05, for Phase 4 discuss-phase): whether non-building locations (park restrooms, trailhead facilities, standalone port-a-potties) need a distinct location/structure-type dimension, or whether the existing "Public Facility" policy tag already covers them adequately. Not yet decided — do not implement a new field speculatively before that discussion.
+- [x] **Resolved** (Phase 4 discuss-phase, D-02): non-building locations do NOT need a distinct location/structure-type dimension — the existing "Public Facility" policy tag covers parks/trailheads/port-a-potties adequately. No new field was added.
 - [ ] "Chill Spot" = community-reported walk-in welcome (bars, hotel lobbies, libraries, universities, businesses that don't mind). Not a guaranteed policy — community-reported framing, not declarative.
 - [ ] Accessibility tags: Wheelchair Accessible, Baby Changing Table, Family Restroom (single-occupancy/lockable), Changing Surface Cleanliness rating
 - [ ] Access codes (PINs) are an optional field, only visible to signed-in users, only relevant for Code Required locations where community indicates the listing is tolerated
@@ -107,7 +107,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 **Legal:** Termly privacy policy and terms of service already created. The app must link to these in onboarding and settings. GPS consent is already a first-class field in the `users` table (`gps_consent`, `gps_consent_at`) — GDPR-ready from the schema.
 
-**Schema:** Full Supabase schema recovered after a computer theft. The database is live and intact — no schema design work needed, only implementation. Tables: `locations`, `users`, `verification_events`, `trust_events`, `respect_signal_log`, `respect_signal_90d` (materialized view), `confidence_scores`, `availability_flags`, `failure_events`, `reports`, `ratings`, `submissions`, `tags`, `app_config`.
+**Schema:** Original Supabase schema recovered after a computer theft; schema has continued to evolve through Phases 2-4 (new columns and RPCs added each phase, not just implementation against a frozen recovered schema). Live tables (confirmed 2026-07-10): `locations`, `users`, `verification_events`, `trust_events`, `respect_signal_log`, `confidence_scores`, `availability_flags`, `failure_events`, `reports`, `ratings`, `submissions`, `tags`, `app_config`. See `docs/schema-contract.md` for authoritative column-level detail.
 
 **Existing scaffolding:** The project already has: `SPEC.md` (product spec), `docs/schema-contract.md`, `docs/review-severity.md`, `docs/verification.md`, `docs/SYSTEM_MAP.md`, `docs/watch-the-gap.md`, `AGENTS.md` (full multi-agent review workflow), `ANTIGRAVITY.md`, `CODEX.md`. One git commit exists with this scaffolding.
 
@@ -139,22 +139,22 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| React Native (Expo) over PWA | GPS verification and emergency mode require native performance; mobile is the use-case trigger | — Pending |
-| Supabase + PostGIS | Schema already live, proximity queries built in, auth included | — Pending |
-| Mapbox for map rendering (not react-native-maps) | react-native-maps Google provider is broken on Expo SDK 55 iOS (expo/expo#43288). Google Maps API key still usable for geocoding/Places REST calls. | — Pending |
-| Global proof-of-concept availability | Crowdsourced apps should be usable wherever contributors appear; marketing, promotion, and owned social channels drive adoption and local density instead of a hardcoded city rollout | — Pending |
-| Gamification in DB from day one, UI in v2 | Track data now; don't surface rewards until volume justifies them | — Pending |
-| 2-verification publish threshold | 1 verification is too easy to abuse with GPS spoofing | — Pending |
-| Accessibility-focused users as primary segment | IBS/Crohn's, wheelchair users, and parents have the highest urgency and will contribute + share most organically | — Pending |
-| Access codes (PINs) gated to signed-in users only | Businesses may not want codes publicly indexed; community-reported tolerance is the signal, not blanket exposure | — Pending |
-| Chill Spots as the primary map category | Walk-in welcoming places (bars, hotel lobbies, libraries) are the most valuable, safest to list, and most community-shareable | — Pending |
-| Multi-agent review (Claude + Antigravity + Codex) | No self-approval; PostGIS correctness audited by Antigravity; security/privacy audited by Codex | — Pending |
-| `family_mode`/`access_sensitivity` filtering added to Phase 3/4 | 2026-07-01 App Store audit found both columns already live in schema and already promised as RPC-layer-enforced by Phase 1.5's UI spec, but no phase implemented the filter — closing an existing, unimplemented requirement rather than adding new scope | — Pending |
-| Report/block-user via anonymous `report_user` RPC + existing `shadowban_user`, no self-service block UI | Timing tips currently carry no visible author attribution; adding a "block" button would require adding new identity exposure. Satisfies Apple Guideline 1.2 / Play UGC through report + moderator action instead | — Pending |
-| Save/favorite locations added to Phase 8 | Own research (FEATURES.md) flagged this as a high-value, low-cost retention lever for the parent segment that had never been triaged into a phase | — Pending |
-| Two reward-loop push notifications added ("contribution verified" in Phase 5, "report fixed" in Phase 7) | Narrow, non-spammy scope from FEATURES.md research; explicitly excludes proximity/marketing notifications, which remain out of scope | — Pending |
-| Personal impact stat added to Phase 5, narrowing the gamification-UI deferral | Users should feel their contributions genuinely helped someone. A fabricated "people helped" number would be dishonest (no analytics track downstream reach) — real GPS-verified contribution count, framed around urgency-under-stakes, is honest and resonant without it. This is a private, non-comparative reflection, not the comparative/competitive gamification (leaderboards, points, rankings) that stays deferred to v2 | — Pending |
-| TDD enforced via tdd-guard | Red → Green → Refactor for all non-trivial behavior; tests must cover integrity/security paths | — Pending |
+| React Native (Expo) over PWA | GPS verification and emergency mode require native performance; mobile is the use-case trigger | Implemented |
+| Supabase + PostGIS | Schema already live, proximity queries built in, auth included | Implemented |
+| Mapbox for map rendering (not react-native-maps) | react-native-maps Google provider is broken on Expo SDK 55 iOS (expo/expo#43288). Google Maps API key still usable for geocoding/Places REST calls. | Implemented |
+| Global proof-of-concept availability | Crowdsourced apps should be usable wherever contributors appear; marketing, promotion, and owned social channels drive adoption and local density instead of a hardcoded city rollout | Implemented |
+| Gamification in DB from day one, UI in v2 | Track data now; don't surface rewards until volume justifies them | Implemented |
+| 2-verification publish threshold | 1 verification is too easy to abuse with GPS spoofing | Decided — Phase 5 (not yet built; Phase 4 only stages `confirmation_count`, no pending-to-published transition function exists yet) |
+| Accessibility-focused users as primary segment | IBS/Crohn's, wheelchair users, and parents have the highest urgency and will contribute + share most organically | Implemented |
+| Access codes (PINs) gated to signed-in users only | Businesses may not want codes publicly indexed; community-reported tolerance is the signal, not blanket exposure | Implemented |
+| Chill Spots as the primary map category | Walk-in welcoming places (bars, hotel lobbies, libraries) are the most valuable, safest to list, and most community-shareable | Implemented |
+| Multi-agent review (Claude + Antigravity + Codex) | No self-approval; PostGIS correctness audited by Antigravity; security/privacy audited by Codex | Implemented |
+| `family_mode`/`access_sensitivity` filtering added to Phase 3/4 | 2026-07-01 App Store audit found both columns already live in schema and already promised as RPC-layer-enforced by Phase 1.5's UI spec, but no phase implemented the filter — closing an existing, unimplemented requirement rather than adding new scope | Implemented |
+| Report/block-user via anonymous `report_user` RPC + existing `shadowban_user`, no self-service block UI | Timing tips currently carry no visible author attribution; adding a "block" button would require adding new identity exposure. Satisfies Apple Guideline 1.2 / Play UGC through report + moderator action instead | Decided — Phase 7 (not yet built) |
+| Save/favorite locations added to Phase 8 | Own research (FEATURES.md) flagged this as a high-value, low-cost retention lever for the parent segment that had never been triaged into a phase | Decided — Phase 8 (not yet built) |
+| Two reward-loop push notifications added ("contribution verified" in Phase 5, "report fixed" in Phase 7) | Narrow, non-spammy scope from FEATURES.md research; explicitly excludes proximity/marketing notifications, which remain out of scope | Decided — Phases 5/7 (not yet built; push infrastructure itself is an open Phase 5 readiness gate) |
+| Personal impact stat added to Phase 5, narrowing the gamification-UI deferral | Users should feel their contributions genuinely helped someone. A fabricated "people helped" number would be dishonest (no analytics track downstream reach) — real GPS-verified contribution count, framed around urgency-under-stakes, is honest and resonant without it. This is a private, non-comparative reflection, not the comparative/competitive gamification (leaderboards, points, rankings) that stays deferred to v2 | Decided — Phase 5 (not yet built; exact metric definition is an open Phase 5 discussion gate) |
+| TDD enforced via tdd-guard | Red → Green → Refactor for all non-trivial behavior; tests must cover integrity/security paths | Implemented |
 
 ## Evolution
 
@@ -181,4 +181,4 @@ This document evolves at phase transitions and milestone boundaries.
 3. Fix or explicitly defer BLOCKING STALE INFO and UPDATE REQUIRED findings
 
 ---
-*Last updated: 2026-05-18 after initialization*
+*Last updated: 2026-07-10 — item 4 authority-doc refresh (Phase 3/4 decisions reconciled, Key Decisions outcomes corrected from placeholder "Pending" to "Implemented", schema/table list refreshed against live Supabase state)*

@@ -1,6 +1,6 @@
 # Schema Contract
 
-Status: aligned with live schema as of 2026-06-24. Migrations in `supabase/migrations/` are the authoritative source of truth. This document is a reviewer reference for field names, types, and RLS intent.
+Status: aligned with live schema as of 2026-07-10 (confirmed directly against `information_schema`/`list_tables` on project `ebmzhjmmtmldhrojkdqw`). Migrations in `supabase/migrations/` are the authoritative source of truth. This document is a reviewer reference for field names, types, and RLS intent. Adds Phase 4 `locations` PIN-staging columns and previously-undocumented `submissions`, `tags`, `ratings`, and `confidence_scores` tables.
 
 ## Database Principles
 
@@ -85,16 +85,76 @@ Actual fields (as of live schema / migrations):
 - `access_instructions text`
 - `shadowban_status boolean default false` — column name is `shadowban_status`, NOT `is_shadowbanned`
 - `deleted_at timestamptz` — soft delete flag
-- `suppressed_at timestamptz` — set by auto-suppress trigger (Phase 7) when same-type report count exceeds threshold, or by admin moderation. NULL means not suppressed. Public search RPCs must filter `suppressed_at IS NULL`. Cleared by `unsuppress_location` admin function. ⚠ Column may not exist in live schema yet — Phase 3 plan (03-01) must add a migration if absent before RPCs reference it.
+- `suppressed_at timestamptz` — LIVE (added by `20260704010000_phase3_suppressed_at.sql`, Phase 3). NULL means not suppressed. Public search RPCs filter `suppressed_at IS NULL` today (shipped Phase 3 behavior). What does NOT exist yet: the auto-suppress trigger (Phase 7 will set it when same-type report count exceeds threshold) and the `unsuppress_location` admin function — until then the column is only settable by admin/service-role action.
 - `timezone text not null default 'America/Los_Angeles'`
 - `created_at timestamptz default now()`
 - `updated_at timestamptz default now()`
+- `access_code_confirmed_at timestamptz` — (Phase 4) "code last confirmed" timestamp. Live `locations` column is nullable with NO database default (`20260707030000_phase4_access_code_update.sql`) — it is not set on a plain `locations` insert. Three real states: (1) on the staged `submissions` row, `submit_location` writes `now()` at creation time; (2) on a live `locations` row, `confirm_access_code` resets it to `now()` on a confirmed code update; (3) the not-yet-built Phase 5 publish transaction is expected to copy the submission's value onto the new `locations` row (`04-RESEARCH.md`). No UI surfaces it yet (04-CONTEXT.md D-22).
+- `pending_access_code text` — (Phase 4) staged replacement PIN awaiting one confirming verification before it overwrites `access_instructions`; max 100 chars (`char_length(pending_access_code) <= 100`).
+- `pending_code_proposed_by uuid` — (Phase 4) submitter of the staged `pending_access_code`, for the stage-then-confirm update flow (04-CONTEXT.md D-24).
 
 Rules:
 - Public searches must exclude: `deleted_at IS NOT NULL`, `shadowban_status = true`, and `suppressed_at IS NOT NULL`.
 - Inserts must validate coordinate shape and SRID (use PostGIS geography type, not raw lat/lng).
 - Client code must NOT insert directly to locations — go through `submissions` + verification gate.
 - Public queries must not expose contributor identity.
+
+### `submissions` (Phase 4)
+
+Purpose: pre-publication staging for new-location submissions — the only path client code may use to propose a new `locations` row.
+
+Actual fields (as of live schema):
+- `id uuid primary key default gen_random_uuid()`
+- `location_id uuid` — nullable FK to `locations(id)`; the shipped model leaves this null while pending (no draft `locations` row is created pre-publication)
+- `submitter_id uuid` — FK to `users(id)`
+- `status text default 'pending'` — CHECK constrained to `'pending' | 'published' | 'expired' | 'rejected'`
+- `confirmation_count integer default 0`
+- `expires_at timestamptz default (now() + 14 days)`
+- `name text`, `coordinates geography`, `address text`, `policy_tag text` (CHECK constrained to the same 4 values as `locations.policy_tag`), `access_sensitivity text` (CHECK: null or `'sensitive'`), `hours jsonb`, `access_instructions text`, `access_code_confirmed_at timestamptz`, `timing_tip text`
+- `created_at timestamptz default now()`, `updated_at timestamptz default now()`
+
+Rules:
+- Direct authenticated INSERT is revoked (`20260708010000_phase4_drop_direct_submission_insert.sql` drops `submissions_insert_auth`) — all client writes go through `submit_location` / `withdraw_submission` (SECURITY DEFINER RPCs); `get_my_pending_submissions()` is the companion read RPC, not a write path.
+- Read surface: `get_my_pending_submissions()` is the caller-scoped pending read path (`submitter_id = auth.uid()`). Separately, the base-table RLS policy `submissions_select_published` remains live (`20260519010000_remote_schema.sql`; expressly left untouched by the Phase 4 migration): it allows SELECT of rows with `status = 'published'` plus the caller's own rows. There is NO public read of *other users'* pending submissions, and no JOIN of `submissions` into the public search RPCs (a documented pending-pin design in `docs/design/*.md` describing a JOIN-based approach was superseded by this separate-RPC design; see 04-CONTEXT.md D-26).
+- Withdrawal (`withdraw_submission`) hard-deletes the row — no "withdrawn" status is retained (D-29).
+
+### `tags` (key/value, Phase 3+)
+
+Purpose: extensible per-location boolean/attribute flags not worth a dedicated `locations` column — e.g. `has_changing_table`, `has_wheelchair`.
+
+Actual fields (as of live schema):
+- `id uuid primary key default gen_random_uuid()`
+- `location_id uuid` — FK to `locations(id)`
+- `key text`, `value text`
+- `created_at timestamptz default now()`
+
+Rules:
+- Accessibility booleans are read as `tags.find(t => t.key === '<name>')?.value === 'true'`, not dedicated `locations` columns — search RPCs must include tags in the payload or perform a separate lookup (see `docs/design/design-system.md` accessibility overlay notes).
+
+### `ratings` (Phase 8 scope, table live)
+
+Purpose: per-location, per-user 1-5 ratings across three dimensions.
+
+Actual fields (as of live schema):
+- `id uuid primary key default gen_random_uuid()`
+- `location_id uuid`, `user_id uuid` — FKs to `locations(id)`/`users(id)`
+- `cleanliness integer` (CHECK 1-5), `accessibility integer` (CHECK 1-5), `convenience integer` (CHECK 1-5)
+- `review_text text`
+- `created_at timestamptz default now()`, `updated_at timestamptz default now()`
+
+Note: PROJECT.md's "Separate changing surface cleanliness dimension" requirement is not yet a column here — tracked as a future `ratings` migration (RC-03).
+
+### `confidence_scores` (separate from `locations.confidence_score`/`confidence_tier`)
+
+Purpose: dedicated confidence-tier table, one row per location, distinct from the denormalized `confidence_score`/`confidence_tier` text columns still present on `locations` itself.
+
+Actual fields (as of live schema):
+- `id uuid primary key default gen_random_uuid()`
+- `location_id uuid unique` — FK to `locations(id)`
+- `score text default 'Low'` — CHECK constrained to `'High' | 'Medium' | 'Low'`
+- `computed_at timestamptz default now()`
+
+Note: the relationship between this table and `locations.confidence_score`/`confidence_tier` (which one is authoritative, whether the other is derived/synced) was not re-verified during this doc pass — confirm against the confidence/decay computation logic before Phase 5 trust-engine work treats either as canonical.
 
 ### `verification_events`
 
