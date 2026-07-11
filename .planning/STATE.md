@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-07-10"
-last_activity: 2026-07-10
+last_updated: "2026-07-11"
+last_activity: 2026-07-11
 progress:
   total_phases: 12
   completed_phases: 5
@@ -15,6 +15,7 @@ progress:
 
 ## Roadmap Evolution
 
+- 2026-07-11 - Shared Artifact QA Gate made permanent for both independent reviewers: `.claude/skills/artifact_qa_gate.md` now defines the common evidence ladder and separate Codex/Antigravity overlays; `AGENTS.md`, `docs/context-router.md`, `docs/agent-harness.md`, both role guides, both packet commands, and the packet generator route through it. The files are implemented locally but intentionally left for a dedicated follow-up queue because a concurrent Claude process restored the active Item 4 seven-file review scope; fresh independent packets/verdicts are required before committing the workflow batch.
 - 2026-07-01 — Phase 3: added `family_mode`/`access_sensitivity` RPC-layer filter requirement (closes a gap between Phase 1.5's UI spec and Phase 3's success criteria). Source: `.planning/roadmap-app-store-audit-2026-07-01.md`.
 - 2026-07-01 — Phase 4: added `access_sensitivity` field to `submit_location` scope. Source: same audit.
 - 2026-07-01 — Phase 5: added "contribution verified" push notification success criterion. Source: same audit.
@@ -30,6 +31,7 @@ progress:
 - 2026-07-09 - Claude recovery handoff saved at `.planning/CLAUDE-HANDOFF-2026-07-09.md` with the authoritative read order, exact P0 remediation sequence, verification evidence, review state, worktree safety notes, and Phase 5 decisions that must not be guessed.
 - 2026-07-09 - Global `artifact-qa-gate` Codex skill upgraded for GPT-5.6 Sol and Gotta Go: risk-scaled evidence ladder, scope/persistence controls, delegated-work verification, failed/non-exiting command handling, completion contract, and a progressively loaded Gotta Go QA profile. Skill validation passed; the global skill is outside this repo's review queue.
 - 2026-07-10 - Pre-Phase-5 P0 remediation batch (49 files) COMMITTED as `c5f4f7b` after fresh Round 8 Antigravity + Codex APPROVE, both bound to an independently-verified `scope_hash` (`sha256:87b008d0...`). Covers: PostGIS schema-qualification fix + full legacy-RPC retirement (live); verification_events direct-insert policy removal (live) + client-role ACL lockdown migration `20260710121534` (**confirmed LIVE 2026-07-10**: `information_schema.role_table_grants` shows `anon` has zero privileges and `authenticated` has SELECT only; `supabase_migrations.schema_migrations` records it applied); clean verification baseline (46/46 suites, 389/389 tests, 100% coverage); GPS-provider/location-detail recovery UX fixes; removal of the orphaned `useDeniedLocationState` hook; and a new `scope_hash` fingerprinting mechanism in the review-gate hook binding reviewer approvals to exact staged bytes. `.claude/review-queue.txt` cleared. All pre-Phase-5 P0 remediation (items 1-3) is now committed and live-verified. Next action: item 4 authority-doc refresh, then Phase 5 discussion gates.
+- 2026-07-11 - Item 4 authority-doc refresh (7 files: `.planning/PROJECT.md`, `.planning/config.json`, `docs/SYSTEM_MAP.md`, `docs/schema-contract.md`, and 3 design docs) COMMITTED as `3be687a` after 4 review rounds. Codex caught 7 real accuracy defects across rounds 1-3 (not-yet-built Phase 5/7/8 decisions mislabeled "Implemented" incl. the 2-verification publish threshold; an overclaimed `submissions` read path vs. the still-live `submissions_select_published` policy; `suppressed_at`'s shipped-vs-future split; `submissions.status`'s real CHECK-constrained-text type vs. claimed enum; `search_locations_bbox`'s actual no-`distance_m` return shape; `access_code_confirmed_at`'s real nullable-no-default column vs. claimed insert default) plus a round-3 staging-hygiene issue (a stray reviewer-verdict file in the staged index alongside the queue). All fixed and independently re-verified against migrations/generated types before restaging each round. Final scope_hash `sha256:b0839309...`, both reviewers APPROVE. All pre-Phase-5 P0 remediation (items 1-4) is now complete. Next action: Phase 5 discussion gates in `05-DISCUSSION-DRAFT.md` (8 gates, per `05-READINESS.md`).
 
 ### Quick Tasks Completed
 
@@ -52,4 +54,4 @@ progress:
 
 2 device-verification items deferred by design from Phase 4: SubmitFlow real GPS/permission/mock-location walkthrough, plus pending-pin/withdraw/code-update device walkthrough. Full steps live in `.planning/phases/04-gps-service-submission/04-HUMAN-UAT.md` and `.planning/phases/04-gps-service-submission/04-VERIFICATION.md`.
 
-Last activity: 2026-07-10
+Last activity: 2026-07-11
