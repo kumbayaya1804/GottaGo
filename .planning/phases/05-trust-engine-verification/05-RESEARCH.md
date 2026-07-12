@@ -329,7 +329,7 @@ create or replace function public.verify_location(p_submission_id uuid, ...)
 returns <type>
 language plpgsql
 security definer
-set search_path = public          -- Pattern 5 hardening (never omit)
+set search_path = ''          -- Pattern 5 hardening (never omit)
 as $$
 declare
   v_max_accuracy numeric;
@@ -564,11 +564,11 @@ create or replace function public.search_pending_submissions_nearby(
   user_lat numeric, user_lng numeric, result_limit integer default 10)
 returns table (id uuid, name text, lat double precision, lng double precision,
                policy_tag text, distance_m double precision)
-language plpgsql security definer stable set search_path = public
+language plpgsql security definer volatile set search_path = ''
 as $$
 declare v_radius numeric; begin
   if auth.uid() is null then return; end if;
-  select value::numeric into v_radius from public.app_config where key = 'verify_radius_m';
+  select value::numeric into v_radius from public.app_config where key = 'discovery_radius_m';
   v_radius := coalesce(v_radius, 500);
   return query
   select s.id, s.name,
@@ -585,7 +585,7 @@ declare v_radius numeric; begin
     and extensions.st_dwithin(s.coordinates,
           extensions.st_setsrid(extensions.st_makepoint(user_lng, user_lat),4326)::extensions.geography, v_radius)
   order by s.coordinates <-> extensions.st_setsrid(extensions.st_makepoint(user_lng, user_lat),4326)::extensions.geography
-  limit least(result_limit, 10);
+  limit greatest(1, least(coalesce(result_limit, 10), 10));
 end; $$;
 revoke execute on function public.search_pending_submissions_nearby(numeric,numeric,integer) from public;
 revoke execute on function public.search_pending_submissions_nearby(numeric,numeric,integer) from anon;
