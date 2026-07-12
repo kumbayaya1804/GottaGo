@@ -20,8 +20,8 @@ created: 2026-07-11
 | **Framework** | pgTAP via `supabase test db` (DB) + jest `^29.7.0` (client) |
 | **Config file** | `supabase/tests/*.test.sql` (DB) / `app/jest.config.js` (client) |
 | **Quick run command** | `cd app && npx jest <path>` |
-| **Full suite command** | `supabase test db` (requires Docker — unavailable in this environment, tracked carry-forward) + `cd app && npm test` |
-| **Estimated runtime** | ~30-60s client suite; DB suite unexecuted pending Docker |
+| **Full suite command** | `supabase test db` on a Docker-capable or isolated non-production environment + `cd app && npm test` |
+| **Estimated runtime** | ~30-60s client suite; DB duration measured on first required execution |
 
 ---
 
@@ -29,7 +29,7 @@ created: 2026-07-11
 
 - **After every task commit:** Run the relevant jest file or targeted pgTAP suite file.
 - **After every plan wave:** Run full jest suite (`cd app && npm test`) + `supabase test db` when Docker is available.
-- **Before `/gsd:verify-work`:** Full suite must be green (pgTAP execution remains a tracked carry-forward override if Docker is still unavailable, consistent with Phase 3/4).
+- **Before the first Phase 5 live push and `/gsd:verify-work`:** the full inherited + Phase 5 pgTAP suite must be green. Phase 5 may not reuse the Phase 3/4 unexecuted-pgTAP override because trust/publish concurrency depends on it.
 - **Max feedback latency:** ~60s (jest suite).
 
 ---
@@ -45,10 +45,16 @@ created: 2026-07-11
 | SC6 | `trust_events` delta sign matches `action_type` | pgTAP | `phase5_verify_publish` | ❌ Wave 0 | ⬜ pending |
 | D-43 | duplicate verify by same user on same submission rejected/no-op | pgTAP | `phase5_event_model` | ❌ Wave 0 | ⬜ pending |
 | D-57 | atomic publish transaction; rollback on partial failure | pgTAP | `phase5_verify_publish` | ❌ Wave 0 | ⬜ pending |
+| D-36 | discovery + verification cooldowns are server-enforced and rejected verify attempts persist the timestamp | pgTAP | `phase5_discovery`, `phase5_verify_publish` | ❌ Wave 0 | ⬜ pending |
+| D-40/D-41 | timed raw-GPS purge preserves derived evidence; account deletion purges immediately | pgTAP | `phase5_event_model`, `phase5_lifecycle_jobs` | ❌ Wave 0 | ⬜ pending |
+| D-59 | past-due pending submissions become expired with events retained | pgTAP | `phase5_lifecycle_jobs` | ❌ Wave 0 | ⬜ pending |
+| D-62/D-64 | selected accessibility tags stage/copy; grandfathered missing tags stay untagged | pgTAP + jest | `phase5_verify_publish`, submit tests | ❌ Wave 0 | ⬜ pending |
+| D-68 | unseen publication is owner-scoped, renderable after pending row disappears, and acknowledgeable | pgTAP + jest | `phase5_verify_publish`, submission-publication tests | ❌ Wave 0 | ⬜ pending |
 | — | direct authenticated INSERT into `verification_events` still rejected (42501) | pgTAP | `phase5_event_model` | ❌ Wave 0 | ⬜ pending |
 | SC7 | VerifyFlow accepted/rejected/denied states, generic rejection copy (no reason leaked) | jest | `cd app && npx jest features/verify` | ❌ Wave 0 | ⬜ pending |
 | SC10 | private, non-comparative impact stat renders correctly | jest | `cd app && npx jest features/profile` | ❌ Wave 0 | ⬜ pending |
-| SC9 | outbox idempotency / no double-send notification | pgTAP + jest | `phase5_notifications` | ❌ Wave 0 | ⬜ pending |
+| SC9 | idempotent enqueue + mutually exclusive queue claims (external delivery remains best-effort/at-least-once) | pgTAP + jest | `phase5_notifications` | ❌ Wave 0 | ⬜ pending |
+| SC9-runtime | queue claim/ticket/receipt/backoff/DeviceNotRegistered and cron auth | pgTAP + Deno | `phase5_notifications`, `deno test .../index.test.ts` | ❌ Wave 0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -61,8 +67,10 @@ created: 2026-07-11
 - [ ] `supabase/tests/phase5_verify_publish.test.sql` — concurrency (2-session race), shadowban-zero, atomicity, rollback, trust delta sign
 - [ ] `supabase/tests/phase5_confidence.test.sql` — numeric confidence authority, tier derivation, backfill correctness
 - [ ] `supabase/tests/phase5_notifications.test.sql` — outbox idempotency, device-token RLS isolation
+- [ ] `supabase/tests/phase5_lifecycle_jobs.test.sql` — raw-GPS purge, expiry transition, disabled promotion
 - [ ] `app/src/features/verify/__tests__/` — VerifyFlow state coverage, generic-error mapping
 - [ ] `app/src/features/notifications/__tests__/` — permission/token/in-app-fallback paths
+- [ ] `supabase/functions/drain-notification-outbox/index.test.ts` — cron auth, claims, tickets, receipts, retry and invalid-token handling
 
 ---
 
@@ -70,9 +78,9 @@ created: 2026-07-11
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Live GPS-based verification walkthrough | SC1/SC7 | Requires physical device + real location fix; mocked GPS in CI can't validate real-world accuracy/timing | Walk to within 500m of a pending submission, run VerifyFlow, confirm accepted/rejected copy matches design; deferred per project's existing device-UAT pattern (Phase 3/4) |
+| Live GPS-based verification walkthrough | SC1/SC7 | Requires physical device + real location fix | Discover within 500m, move to within the 100m server verification gate, run accepted/rejected/denied/offline/retry paths, and confirm generic server-rejection copy |
 | Push notification delivery end-to-end | SC9 | Requires live Expo push credentials — explicitly deferred behind a separate deployment checkpoint (D-66) | After live credentials are authorized and deployed, submit → verify → confirm push arrives on a physical device |
-| pgTAP suite execution | SC1-SC6, D-43, D-57 | No Docker-backed local Supabase runner in this environment (same tracked override as Phase 3/4) | Run `supabase test db` on a Docker-capable machine per the existing pending todo |
+| pgTAP suite execution | SC1-SC6 and trust/lifecycle/RLS/concurrency boundaries | Current workstation lacks Docker | BLOCK the first Phase 5 live push until `supabase test db` passes on a Docker-capable or isolated non-production environment |
 
 ---
 

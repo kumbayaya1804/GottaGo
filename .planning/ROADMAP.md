@@ -219,16 +219,16 @@ Plans:
   10. Profile screen shows a private, non-comparative personal impact stat computed from the user's GPS-verified contribution count (e.g., "Your contributions have helped confirm N bathrooms are ready for someone who needs one") — no ranking against other users, no fabricated reach number; this narrows but does not violate the gamification-UI deferral (see PROJECT.md Out of Scope)
   11. All screens pass Phase 1.5 component acceptance checklist before Codex review
 
-**Plans**: 6 plans (provisional; executable plans wait for `05-DISCUSSION.md` decisions)
+**Plans**: 6 plans (planned 2026-07-11; waves 1→5)
 
 Plans:
 
-- [ ] 05-01: Event model, lifecycle constraints, preservation/regression testing of the completed verification-event direct-write lockdown, pending-candidate discovery RPC, pgTAP coverage, and regenerated types
-- [ ] 05-02: Server-computed trust weight, numeric confidence authority, retry-safe atomic publish transaction, trust events, and shadowban behavior
-- [ ] 05-03: VerifyFlow candidate UI, live GPS capture, generic accepted/rejected/denied/loading states, cache invalidation, and device UAT
+- [ ] 05-01: Event model, lifecycle constraints, private cooldown state, lockdown regression, rate-limited pending-candidate discovery, blocking pgTAP, and regenerated types
+- [ ] 05-02: Durable reason-free verification rejection, server-computed trust weight, numeric confidence authority, creator-claim + independent-verifier atomic publish, accessibility staging, unseen-publication fallback RPCs, and blocking concurrency pgTAP
+- [ ] 05-03: Nearby entry + in-route candidate/verify UI, live GPS capture, generic accepted/rejected/denied/loading states, durable Published fallback, cache invalidation, and device UAT
 - [ ] 05-04: Server-maintained private personal-impact stat, Profile contract/copy, and tests
-- [ ] 05-05: Device-token lifecycle, private publication outbox, Expo delivery function, idempotency, and notification UAT
-- [ ] 05-06: Conditional 48-hour promotion job only after a measurable pending-objection signal exists; otherwise document a disabled fail-closed deferral
+- [ ] 05-05: Explicit push opt-in, private device-token lifecycle, idempotent enqueue, concurrency-safe Expo ticket/receipt processing, authenticated cron invocation, and notification UAT
+- [ ] 05-06: Operational raw-GPS purge + submission-expiry maintenance, with the unmeasurable 48-hour promotion route retained only as an unscheduled fail-closed stub
 
 ---
 

@@ -4,6 +4,16 @@
 **Domain:** Postgres/PostGIS trust-and-verification engine on Supabase; Expo SDK 55 push-notification pipeline; React Native verify-flow client
 **Confidence:** HIGH (codebase-grounded) / MEDIUM (Expo SDK 55 + Supabase Cron current-docs)
 
+> **2026-07-11 plan re-verification corrections (authoritative over older examples below):**
+> - `confirmation_count=1` is the creator's implicit claim. Publish eligibility is `1 + distinct qualifying non-creator verifiers`; one independent second user reaches threshold 2 for both grandfathered and future submissions.
+> - Expected verify denials return reason-free `accepted=false`; they do not raise after writing cooldown state, because PostgreSQL would roll that write back. Discovery/verify cooldowns live in private server state, and discovery is VOLATILE.
+> - The pending spatial index predicate is `status='pending'` only; `expires_at > now()` stays in the query because current time is not IMMUTABLE and cannot appear in an index predicate.
+> - Reuse shipped `gps_location` and `distance_from_location_meters`; do not add duplicate coordinate/distance authorities. Timed raw-GPS purge and submission expiry are operational 05-06 jobs, not carry-forward comments.
+> - Numeric confidence tiers are derived at read time through an app_config-aware helper; a generated column cannot query tunable app_config thresholds.
+> - notification_outbox guarantees idempotent enqueue and mutually exclusive claims, not exactly-once Expo delivery. Edge Functions read secret keys from their environment; Vault protects the scheduled invocation URL/custom secret. Tickets, receipts, backoff, and DeviceNotRegistered handling are required.
+> - Full inherited + Phase 5 pgTAP execution is BLOCKING before the first Phase 5 live push. The older carry-forward wording below is superseded.
+> - `.planning/phases/05-trust-engine-verification/05-PATTERNS.md` and the six revised plans contain the executable contracts.
+
 ## Summary
 
 Phase 5 is overwhelmingly a **database-and-RPC phase built on already-shipped conventions**, not a
@@ -652,19 +662,17 @@ marks delivered, and honors the idempotency key. Every `db push` / function depl
 
 ## Open Questions
 
-1. **Exact raw-GPS retention window (D-40).**
+1. **(RESOLVED — via 05-02 Task 1 decision checkpoint) Exact raw-GPS retention window (D-40).**
    - What we know: raw lat/lng retained short-term for fraud/audit, then purged; derived distance/accuracy kept permanently.
-   - What's unclear: the concrete window (e.g. 7/14/30 days) and where the purge runs (pg_cron job vs Phase 6).
-   - Recommendation: propose a default (e.g. 30 days) for user confirmation; scope the purge job explicitly (likely a small pg_cron job in 05-01/05-02).
+   - Resolution: NOT decided inline in 05-01 (which only adds the `raw_gps_purge_after` column, unpopulated). The exact day count is decided at the 05-02 Task 1 decision checkpoint alongside the other Claude's-Discretion tunables, seeded into app_config as `raw_gps_retention_days` (30-day default proposed for confirmation), and consumed by `verify_location`/`submit_location` when computing `raw_gps_purge_after` at insert time. The purge job itself is scoped explicitly in 05-06 (`private.purge_expired_verification_gps()`, part of the lifecycle-maintenance migration).
 
-2. **Cooldown storage mechanism (D-36).**
+2. **(RESOLVED) Cooldown storage mechanism (D-36).**
    - What we know: per-user cooldown; rejected attempts still consume it.
-   - What's unclear: store last-attempt timestamp on `users`, a dedicated table, or derive from latest event row.
-   - Recommendation: a lightweight `last_verify_attempt_at` column or a small attempts table so rejected (non-event) attempts are recorded; planner decides.
+   - Resolution: `private.verification_rate_limits` (05-01 Task 2, step 9) — a dedicated, non-Data-API-exposed table keyed by user_id with `last_discovery_at`/`last_verify_attempt_at`, accessed only via approved SECURITY DEFINER RPCs.
 
-3. **Trust delta table exact values (D-49).** Claude must draft and present for review before the migration locks them.
+3. **(RESOLVED) Trust delta table exact values (D-49).** Drafted and presented at the 05-02 Task 1 decision checkpoint before being locked into any migration.
 
-4. **Confidence numeric scale + thresholds + mid-tier start (D-54/D-55).** Choose scale (e.g. 0-100), tier cutoffs, and the mid-tier publish value; seed to `app_config`.
+4. **(RESOLVED) Confidence numeric scale + thresholds + mid-tier start (D-54/D-55).** 0-100 scale, tier cutoffs, and mid-tier publish value are drafted and presented at the same 05-02 Task 1 checkpoint, seeded to `app_config`.
 
 ## Environment Availability
 

@@ -121,7 +121,7 @@ Copy marked **[LOCKED]** is verbatim and must not be paraphrased (matches design
 
 | Element | Copy |
 |---------|------|
-| Server rejection (ANY reason) | **[LOCKED]** "Unable to verify your location. Please try again." (ERR-09). **Every** server-returned rejection — mock-location (D-45), accuracy-floor (D-46), too-far, shadowban (D-38), cooldown (D-36), generic network — maps to THIS single string. The client MUST NOT branch copy on the RPC error; mock-location and low-accuracy rejections are visually identical. Recovery: "Try Again" re-reads GPS + retries. |
+| Server rejection (ANY reason) | **[LOCKED]** "Unable to verify your location. Please try again." (ERR-09). Every reason-free `accepted=false` domain result and every thrown transport/system error maps to THIS string. The client MUST NOT receive or branch on a domain reason; this return contract lets the server commit D-36 cooldown state instead of rolling it back with an exception. Recovery: "Try Again" re-reads GPS + retries. |
 | Permission denied | **[NEW — proposed]** "Location access is off. Turn on location so we can confirm you're here." (denied sentinel `{denied:true}` → renders this state, never a dead end; offers a settings/dismiss affordance, not a blank screen) |
 | Loading | Spinner permitted here (point-in-time action per §19); GPS-capture + RPC in flight. No skeleton (skeleton is for content areas). |
 
@@ -164,13 +164,13 @@ The executor implements these states verbatim (SC7). No state may be a dead end 
 | `ready` | accuracy ≤50m AND within 100m (client advisory) | "I'm Here" enabled (`primary`, 56pt); live readout `successGreen` |
 | `blocked` (advisory) | accuracy >50m OR too far | "I'm Here" disabled; ERR-02 / distance guidance inline (client-side, NOT a server leak) |
 | `submitting` | "I'm Here" tapped | Spinner on button; RPC in flight |
-| `accepted` | RPC success | Success state ("Verified! / Thanks for keeping data fresh." / "Done") |
-| `rejected` | RPC error (ANY reason) | Generic ERR-09 inline; "Try Again" re-reads GPS. **Never reveals which check failed.** |
+| `accepted` | RPC returns `accepted=true` | Success state ("Verified! / Thanks for keeping data fresh." / "Done") |
+| `rejected` | RPC returns `accepted=false` or throws | Generic ERR-09 inline; "Try Again" re-reads GPS. **Never reveals which check failed.** |
 | `denied` | permission `{denied:true}` sentinel | Denied-permission copy + enable/dismiss affordance; not a dead end |
 
 ### Progress-indicator resolution
 
-Pending sheet renders progress copy while `status='pending'`; on the creator's next view after the 2nd verifier publishes (`status='published'`), it resolves in-app to the "Published!" state (D-68). This resolution is independent of push delivery.
+Pending sheet renders progress while `status='pending'`. After publication, the pending-only RPC intentionally drops the row, so a separate owner-scoped unseen-publication RPC drives the next-view "Published!" state and an owner-scoped acknowledge action clears it. This resolution is independent of push delivery.
 
 ---
 
@@ -180,8 +180,8 @@ Per additional-context: reuse established sheet/card patterns.
 
 | Surface | Reuse | Notes |
 |---------|-------|-------|
-| Verify modal | `/modals/verify` route (§16 nav model, already routed) | Full-screen modal; explicit "Cancel" close (swipe-only FORBIDDEN, §16) |
-| Candidate discovery list | Nearby list-item pattern (`nearby.tsx`, Phase 3) | Row = `[●] Name — {dist} — < Pending >`; tap → opens Verify modal for that submission |
+| Verify modal | `/modals/verify` route (§16 nav model) | Full-screen modal; starts in list mode, selection transitions in-route to GPS verification; explicit Cancel close |
+| Candidate discovery list | Nearby entry + list-item pattern | Nearby opens `/verify`; row = `[●] Name — {dist} — < Pending >`; tap selects within the existing modal, never navigates to itself |
 | Candidate/pending detail sheet | `@gorhom/bottom-sheet` scaffold from `LocationDetailSheet` / `PendingStatusSheet` | Snap points 30%/55% only (§11) |
 | Progress indicator | `PendingStatusSheet.tsx` (Phase 4, creator-side) | Extend to render the "Published!" resolved state; keep `PUBLISH_THRESHOLD=2` |
 | Impact stat | Profile stats block (`profileStats.ts` + Profile tab §23) | Add a 4th stat sourced from `get_profile_stats` extension (`gps_verified_contribution_count`) |
