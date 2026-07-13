@@ -128,12 +128,15 @@ select * into v_submission from public.submissions where id = p_submission_id fo
 -- Require pending, unexpired, non-own target before inserting any event.
 select 1 + count(distinct ve.user_id) into v_confirmation_count
   from public.verification_events ve
+  join public.users u on u.id = ve.user_id      -- D-52: re-check CURRENT shadowban eligibility at decision time
  where ve.submission_id = p_submission_id and ve.weight > 0
+   and u.shadowban_status is not true           -- a user shadowbanned AFTER a genuine nonzero event no longer counts
    and ve.user_id <> v_submission.submitter_id;
 if v_confirmation_count >= v_publish_threshold then -- creator implicit claim + independent verifier
                           -- copy submission_tags→tags, carry pending_access_code, trust_events, outbox
 end if;
 ```
+> D-52 decision-time eligibility: the qualifying-verifier count MUST JOIN `public.users` and require `shadowban_status is not true` at decision time, NOT rely solely on the `weight>0` recorded at event-insert time. A user can record a genuine nonzero-weight event and then be shadowbanned before the deciding second event arrives; the recorded weight stays immutable (D-52), but the live count must exclude a now-ineligible contributor.
 Idempotency: re-check `status='pending'` under the lock so a retried deciding call is a no-op.
 
 **Publish INSERT into locations** — mirror the staged-column list from `submit_location` §1 (submission_staging lines 28-37); those columns were deliberately typed to mirror `locations` for a clean copy.
@@ -163,9 +166,9 @@ create unique index verification_events_user_submission_uniq
 
 **submission_tags staging table** (D-62/63, exactly 2 keys) — model on the `public.tags (location_id, key, value)` shape referenced in `phase3_search_rpcs.sql` filter subqueries (lines 108-116).
 
-**Evidence columns:** reuse shipped `gps_location` and `distance_from_location_meters`; add only missing accuracy/capture/purge-deadline fields. Do not create parallel `distance_m` authority. The raw-coordinate columns `gps_lat`/`gps_lon` already exist (from 20260519010000) — treat them, along with `gps_location`, as the RAW coordinates that `delete_account` and the 05-06 purge routine null (while preserving derived distance/accuracy/weight per D-40). Index the new submission_id FK. `raw_gps_purge_after` is added nullable with NO default; 05-06 backfills legacy NULL deadlines once `raw_gps_retention_days` is seeded (a NULL deadline never satisfies `<= now()`).
+**Evidence columns:** reuse shipped `gps_location` and `distance_from_location_meters`; add only missing accuracy/capture/purge-deadline fields. Do not create parallel `distance_m` authority. `gps_location geography(Point,4326)` is the SINGLE raw-coordinate authority; the original `gps_lat`/`gps_lon` numeric columns were backfilled into `gps_location` and then DROPPED by `20260519020000_fix_schema.sql` (lines 43-46), so they do NOT exist live — `delete_account` and the 05-06 purge routine null ONLY `gps_location` (while preserving derived distance/accuracy/weight per D-40). Index the new submission_id FK. `raw_gps_purge_after` is added nullable with NO default; 05-06 backfills legacy NULL deadlines once `raw_gps_retention_days` is seeded (a NULL deadline never satisfies `<= now()`).
 
-**delete_account raw-coordinate purge (D-41/D-40):** null gps_location + gps_lat + gps_lon (all raw coordinates) for the deleting user, while PRESERVING distance_from_location_meters, gps_accuracy_m, and weight (derived evidence survives).
+**delete_account raw-coordinate purge (D-41/D-40):** null `gps_location` (the single raw-coordinate column — `gps_lat`/`gps_lon` were dropped by 20260519020000 and do NOT exist live) for the deleting user, while PRESERVING distance_from_location_meters, gps_accuracy_m, and weight (derived evidence survives).
 
 **PRESERVE lockdown** — do not re-add broad client grants; the lockdown migration (lines 17-18) leaves `authenticated` with SELECT-only. Add a pgTAP regression asserting direct `authenticated` INSERT still raises 42501 (Pitfall 7).
 
@@ -308,7 +311,7 @@ Anti-pattern (RESEARCH §Pattern 1): granting to `anon`, using `set search_path 
 
 ### GPS permission sentinel (verify + notifications)
 **Source:** `useGpsSample.ts` lines 20-24 (`{denied:true}` sentinel)
-**Apply to:** `useVerifyGpsSample.ts` (verify GPS) and `registerPushToken.ts`/`usePushPermission.ts` (push permission denied → return null / render fallback, never a dead end; D-68). NOTE for push: the pipeline registers ExpoPushTokens (`getExpoPushTokenAsync`), not native DevicePushTokens; on an `addPushTokenListener` rollover event, REACQUIRE the Expo token via `getExpoPushTokenAsync()` and register that (do NOT store the native token, do NOT recurse into `getDevicePushTokenAsync`).
+**Apply to:** `useVerifyGpsSample.ts` (verify GPS) and `registerPushToken.ts`/`usePushPermission.ts` (push permission denied → return null / render fallback, never a dead end; D-68). NOTE for push: the pipeline registers ExpoPushTokens (`getExpoPushTokenAsync`), not native DevicePushTokens; on an `addPushTokenListener` rollover event, REACQUIRE the Expo token by passing the listener-supplied native token straight through as the `devicePushToken` option — `getExpoPushTokenAsync({ projectId, devicePushToken: <the token the listener just received> })` — and register that. Do NOT call `getExpoPushTokenAsync()` WITHOUT `devicePushToken` from inside the listener: per the SDK-55 docs the option "Defaults to a token fetched with getDevicePushTokenAsync()", so omitting it re-fetches the device token internally and can retrigger the listener recursively. Wrap the reacquire+register in retry/error handling.
 
 ---
 

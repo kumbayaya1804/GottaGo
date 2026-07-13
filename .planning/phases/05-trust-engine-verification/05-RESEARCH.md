@@ -233,7 +233,7 @@ should still add a `checkpoint:human-verify` before install per protocol.*
 | Stored data — accessibility | Existing pending rows with **no** staged accessibility selections (checkboxes were rendered but discarded pre-Phase-5) | D-64: publish untagged, no reconfirmation. |
 | Stored data — confidence backfill | Live `locations.confidence_score`/`confidence_tier` are TEXT tiers (`High/Medium/Low`); new numeric column must be **backfilled** from them | D-53: one-time backfill migration mapping text tier → numeric value; then tier becomes a computed label. Inspect live data before choosing in-place convert vs new column + backfill. |
 | Live service config — app_config seeds | New tunables must be seeded into `app_config`: discovery radius (500m), discovery cooldown, accuracy floor (~100m), decay constants, confidence thresholds, mid-tier start value, notification-related keys | Seed rows in migration; RPCs read with `coalesce()` fallback (mirror `max_pins_per_viewport`). Existing keys: `max_pins_per_viewport`, `max_accuracy_m`, `max_gps_age_s`. |
-| Live service config — verification_events ACL | Local migration `20260710121534_verification_events_client_write_acl_lockdown.sql` (broad client grant removal) is **NOT live yet** | Must be reviewed, deployed with fresh authorization, and live-verified BEFORE Phase 5; Phase 5 must preserve + regression-test the lockdown (READINESS §Blocking, gap 2 item 6). |
+| Live service config — verification_events ACL | Migration `20260710121534_verification_events_client_write_acl_lockdown.sql` (broad client grant removal) is **LIVE** (deployed + live-verified) | The ACL lockdown is confirmed live; Phase 5 must preserve + regression-test it (a direct authenticated INSERT still raises 42501). No further deploy is pending for the lockdown itself. |
 | Secrets / env vars | New: Expo push (Vault-stored `project_url` + service/publishable key for the Edge Function); EAS `projectId` in `app.json` `extra.eas.projectId` for `getExpoPushTokenAsync` | Vault secret writes + function deploy each need a separate authorization checkpoint (D-66). |
 | Build artifacts | Regenerated `app/src/lib/database.types.ts` after every migration (new RPCs/columns) | `supabase gen types` after each schema change; the client wrappers (`submitLocation.ts` style) consume `Database['public']['Functions'][...]`. |
 | OS-registered state | None — no OS-level scheduler; scheduling is `pg_cron` inside Postgres | None. |
@@ -679,14 +679,14 @@ marks delivered, and honors the idempotency key. Every `db push` / function depl
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
 | Supabase project (live) | All SQL surfaces | ✓ | project `ebmzhjmmtmldhrojkdqw` | — |
-| Docker (local pgTAP `supabase test db`) | Executable pgTAP suites | ✗ | — | Author suites now; execution tracked as carry-forward (Phase 3/4 suites also unexecuted) |
+| Docker (local pgTAP `supabase test db`) | Executable pgTAP suites | ✗ | — | Author suites now; the full inherited + Phase 5 pgTAP suite MUST pass on a Docker-capable or isolated non-production environment before the first Phase 5 live push (BLOCKING — Phase 5 may NOT reuse the Phase 3/4 unexecuted-pgTAP override) |
 | Supabase CLI | migrations, `gen types`, functions, `test db` | assumed ✓ | — | — |
 | `pg_cron` / `pg_net` / Vault (hosted) | Scheduled outbox drain | assumed ✓ (Supabase-hosted) | — | Verify enabled on project before scheduling |
 | EAS `projectId` | `getExpoPushTokenAsync` | must confirm in `app.json` | — | No push token without it (blocks live push, not phase closure per D-66) |
 | Expo dev build | Android push UAT | ✗ (Expo Go insufficient SDK 53+) | — | Local notifications for partial UAT; real push behind deploy checkpoint |
 
 **Missing dependencies with no fallback:** none block phase closure — live push is explicitly behind a
-separate checkpoint (D-66) and pgTAP execution is tracked carry-forward.
+separate checkpoint (D-66). Phase 5 pgTAP execution is NOT carried forward: the full inherited + Phase 5 suite is a BLOCKING pre-push gate that must pass with no override.
 **Missing dependencies with fallback:** Docker (author-now/execute-later); Expo dev build (deferred UAT).
 
 ## Validation Architecture
@@ -719,7 +719,7 @@ separate checkpoint (D-66) and pgTAP execution is tracked carry-forward.
 ### Sampling Rate
 - **Per task commit:** relevant jest file or targeted pgTAP suite.
 - **Per wave merge:** full jest + `supabase test db` (when Docker available).
-- **Phase gate:** full suite green before `/gsd:verify-work`; pgTAP execution is tracked carry-forward if Docker remains unavailable.
+- **Phase gate:** the full inherited + Phase 5 pgTAP suite must be green before the first Phase 5 live push and `/gsd:verify-work`; Phase 5 may NOT reuse the Phase 3/4 unexecuted-pgTAP carry-forward override — execution on a Docker-capable or isolated non-production environment is required, not deferred.
 
 ### Wave 0 Gaps
 - [ ] `supabase/tests/phase5_event_model.test.sql` — SC(event), D-43, lockdown regression

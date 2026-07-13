@@ -90,7 +90,7 @@ created: 2026-07-11
 - [ ] Sampling continuity: no 3 consecutive tasks without automated verify
 - [ ] Wave 0 covers all MISSING references
 - [ ] No watch-mode flags
-- [ ] Feedback latency < 60s (client); DB suite tracked as carry-forward override
+- [ ] Feedback latency < 60s (client); the full inherited + Phase 5 pgTAP DB suite is a BLOCKING pre-push gate (no carry-forward override — see line 32) that must pass on a Docker-capable or isolated non-production environment before any Phase 5 live push
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
