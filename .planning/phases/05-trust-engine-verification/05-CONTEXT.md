@@ -65,6 +65,9 @@ Phase 5 builds the trust/verification engine that turns a Phase-4-staged `submis
 - **D-67:** The publication notification goes to the **creator only**, not to verifiers — verifiers get the D-65 personal-impact stat as their own feedback loop instead. Keeps the notification narrow and non-spammy per 05-READINESS.md's explicit scope limit.
 - **D-68:** If push permission was denied or no device token is registered, the user still gets an **in-app fallback signal** — the D-61 progress indicator naturally resolves to a "Published!" state on next view. Push must never be the only way a contributor learns their submission published.
 
+### Post-planning decisions (surfaced during plan review, not the original discussion)
+- **D-69:** A submission whose creator is CURRENTLY shadowbanned at the publish decision still counts the creator's implicit claim toward the publish threshold (the verifier's real contribution is preserved and still counts), and the resulting `locations` row inherits `shadowban_status=true` from the creator (reusing the exact suppression mechanism Phase 3's public search RPCs already apply), but the creator receives NO `published_contribution` trust_events credit for a submission that is immediately suppressed. A non-shadowbanned creator's publish behaves exactly as originally specified. (Confirmed by the round-6 plan review; the creator's CURRENT shadowban_status must be read under a genuine `FOR SHARE` lock on the creator's `users` row — not a plain SELECT, and not covered by the unrelated `submissions` row's `FOR UPDATE` from a different table — to serialize correctly against a concurrent shadowban action.)
+
 ### Claude's Discretion
 - Exact uniqueness-constraint mechanism preventing a user from double-counting on the same submission (D-43) — implementation detail for planner.
 - Exact `trust_score` action_type/delta table values (D-49) — Claude drafts, presented for review before being locked into a migration.

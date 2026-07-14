@@ -123,7 +123,7 @@ schedule, secret write) each need a fresh user-authorization checkpoint.
 |----|-------------|------------------|
 | SC1 | `verify_location` RPC validates GPS triple server-side and inserts a verification event | Mirror `submit_location` GPS-validation block (mock/accuracy/freshness) + insert; §Pattern 2, §Code Examples |
 | SC2 | `weight = trust_multiplier × proximity_decay × accuracy_decay` (field is `weight`) | §Pattern 3 (linear decay per D-56), server-computed only |
-| SC3 | Status transitions pending → published after the creator's implicit claim plus one qualifying independent verifier (two distinct eligible identities total); a currently-shadowbanned creator's claim still counts but the resulting location inherits shadowban_status=true and is suppressed from public search | §Pattern 5 atomic publish with `FOR UPDATE` row lock (D-57) |
+| SC3 | Status transitions pending → published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier; a currently-shadowbanned creator's claim still counts but the resulting location inherits shadowban_status=true and is suppressed from public search AND the creator earns no published_contribution trust credit for it (D-69) | §Pattern 5 atomic publish with `FOR UPDATE` row lock (D-57), creator shadowban read under `FOR SHARE` (D-69) |
 | SC4 | Shadowbanned verification accepted (no hint) but `weight = 0`, no publish | §Pattern 2 shadowban-zero; mirror `search_locations_*` shadowban read pattern |
 | SC5 | Tests assert shadowban `weight = 0` does not trigger publish | §Validation Architecture pgTAP map |
 | SC6 | `trust_score` increments via `trust_events` append (`delta` sign matches `action_type`) | §Pattern 6; live `trust_events` schema + TDD sign rule |
@@ -291,7 +291,7 @@ should still add a `checkpoint:human-verify` before install per protocol.*
 
 Data flows raw-telemetry-in / server-computed-out at every stage. The client never supplies
 `weight`, `distance`, or aggregate counts. Trace the primary case: verifier GPS → discovery →
-verify RPC → (2nd nonzero verifier) → atomic publish → outbox → creator notification/fallback. The publish threshold is the creator's implicit claim (1) plus one qualifying independent, currently-eligible verifier — two distinct eligible identities total, per the locked submission_publish_threshold. A currently-shadowbanned creator's claim still counts toward that threshold, but the atomic publish sets the new locations row's shadowban_status from the creator's CURRENT state (D-52/D-38): a shadowbanned creator's location still publishes yet is suppressed from public search by the same `shadowban_status = false` filter the Phase 3 read RPCs already apply.
+verify RPC → (2nd nonzero verifier) → atomic publish → outbox → creator notification/fallback. The publish threshold is two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier, per the locked submission_publish_threshold. A currently-shadowbanned creator's claim still counts toward that threshold, but the atomic publish sets the new locations row's shadowban_status from the creator's CURRENT state, read under a `FOR SHARE` lock on the creator's users row so the lookup cannot race a concurrent shadowban UPDATE (D-69): a shadowbanned creator's location still publishes yet is suppressed from public search by the same `shadowban_status = false` filter the Phase 3 read RPCs already apply, and the creator earns no published_contribution trust credit for the suppressed publish.
 
 ### Recommended File / Migration Layout (mirror Phase 4)
 ```
@@ -416,7 +416,13 @@ and the target re-validated does the event insert happen, followed by a re-count
 lock. Because a plpgsql function runs in a single implicit transaction, all of
 lock+validate → insert-event → count → publish is atomic; a concurrent verifier blocks on the row
 lock until this commits, then re-reads current state (First-Committer-Wins) [CITED:
-postgresql.org/docs/current/explicit-locking.html].
+postgresql.org/docs/current/explicit-locking.html]. At the publish decision the creator's CURRENT
+shadowban_status is read under a SEPARATE `SELECT ... FOR SHARE` on the creator's `public.users`
+row (D-69) — the `submissions` FOR UPDATE above locks a row in a DIFFERENT table and provides no
+protection for this lookup; a plain SELECT would be vulnerable to reading a stale pre-shadowban
+value if a concurrent admin shadowban UPDATE commits before this transaction does. Documented lock
+order: `submissions` row FOR UPDATE first, then the creator's `users` row FOR SHARE — any future
+admin/moderation write path must acquire these in the same order to avoid deadlock.
 ```sql
 -- lock + VALIDATE BEFORE inserting the event (prevents a race against a concurrent
 -- publish/cancel of the same target) — see 05-02-PLAN.md Task 3 steps 3-7 for the full sequence.
@@ -448,10 +454,15 @@ select 1 + count(distinct ve.user_id) into v_confirmation_count
 
 if v_confirmation_count >= v_publish_threshold then     -- submission_publish_threshold from app_config
   -- ATOMIC PUBLISH (all in this same transaction):
+  -- fresh creator shadowban lookup -- a real row lock (FOR SHARE), not a plain SELECT snapshot read;
+  -- the submissions FOR UPDATE above does NOT protect this different table (D-69)
+  select shadowban_status into v_creator_shadowban
+    from public.users where id = v_submitter_id for share;
+
   insert into public.locations (name, coordinates, policy_tag, ..., confidence_value /*numeric, mid-tier start*/,
                                 access_code_confirmed_at, access_instructions /*from pending_access_code*/,
-                                shadowban_status /*inherit creator's CURRENT shadowban_status — D-52/D-38*/)
-    select ..., (select u.shadowban_status from public.users u where u.id = s.submitter_id) /*fresh, under lock*/
+                                shadowban_status /*inherit creator's CURRENT shadowban_status — D-69*/)
+    select ..., v_creator_shadowban
       from public.submissions s where s.id = p_submission_id
     returning id into v_location_id;
   update public.submissions
@@ -460,7 +471,9 @@ if v_confirmation_count >= v_publish_threshold then     -- submission_publish_th
   insert into public.tags (location_id, key, value)                 -- copy submission_tags (D-62/63)
     select v_location_id, st.key, st.value from public.submission_tags st
     where st.submission_id = p_submission_id;
-  -- append trust_events for creator (published_contribution, D-49/D-50) and for the deciding
+  -- append trust_events for creator (published_contribution, D-49/D-50) ONLY WHEN
+  -- v_creator_shadowban is not true -- a currently-shadowbanned creator's suppressed publish earns
+  -- NO published_contribution credit (D-69) -- and for the deciding
   -- verifier if their event is nonzero-weight (verification_given_nonzero, D-49) — NOT for a
   -- creator_claim event, which is always weight=0 and never counts (see 05-02 Task 3 step 9),
   -- ramp the giver's trust_multiplier (D-48), inc users.gps_verified_contribution_count (D-65),
@@ -778,7 +791,7 @@ separate checkpoint (D-66). Phase 5 pgTAP execution is NOT carried forward: the 
 |-----|----------|-----------|---------|-------------|
 | SC1 | verify_location validates GPS triple + inserts event | pgTAP | `supabase test db` (phase5_verify_publish) | ❌ Wave 0 |
 | SC2 | weight = mult×prox×acc computed | pgTAP | same | ❌ Wave 0 |
-| SC3 | pending→published after creator's implicit claim + 1 qualifying independent verifier (two distinct eligible identities total; incl. concurrent) | pgTAP (2-session) | same | ❌ Wave 0 |
+| SC3 | pending→published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier (incl. concurrent) | pgTAP (2-session) | same | ❌ Wave 0 |
 | SC4/SC5 | shadowban verify → weight 0, no publish | pgTAP | same | ❌ Wave 0 |
 | SC6 | trust_events delta sign matches action_type | pgTAP | phase5_verify_publish | ❌ Wave 0 |
 | D-43 | duplicate verify by same user rejected/no-op | pgTAP | phase5_event_model | ❌ Wave 0 |
