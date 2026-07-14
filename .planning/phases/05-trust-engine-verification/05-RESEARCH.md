@@ -234,7 +234,7 @@ should still add a `checkpoint:human-verify` before install per protocol.*
 | Stored data — confidence backfill | Live `locations.confidence_score`/`confidence_tier` are TEXT tiers (`High/Medium/Low`); new numeric column must be **backfilled** from them | D-53: one-time backfill migration mapping text tier → numeric value; then tier becomes a computed label. Inspect live data before choosing in-place convert vs new column + backfill. |
 | Live service config — app_config seeds | New tunables must be seeded into `app_config`: discovery radius (500m), discovery cooldown, accuracy floor (~100m), decay constants, confidence thresholds, mid-tier start value, notification-related keys | Seed rows in migration; RPCs read with `coalesce()` fallback (mirror `max_pins_per_viewport`). Existing keys: `max_pins_per_viewport`, `max_accuracy_m`, `max_gps_age_s`. |
 | Live service config — verification_events ACL | Migration `20260710121534_verification_events_client_write_acl_lockdown.sql` (broad client grant removal) is **LIVE** (deployed + live-verified) | The ACL lockdown is confirmed live; Phase 5 must preserve + regression-test it (a direct authenticated INSERT still raises 42501). No further deploy is pending for the lockdown itself. |
-| Secrets / env vars | New: Expo push (Vault-stored `project_url` + service/publishable key for the Edge Function); EAS `projectId` in `app.json` `extra.eas.projectId` for `getExpoPushTokenAsync` | Vault secret writes + function deploy each need a separate authorization checkpoint (D-66). |
+| Secrets / env vars | New: the Edge Function's own Supabase secret keys come from ITS environment (never Vault); Vault stores only the drain-invocation URL + custom `OUTBOX_DRAIN_SECRET` that pg_cron uses to call the function; EAS `projectId` in `app.json` `extra.eas.projectId` for `getExpoPushTokenAsync` | Vault secret writes + function deploy each need a separate authorization checkpoint (D-66). Vault is never used to store an elevated Supabase API key for the Edge Function itself. |
 | Build artifacts | Regenerated `app/src/lib/database.types.ts` after every migration (new RPCs/columns) | `supabase gen types` after each schema change; the client wrappers (`submitLocation.ts` style) consume `Database['public']['Functions'][...]`. |
 | OS-registered state | None — no OS-level scheduler; scheduling is `pg_cron` inside Postgres | None. |
 
@@ -359,9 +359,14 @@ st_distance(s.coordinates,
             extensions.st_setsrid(extensions.st_makepoint(p_lng, p_lat), 4326)::extensions.geography)
 ```
 Discovery radius predicate should use an index-friendly `ST_DWithin(coordinates, point, 500)` plus a
-**partial GiST index** on `(coordinates)` `WHERE status = 'pending' AND expires_at > now()` (READINESS
-gap 1). Note schema-qualification: the 2026-07-10 remediation qualifies PostGIS with `extensions.`
-in migrations — follow the qualification style already present in the file you're extending.
+**partial GiST index** on `(coordinates)` `WHERE status = 'pending'` ONLY (READINESS gap 1) — do NOT
+add `AND expires_at > now()` to the index predicate: `now()` is not IMMUTABLE, so Postgres rejects a
+non-immutable expression in an index WHERE clause, and a migration copying this literally would fail
+to apply. Apply the `expires_at > now()` filter in the RPC's query WHERE clause instead (the index
+narrows to pending rows; the query narrows further to unexpired ones). This matches the corrected
+statement at the top of this file and `05-01-PLAN.md`'s actual index-creation instruction. Note
+schema-qualification: the 2026-07-10 remediation qualifies PostGIS with `extensions.` in migrations —
+follow the qualification style already present in the file you're extending.
 
 ### Pattern 3: Server-computed linear decay weight (D-56)
 **What:** `weight = trust_multiplier × proximity_decay × accuracy_decay`, all server-side.
@@ -412,12 +417,20 @@ lock+validate → insert-event → count → publish is atomic; a concurrent ver
 lock until this commits, then re-reads current state (First-Committer-Wins) [CITED:
 postgresql.org/docs/current/explicit-locking.html].
 ```sql
--- lock + validate BEFORE inserting the event (prevents a race against a concurrent
--- publish/cancel of the same target) — see 05-02-PLAN.md Task 3 steps 3-7 for the full sequence
-perform 1 from public.submissions
+-- lock + VALIDATE BEFORE inserting the event (prevents a race against a concurrent
+-- publish/cancel of the same target) — see 05-02-PLAN.md Task 3 steps 3-7 for the full sequence.
+-- SELECT INTO + FOUND check, NOT a bare PERFORM: a filtered "for update" that matches zero rows
+-- (missing/own/expired/non-pending/already-published target) must return the reason-free
+-- {accepted:false} result BEFORE any event is inserted — a lock statement alone is not validation.
+select submitter_id into v_submitter_id
+  from public.submissions
   where id = p_submission_id and status = 'pending' and expires_at > now()
     and submitter_id <> auth.uid()
   for update;                                  -- second concurrent verifier waits here
+
+if not found then
+  return jsonb_build_object('accepted', false);       -- missing/own/expired/non-pending — no event, no reason leaked
+end if;
 
 -- ... insert the immutable verification_events row here (weight already computed) ...
 
@@ -428,7 +441,7 @@ select 1 + count(distinct ve.user_id) into v_confirmation_count
   from public.verification_events ve
   join public.users u on u.id = ve.user_id
   where ve.submission_id = p_submission_id
-    and ve.user_id <> (select submitter_id from public.submissions where id = p_submission_id)
+    and ve.user_id <> v_submitter_id             -- use the locked row's submitter, not a second lookup
     and ve.weight > 0
     and u.shadowban_status is not true;
 
@@ -513,7 +526,7 @@ Mirror `profileStats.ts` client shape.
 | Push token acquisition | Manual FCM/APNs plumbing | `expo-notifications` `getExpoPushTokenAsync` + Expo Push API | Expo abstracts both platforms; matches existing Expo stack |
 | Exactly-one FK target | App-level validation | Postgres `CHECK (num_nonnulls(...) = 1)` | Enforced at the DB, cannot be bypassed by any write path |
 | Dedupe double-verify | App-level check | Partial `UNIQUE INDEX (user_id, submission_id)` | DB-enforced, race-proof |
-| Secret storage for Edge Function | Env vars in SQL / hardcoded keys | Supabase Vault `vault.decrypted_secrets` | schema-contract forbids client-held keys; Vault is the pattern |
+| Secret storage for Edge Function | Env vars in SQL / hardcoded keys | Edge Function's own environment (SUPABASE_URL + current secret-key env); Vault holds ONLY the drain-invocation URL + custom bearer secret pg_cron sends | schema-contract forbids client-held keys; the Edge Function never reads its own Supabase credentials from Vault — Vault is for the cron-to-function call, not the function's own admin client |
 
 **Key insight:** Nearly every Phase 5 "hard problem" already has a first-committer-wins /
 DB-constraint / PostGIS / Expo-primitive answer. Custom logic here is almost always a regression
@@ -610,9 +623,13 @@ revoke execute on function public.search_pending_submissions_nearby(numeric,nume
 grant  execute on function public.search_pending_submissions_nearby(numeric,numeric,integer) to authenticated;
 ```
 **Note:** never return submitter identity, access code, timing tip, or precise coordinates outside
-the radius (READINESS gap 1). Cooldown (D-36) can be enforced via an `app_config` interval checked
-against the caller's most-recent event/attempt timestamp inside `verify_location` (a rejected attempt
-still records the cooldown stamp).
+the radius (READINESS gap 1). The DISCOVERY cooldown (D-36) is enforced inside this
+`search_pending_submissions_nearby` RPC itself — it atomically claims `last_discovery_at` in private
+rate-limit state before returning candidates (this is why the RPC must be VOLATILE, not STABLE; see
+05-01-PLAN.md Task 2 step 9). `verify_location` (05-02) separately claims its own
+`last_verify_attempt_at` cooldown; the two are independent per-RPC cooldowns, not one shared timestamp
+— do not conflate them or move discovery's cooldown into `verify_location`, which would leave
+candidate enumeration unthrottled.
 
 ### Expo push token registration (05-05)
 ```ts
@@ -622,12 +639,12 @@ import * as Notifications from 'expo-notifications';
 
 export async function registerPushToken(): Promise<string | null> {
   if (!Device.isDevice) return null;                       // simulators can't get a token
+  if (Platform.OS === 'android') {                          // CHANNEL BEFORE permission/token — Android
+    await Notifications.setNotificationChannelAsync('default', { name: 'default' });   // 13+'s permission prompt depends on a channel existing (05-05-PLAN.md: "keep this ordering")
+  }
   const { status } = await Notifications.requestPermissionsAsync();
   if (status !== 'granted') return null;                    // D-68 fallback path
-  if (Platform.OS === 'android') {                          // channel before token on Android 13+
-    await Notifications.setNotificationChannelAsync('default', { name: 'default' });
-  }
-  const projectId = Constants.expoConfig?.extra?.eas?.projectId;   // required in SDK 55
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;   // required in SDK 55; fall back to easConfig
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   await supabase.rpc('register_device_token', { p_token: token }); // owner-scoped RPC write
   return token;
@@ -661,7 +678,7 @@ $$);
 ```
 
 The Edge Function does NOT simply "select undelivered rows, POST, mark delivered" — see
-`05-05-PLAN.md` Task 3 for the full contract: it generates a fresh `claim_token` per invocation,
+`05-05-PLAN.md` Task 4 for the full contract: it generates a fresh `claim_token` per invocation,
 atomically claims a bounded batch via the service-only lease-aware `SKIP LOCKED` RPC
 (`claim_notification_outbox`, which also reclaims rows whose `claim_expires_at` lease has expired —
 this is what prevents a crashed worker from stranding a row forever), POSTs to
@@ -775,7 +792,7 @@ separate checkpoint (D-66). Phase 5 pgTAP execution is NOT carried forward: the 
 |---------------|---------|-----------------|
 | V1 Access Control (RLS/authz) | yes | SECURITY DEFINER RPC + `auth.uid()` scoping; revoke/grant triple; RLS denies direct writes |
 | V5 Input Validation | yes | Server re-validates GPS triple; reject mock/low-accuracy; never trust client-derived weight/distance |
-| V6 Cryptography / secrets | yes | Vault `decrypted_secrets` for Edge Function keys; no client-held service keys (schema-contract) |
+| V6 Cryptography / secrets | yes | Edge Function reads its own Supabase secret keys from its environment (never Vault); Vault `decrypted_secrets` holds only the drain-invocation URL + custom bearer secret; no client-held service keys (schema-contract) |
 | V7 Error Handling / info leakage | yes | Single generic rejection error (SC7); no reason echoed; explicit public-safe column lists |
 | V8 Data Protection / privacy | yes | Raw-GPS retention window + purge (D-40/D-41); device tokens owner-scoped, RLS never exposes others' tokens; discovery hides submitter identity |
 | V11 Business Logic | yes | Distinct-verifier count under row lock; uniqueness index prevents double-count; shadowban weight 0; asymmetric trust penalties |
