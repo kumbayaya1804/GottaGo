@@ -123,7 +123,7 @@ schedule, secret write) each need a fresh user-authorization checkpoint.
 |----|-------------|------------------|
 | SC1 | `verify_location` RPC validates GPS triple server-side and inserts a verification event | Mirror `submit_location` GPS-validation block (mock/accuracy/freshness) + insert; §Pattern 2, §Code Examples |
 | SC2 | `weight = trust_multiplier × proximity_decay × accuracy_decay` (field is `weight`) | §Pattern 3 (linear decay per D-56), server-computed only |
-| SC3 | Status transitions pending → published after 2 distinct non-shadowbanned verifiers | §Pattern 5 atomic publish with `FOR UPDATE` row lock (D-57) |
+| SC3 | Status transitions pending → published after the creator's implicit claim plus one qualifying independent verifier (two distinct eligible identities total); a currently-shadowbanned creator's claim still counts but the resulting location inherits shadowban_status=true and is suppressed from public search | §Pattern 5 atomic publish with `FOR UPDATE` row lock (D-57) |
 | SC4 | Shadowbanned verification accepted (no hint) but `weight = 0`, no publish | §Pattern 2 shadowban-zero; mirror `search_locations_*` shadowban read pattern |
 | SC5 | Tests assert shadowban `weight = 0` does not trigger publish | §Validation Architecture pgTAP map |
 | SC6 | `trust_score` increments via `trust_events` append (`delta` sign matches `action_type`) | §Pattern 6; live `trust_events` schema + TDD sign rule |
@@ -266,14 +266,15 @@ should still add a `checkpoint:human-verify` before install per protocol.*
           │                 │  │     (shadowban → weight 0, D-38)   │  │
           │                 │  │  6. insert immutable event         │  │
           │                 │  │     (uniqueness: one per user/sub) │  │
-          │                 │  │  7. count distinct nonzero verifiers│  │
-          │                 │  │  8. if ≥2 → PUBLISH (atomic):      │  │
+          │                 │  │  7. 1(creator)+distinct eligible   │  │
+          │                 │  │  8. if ≥ 2 (threshold) → PUBLISH:  │  │
           │                 │  │       insert locations,            │  │
           │                 │  │       set submission.location_id/  │  │
           │                 │  │        status='published',         │  │
           │                 │  │       copy submission_tags→tags,   │  │
           │                 │  │       carry pending_access_code,   │  │
           │                 │  │       set numeric confidence(mid), │  │
+          │                 │  │       set shadowban_status(creator)│  │
           │                 │  │       append trust_events (D-49),  │  │
           │                 │  │       inc gps_verified_contribution│  │
           │                 │  │       enqueue notification outbox  │  │
@@ -290,7 +291,7 @@ should still add a `checkpoint:human-verify` before install per protocol.*
 
 Data flows raw-telemetry-in / server-computed-out at every stage. The client never supplies
 `weight`, `distance`, or aggregate counts. Trace the primary case: verifier GPS → discovery →
-verify RPC → (2nd nonzero verifier) → atomic publish → outbox → creator notification/fallback.
+verify RPC → (2nd nonzero verifier) → atomic publish → outbox → creator notification/fallback. The publish threshold is the creator's implicit claim (1) plus one qualifying independent, currently-eligible verifier — two distinct eligible identities total, per the locked submission_publish_threshold. A currently-shadowbanned creator's claim still counts toward that threshold, but the atomic publish sets the new locations row's shadowban_status from the creator's CURRENT state (D-52/D-38): a shadowbanned creator's location still publishes yet is suppressed from public search by the same `shadowban_status = false` filter the Phase 3 read RPCs already apply.
 
 ### Recommended File / Migration Layout (mirror Phase 4)
 ```
@@ -448,8 +449,10 @@ select 1 + count(distinct ve.user_id) into v_confirmation_count
 if v_confirmation_count >= v_publish_threshold then     -- submission_publish_threshold from app_config
   -- ATOMIC PUBLISH (all in this same transaction):
   insert into public.locations (name, coordinates, policy_tag, ..., confidence_value /*numeric, mid-tier start*/,
-                                access_code_confirmed_at, access_instructions /*from pending_access_code*/)
-    select ... from public.submissions where id = p_submission_id
+                                access_code_confirmed_at, access_instructions /*from pending_access_code*/,
+                                shadowban_status /*inherit creator's CURRENT shadowban_status — D-52/D-38*/)
+    select ..., (select u.shadowban_status from public.users u where u.id = s.submitter_id) /*fresh, under lock*/
+      from public.submissions s where s.id = p_submission_id
     returning id into v_location_id;
   update public.submissions
      set status = 'published', location_id = v_location_id, confirmation_count = v_confirmation_count, updated_at = now()
@@ -536,7 +539,7 @@ against an existing, tested project convention.
 
 ### Pitfall 1: Racing the publish threshold (double publish)
 **What goes wrong:** Two verifiers submit the deciding (2nd) event simultaneously; both read
-count = 1, both insert, both see count = 2, both publish → two `locations` rows or corrupted state.
+count = 1 (the creator's implicit claim, no eligible verifier counted yet), both insert their event, both then compute 1 + their own = 2, both publish → two `locations` rows or corrupted state.
 **Why:** No serialization on the pending row.
 **How to avoid:** `SELECT ... FOR UPDATE` on the `submissions` row before counting; re-check
 `status = 'pending'` under the lock; publish branch is a no-op if already published (Pattern 5).
@@ -638,20 +641,34 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 
 export async function registerPushToken(): Promise<string | null> {
-  if (!Device.isDevice) return null;                       // simulators can't get a token
+  if (!Device.isDevice) return null;                       // project policy: register only on physical devices for UAT reliability (NOT a platform impossibility — some emulators/simulators support push per current Expo docs; see caveat)
   if (Platform.OS === 'android') {                          // CHANNEL BEFORE permission/token — Android
     await Notifications.setNotificationChannelAsync('default', { name: 'default' });   // 13+'s permission prompt depends on a channel existing (05-05-PLAN.md: "keep this ordering")
   }
-  const { status } = await Notifications.requestPermissionsAsync();
-  if (status !== 'granted') return null;                    // D-68 fallback path
+  const perm = await Notifications.requestPermissionsAsync();
+  // iOS: do NOT rely on the root `status` alone — read perm.ios.status (NotificationPermissionsStatus.ios.status).
+  // AUTHORIZED and PROVISIONAL permit token registration; DENIED and NOT_DETERMINED do not;
+  // EPHEMERAL is an App Clip case — treat as NOT permitted unless this app is an App Clip.
+  const iosPermits = perm.ios?.status === Notifications.IosAuthorizationStatus.AUTHORIZED
+                  || perm.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+  const granted = Platform.OS === 'ios' ? iosPermits : perm.status === 'granted';
+  if (!granted) return null;                                // D-68 fallback (denied / not-determined / ephemeral)
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;   // required in SDK 55; fall back to easConfig
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   await supabase.rpc('register_device_token', { p_token: token }); // owner-scoped RPC write
   return token;
 }
 ```
-**SDK 55 caveat [CITED: docs.expo.dev]:** remote push does NOT work in Expo Go on Android (SDK 53+) —
+**SDK 55 caveat [CITED: docs.expo.dev/versions/v55.0.0/sdk/notifications]:** remote push does NOT work in Expo Go on Android (SDK 53+) —
 requires a development build; local notifications still work. Token requires `projectId`.
+**iOS permission interpretation:** on iOS read `NotificationPermissionsStatus.ios.status`
+(values: `AUTHORIZED`, `PROVISIONAL`, `EPHEMERAL`, `NOT_DETERMINED`, `DENIED`), NOT the root `status` alone —
+`AUTHORIZED` and `PROVISIONAL` permit token registration; `DENIED` and `NOT_DETERMINED` do not; `EPHEMERAL`
+(an App Clip case) is treated as NOT permitted unless the app is an App Clip. A root-status-only check can pass
+in a mock while production mishandles provisional/ephemeral authorization.
+**Simulator/emulator:** this project registers tokens only on physical devices (`Device.isDevice`) as a project/UAT
+policy choice — NOT a platform impossibility. Current Expo SDK 55 docs note push works on Android emulators with
+Google Play services and on supported iOS simulators; physical-device-only registration is chosen for UAT reliability.
 
 ### Scheduled outbox drain (05-05)
 
@@ -761,7 +778,7 @@ separate checkpoint (D-66). Phase 5 pgTAP execution is NOT carried forward: the 
 |-----|----------|-----------|---------|-------------|
 | SC1 | verify_location validates GPS triple + inserts event | pgTAP | `supabase test db` (phase5_verify_publish) | ❌ Wave 0 |
 | SC2 | weight = mult×prox×acc computed | pgTAP | same | ❌ Wave 0 |
-| SC3 | pending→published after 2 distinct verifiers (incl. concurrent) | pgTAP (2-session) | same | ❌ Wave 0 |
+| SC3 | pending→published after creator's implicit claim + 1 qualifying independent verifier (two distinct eligible identities total; incl. concurrent) | pgTAP (2-session) | same | ❌ Wave 0 |
 | SC4/SC5 | shadowban verify → weight 0, no publish | pgTAP | same | ❌ Wave 0 |
 | SC6 | trust_events delta sign matches action_type | pgTAP | phase5_verify_publish | ❌ Wave 0 |
 | D-43 | duplicate verify by same user rejected/no-op | pgTAP | phase5_event_model | ❌ Wave 0 |

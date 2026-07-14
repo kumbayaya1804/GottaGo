@@ -195,9 +195,9 @@ Plans:
 
 ### Phase 5: Trust Engine & Verification
 
-**Goal**: A second independent user can GPS-verify a location, triggering the trust engine. Two non-shadowbanned verifications publish the location. Trust score and confidence score update incrementally.
+**Goal**: A second independent user can GPS-verify a location, triggering the trust engine. The creator's implicit claim plus one qualifying independent (non-shadowbanned) verifier — two distinct eligible identities total — publish the location. Trust score and confidence score update incrementally.
 **Depends on**: Phase 4
-**Requirements**: User can GPS-verify a location by being physically within range; Verification weight (`verification_events.weight`) scaled by user trust score + proximity; Location publishes after 2 independent GPS verifications OR 1 + 48-hour no-flag window; Location confidence degrades over time (decay system set up here, job in Phase 6); User is notified when their contribution is verified/published; User sees a private, non-comparative personal impact stat on their Profile reflecting their real GPS-verified contribution count
+**Requirements**: User can GPS-verify a location by being physically within range; Verification weight (`verification_events.weight`) scaled by user trust score + proximity; Location publishes after the creator's implicit claim plus one qualifying independent verifier (two distinct eligible identities total, per the locked submission_publish_threshold) OR 1 + 48-hour no-flag window; Location confidence degrades over time (decay system set up here, job in Phase 6); User is notified when their contribution is verified/published; User sees a private, non-comparative personal impact stat on their Profile reflecting their real GPS-verified contribution count
 
 **Trust scale (from live schema — Phase 5 must align to these):**
 
@@ -209,7 +209,7 @@ Plans:
 
   1. `verify_location` RPC validates GPS triple server-side and inserts a verification event
   2. `verification_events.weight` computed correctly as `trust_multiplier × proximity_decay × accuracy_decay` — field name is `weight`, not `weighted_value`
-  3. Location status transitions pending → published after 2 distinct non-shadowbanned verifiers
+  3. Location status transitions pending → published after the creator's implicit claim plus one qualifying independent verifier (two distinct eligible identities total, per the locked submission_publish_threshold); a currently-shadowbanned creator's claim still counts toward the threshold but the resulting location inherits shadowban_status=true and is suppressed from public search (D-52/D-38)
   4. Shadowbanned user's verification is accepted (no hint given) but produces `weight = 0` and does NOT trigger publish
   5. Tests assert that a shadowbanned user's verification produces `weight = 0` and does NOT trigger the publish gate
   6. `users.trust_score` increments correctly via `trust_events` append pattern (`delta` sign must match `action_type`)

@@ -40,7 +40,7 @@ created: 2026-07-11
 |-----|----------|-----------|-------------------|-------------|--------|
 | SC1 | `verify_location` validates GPS triple + inserts event | pgTAP | `supabase test db` (`phase5_verify_publish`) | ❌ Wave 0 | ⬜ pending |
 | SC2 | `weight = trust_multiplier × proximity_decay × accuracy_decay` computed correctly | pgTAP | same | ❌ Wave 0 | ⬜ pending |
-| SC3 | pending→published after 2 distinct verifiers, including concurrent race | pgTAP (2-session) | same | ❌ Wave 0 | ⬜ pending |
+| SC3 | pending→published after creator's implicit claim + 1 qualifying independent verifier (two distinct eligible identities total), including concurrent race; currently-shadowbanned creator's claim still counts but published location inherits shadowban_status=true (suppressed from public search) | pgTAP (2-session) | same | ❌ Wave 0 | ⬜ pending |
 | SC4/SC5 | shadowbanned user's verification → weight 0, no publish | pgTAP | same | ❌ Wave 0 | ⬜ pending |
 | SC6 | `trust_events` delta sign matches `action_type` | pgTAP | `phase5_verify_publish` | ❌ Wave 0 | ⬜ pending |
 | D-43 | duplicate verify by same user on same submission rejected/no-op | pgTAP | `phase5_event_model` | ❌ Wave 0 | ⬜ pending |
