@@ -399,37 +399,55 @@ the D-40 raw-GPS retention decision documented in the migration comment (schema-
 Review Checks" rejects storing raw GPS samples without a retention decision).
 
 ### Pattern 5: Concurrency-safe atomic publish (D-57, row lock)
-**What:** The deciding (second) verifier must serialize count-and-publish so two simultaneous
-verifiers cannot double-publish or race the threshold.
-**How:** Inside the `verify_location` transaction, after inserting the event, take
-`SELECT ... FOR UPDATE` on the pending `submissions` row, then re-count distinct nonzero-weight
-verifiers holding the lock. Because a plpgsql function runs in a single implicit transaction, all of
-insert-event → lock → count → publish is atomic; a concurrent verifier blocks on the row lock until
-this commits, then re-reads current state (First-Committer-Wins) [CITED:
+**What:** The deciding (second) verifier must serialize lock-validate-count-and-publish so two
+simultaneous verifiers cannot double-publish, race the threshold, or insert an event against a
+target another transaction just published/cancelled out from under them.
+**How:** Inside the `verify_location` transaction, `SELECT ... FOR UPDATE` the pending `submissions`
+row and re-validate status/expiry/ownership BEFORE inserting the verifier's event — locking and
+validating first is what prevents a concurrent caller from writing an event against a submission
+that a parallel transaction is simultaneously publishing or cancelling. Only after the lock is held
+and the target re-validated does the event insert happen, followed by a re-count under the same
+lock. Because a plpgsql function runs in a single implicit transaction, all of
+lock+validate → insert-event → count → publish is atomic; a concurrent verifier blocks on the row
+lock until this commits, then re-reads current state (First-Committer-Wins) [CITED:
 postgresql.org/docs/current/explicit-locking.html].
 ```sql
--- serialize the deciding verifier on the pending row
+-- lock + validate BEFORE inserting the event (prevents a race against a concurrent
+-- publish/cancel of the same target) — see 05-02-PLAN.md Task 3 steps 3-7 for the full sequence
 perform 1 from public.submissions
-  where id = p_submission_id and status = 'pending'
+  where id = p_submission_id and status = 'pending' and expires_at > now()
+    and submitter_id <> auth.uid()
   for update;                                  -- second concurrent verifier waits here
 
-select count(distinct ve.user_id) into v_distinct
-  from public.verification_events ve
-  where ve.submission_id = p_submission_id and ve.weight > 0;
+-- ... insert the immutable verification_events row here (weight already computed) ...
 
-if v_distinct >= 2 then
+-- threshold = 1 (creator's implicit claim) + distinct CURRENTLY-ELIGIBLE non-creator verifiers
+-- (D-52: exclude a verifier who is shadowbanned NOW, even if their recorded weight was > 0
+-- when they verified — their immutable event is never rewritten, just excluded from this count)
+select 1 + count(distinct ve.user_id) into v_confirmation_count
+  from public.verification_events ve
+  join public.users u on u.id = ve.user_id
+  where ve.submission_id = p_submission_id
+    and ve.user_id <> (select submitter_id from public.submissions where id = p_submission_id)
+    and ve.weight > 0
+    and u.shadowban_status is not true;
+
+if v_confirmation_count >= v_publish_threshold then     -- submission_publish_threshold from app_config
   -- ATOMIC PUBLISH (all in this same transaction):
-  insert into public.locations (name, coordinates, policy_tag, ..., confidence_score /*numeric*/,
+  insert into public.locations (name, coordinates, policy_tag, ..., confidence_value /*numeric, mid-tier start*/,
                                 access_code_confirmed_at, access_instructions /*from pending_access_code*/)
     select ... from public.submissions where id = p_submission_id
     returning id into v_location_id;
   update public.submissions
-     set status = 'published', location_id = v_location_id, updated_at = now()
+     set status = 'published', location_id = v_location_id, confirmation_count = v_confirmation_count, updated_at = now()
      where id = p_submission_id;
   insert into public.tags (location_id, key, value)                 -- copy submission_tags (D-62/63)
     select v_location_id, st.key, st.value from public.submission_tags st
     where st.submission_id = p_submission_id;
-  -- append trust_events (D-49), inc users.gps_verified_contribution_count (D-65),
+  -- append trust_events for creator (published_contribution, D-49/D-50) and for the deciding
+  -- verifier if their event is nonzero-weight (verification_given_nonzero, D-49) — NOT for a
+  -- creator_claim event, which is always weight=0 and never counts (see 05-02 Task 3 step 9),
+  -- ramp the giver's trust_multiplier (D-48), inc users.gps_verified_contribution_count (D-65),
   -- insert notification_outbox row (idempotent key) — all before COMMIT.
 end if;
 ```
@@ -619,22 +637,42 @@ export async function registerPushToken(): Promise<string | null> {
 requires a development build; local notifications still work. Token requires `projectId`.
 
 ### Scheduled outbox drain (05-05)
+
+**This is NOT Supabase's own JWT-verified invocation** — `verify_jwt=false` is set on the Edge
+Function specifically because pg_cron authenticates with a custom bearer secret, not a Supabase
+anon/service key sent as `apikey`. The function itself constant-time validates
+`Authorization: Bearer <OUTBOX_DRAIN_SECRET>` before doing any work; the admin client inside the
+function is built from its own environment (`SUPABASE_URL` + the current secret-key env var), never
+from client input or a Vault table read. Vault only stores the values pg_cron needs to make the HTTP
+call (the function URL and the custom drain secret) — it is not a Supabase API key.
+
 ```sql
--- Source: supabase.com/docs/guides/functions/schedule-functions
-select vault.create_secret('https://ebmzhjmmtmldhrojkdqw.supabase.co', 'project_url');
-select vault.create_secret('<service-or-publishable-key>', 'edge_key');
+-- Source: supabase.com/docs/guides/functions/schedule-functions (adapted for a custom drain secret)
+select vault.create_secret('https://ebmzhjmmtmldhrojkdqw.supabase.co/functions/v1/drain-notification-outbox', 'outbox_drain_url');
+select vault.create_secret('<OUTBOX_DRAIN_SECRET value>', 'outbox_drain_secret');
 
 select cron.schedule('drain-notification-outbox', '* * * * *', $$
   select net.http_post(
-    url := (select decrypted_secret from vault.decrypted_secrets where name='project_url')
-           || '/functions/v1/drain-notification-outbox',
-    headers := jsonb_build_object('Content-type','application/json',
-               'apikey',(select decrypted_secret from vault.decrypted_secrets where name='edge_key')));
+    url := (select decrypted_secret from vault.decrypted_secrets where name='outbox_drain_url'),
+    headers := jsonb_build_object(
+      'Content-type', 'application/json',
+      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name='outbox_drain_secret')));
 $$);
 ```
-The Edge Function selects undelivered outbox rows, POSTs to `https://exp.host/--/api/v2/push/send`,
-marks delivered, and honors the idempotency key. Every `db push` / function deploy / `cron.schedule`
-/ Vault write is a **separate authorization checkpoint** (D-66, READINESS §Verification Carry-Forward).
+
+The Edge Function does NOT simply "select undelivered rows, POST, mark delivered" — see
+`05-05-PLAN.md` Task 3 for the full contract: it generates a fresh `claim_token` per invocation,
+atomically claims a bounded batch via the service-only lease-aware `SKIP LOCKED` RPC
+(`claim_notification_outbox`, which also reclaims rows whose `claim_expires_at` lease has expired —
+this is what prevents a crashed worker from stranding a row forever), POSTs to
+`https://exp.host/--/api/v2/push/send`, and persists every ticket ID/error through a
+compare-and-set settle RPC keyed on `(id, claim_token)` — so a stale/slow worker whose claim was
+already reclaimed by a newer worker cannot overwrite that newer claim's outcome. Transient failures
+get bounded exponential backoff up to `max_attempts`, after which the row becomes terminal
+(`failed_at`). A later pass claims due ticket IDs, fetches receipts, and revokes
+`DeviceNotRegistered` tokens under the same lease/claim-token discipline. Every `db push` / function
+deploy / `cron.schedule` / Vault write is a **separate authorization checkpoint** (D-66, READINESS
+§Verification Carry-Forward).
 
 ## State of the Art
 
@@ -687,7 +725,7 @@ marks delivered, and honors the idempotency key. Every `db push` / function depl
 
 **Missing dependencies with no fallback:** none block phase closure — live push is explicitly behind a
 separate checkpoint (D-66). Phase 5 pgTAP execution is NOT carried forward: the full inherited + Phase 5 suite is a BLOCKING pre-push gate that must pass with no override.
-**Missing dependencies with fallback:** Docker (author-now/execute-later); Expo dev build (deferred UAT).
+**Missing dependencies with fallback:** Docker (author suites now; acquire a Docker-capable or isolated non-production environment and execute the full inherited + Phase 5 pgTAP suite — BLOCKING before the first Phase 5 live push, no carry-forward override); Expo dev build (deferred UAT).
 
 ## Validation Architecture
 
