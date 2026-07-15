@@ -1,9 +1,52 @@
-# Stale Information Scan - 2026-07-09
+# Stale Information Scan - 2026-07-15
 
-Status: HISTORICAL SNAPSHOT. The 2026-07-10 remediation status below is the
-only current portion of this file; every section beginning with "Historical
-Snapshot Body" is preserved evidence from the 2026-07-09 scan and must not be
-read as current execution state.
+## Current Update - Shared Artifact QA Gate Workflow
+
+Trigger: explicit user request to make the Artifact QA Gate permanent for both Codex
+and Antigravity, as both a shared skill and routed workflow contract.
+
+Inspected: `AGENTS.md`, `CODEX.md`, `ANTIGRAVITY.md`, `docs/context-router.md`,
+`docs/agent-harness.md`, both reviewer packet commands, the packet-generator skill,
+the project skill index, active state/recovery files, and the global Codex
+`artifact-qa-gate` Gotta Go reference.
+
+### BLOCKING STALE INFO
+
+- None for the Shared Artifact QA Gate routing work. It is committed as `1c84934`,
+  and the consumed local review queue is cleared.
+
+### UPDATE REQUIRED
+
+- None. Both role guides, the startup router, harness, commands, and packet generator
+  route through the same project skill.
+
+### CURRENT
+
+- `.claude/skills/artifact_qa_gate.md` contains a shared preflight, evidence ladder,
+  saved-artifact/diff verification, stress-boundary workflow, fail-closed rules, and
+  distinct Codex and Antigravity overlays.
+- Reviewer independence remains explicit: same staged bytes and evidence contract,
+  separate runs, separate artifacts, separate conclusions, and no self-approval.
+- The global Codex skill remains valid and routes Gotta Go work into the repository
+  skill; Antigravity receives the repository skill through its role guide and packet.
+- Antigravity also has a validated global `artifact-qa-gate` skill under
+  `~/.gemini/antigravity/skills`, with Gotta Go routing and required Superpowers
+  bootstrap/verification composition. Its imported Superpowers plugin exposes skills
+  and hooks, and the Windows session-start hook emits valid bootstrap context.
+
+### Review Exception
+
+- Codex independently approved the exact staged scope. Antigravity CLI authentication
+  was not used; the user explicitly accepted verified routing behavior instead of a
+  live Antigravity verdict for this infrastructure commit. Commit `1c84934` therefore
+  used a review-hook exception and does not claim Antigravity approval.
+
+---
+
+Status: ACTIVE UPDATE plus historical snapshot. The 2026-07-15 workflow update
+above and the 2026-07-10 remediation status below are the current portions of
+this file; every section beginning with "Historical Snapshot Body" is preserved
+evidence from the 2026-07-09 scan and must not be read as current execution state.
 
 Trigger: Whole-project audit before Phase 5 discussion/planning; Phase 4 transition and Codex harness/model-routing changes.
 Branch: `master` (ahead of `origin/master`; dirty worktree preserved).
