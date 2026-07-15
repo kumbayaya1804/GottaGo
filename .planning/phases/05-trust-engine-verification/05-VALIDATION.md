@@ -40,8 +40,8 @@ created: 2026-07-11
 |-----|----------|-----------|-------------------|-------------|--------|
 | SC1 | `verify_location` validates GPS triple + inserts event | pgTAP | `supabase test db` (`phase5_verify_publish`) | ❌ Wave 0 | ⬜ pending |
 | SC2 | `weight = trust_multiplier × proximity_decay × accuracy_decay` computed correctly | pgTAP | same | ❌ Wave 0 | ⬜ pending |
-| SC3 | pending→published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier, including concurrent race; currently-shadowbanned creator's claim still counts but published location inherits shadowban_status=true (suppressed from public search) and the creator earns no published_contribution trust credit for it (D-69) | pgTAP (2-session) | same | ❌ Wave 0 | ⬜ pending |
-| SC4/SC5 | shadowbanned user's verification → weight 0, no publish | pgTAP | same | ❌ Wave 0 | ⬜ pending |
+| SC3 | pending→published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier; currently-shadowbanned creator's claim still counts but published location inherits shadowban_status=true (suppressed from public search) and the creator earns no published_contribution trust credit for it (D-69) | pgTAP — named two-session races: CREATOR-SHADOWBAN-RACE (session 2 must block, then reflect committed state — not a sequential either/or), DECIDING-VERIFIER-SHADOWBAN-RACE, CURRENT-CALLER-SHADOWBAN-RACE, plus a RECIPROCAL-USER lock-order test across two different submissions with overlapping creator/caller sets (proves no deadlock) | same | ❌ Wave 0 | ⬜ pending |
+| SC4/SC5 | shadowbanned user's verification → weight 0, no publish, including the CURRENT CALLER being shadowbanned CONCURRENTLY mid-call (not just already-shadowbanned before the call starts) | pgTAP — single-session SHADOWBAN-AFTER-EVENT plus two-session CURRENT-CALLER-SHADOWBAN-RACE | same | ❌ Wave 0 | ⬜ pending |
 | SC6 | `trust_events` delta sign matches `action_type` | pgTAP | `phase5_verify_publish` | ❌ Wave 0 | ⬜ pending |
 | D-43 | duplicate verify by same user on same submission rejected/no-op | pgTAP | `phase5_event_model` | ❌ Wave 0 | ⬜ pending |
 | D-57 | atomic publish transaction; rollback on partial failure | pgTAP | `phase5_verify_publish` | ❌ Wave 0 | ⬜ pending |
@@ -64,7 +64,7 @@ created: 2026-07-11
 
 - [ ] `supabase/tests/phase5_event_model.test.sql` — event-model schema evolution, D-43 uniqueness, verification_events lockdown regression
 - [ ] `supabase/tests/phase5_discovery.test.sql` — 500m radius, exclusions (own + already-verified), result cap, no submitter-identity leak
-- [ ] `supabase/tests/phase5_verify_publish.test.sql` — concurrency (2-session race), shadowban-zero, atomicity, rollback, trust delta sign
+- [ ] `supabase/tests/phase5_verify_publish.test.sql` — concurrency: CREATOR-SHADOWBAN-RACE, DECIDING-VERIFIER-SHADOWBAN-RACE, CURRENT-CALLER-SHADOWBAN-RACE (two-session each), and a RECIPROCAL-USER lock-order deadlock test across two submissions with overlapping creator/caller sets; plus shadowban-zero, atomicity, rollback, trust delta sign
 - [ ] `supabase/tests/phase5_confidence.test.sql` — numeric confidence authority, tier derivation, backfill correctness
 - [ ] `supabase/tests/phase5_notifications.test.sql` — outbox idempotency, device-token RLS isolation
 - [ ] `supabase/tests/phase5_lifecycle_jobs.test.sql` — raw-GPS purge, expiry transition, disabled promotion

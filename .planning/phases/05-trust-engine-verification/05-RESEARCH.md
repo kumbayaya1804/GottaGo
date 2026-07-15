@@ -104,7 +104,7 @@ schedule, secret write) each need a fresh user-authorization checkpoint.
 - **D-68:** If push permission was denied or no device token is registered, the user still gets an **in-app fallback signal** — the D-61 progress indicator naturally resolves to a "Published!" state on next view. Push must never be the only way a contributor learns their submission published.
 
 **Post-planning (plan-review) decisions**
-- **D-69:** A submission whose creator is CURRENTLY shadowbanned at the publish decision still counts the creator's implicit claim toward the publish threshold (the verifier's real contribution is preserved and still counts), and the resulting `locations` row inherits `shadowban_status=true` from the creator (reusing the exact suppression mechanism Phase 3's public search RPCs apply via `and shadowban_status = false`), but the creator receives NO `published_contribution` trust credit for the immediately-suppressed row. A non-shadowbanned creator's publish behaves exactly as originally specified. The creator's CURRENT shadowban_status — and every counted verifier's — is read under a genuine `FOR SHARE` lock (never a plain SELECT), with all user-row locks acquired in one ascending `users.id` order after the `submissions` `FOR UPDATE`, so the reads cannot race a concurrent shadowban UPDATE.
+- **D-69:** A submission whose creator is CURRENTLY shadowbanned at the publish decision still counts the creator's implicit claim toward the publish threshold (the verifier's real contribution is preserved and still counts), and the resulting `locations` row inherits `shadowban_status=true` from the creator (reusing the exact suppression mechanism Phase 3's public search RPCs apply via `and shadowban_status = false`), but the creator receives NO `published_contribution` trust credit for the immediately-suppressed row. A non-shadowbanned creator's publish behaves exactly as originally specified. The creator's CURRENT shadowban_status — the current caller's own, and every historical counted verifier's — is read under a genuine `FOR NO KEY UPDATE` lock (never a plain SELECT or a `FOR SHARE` lock needing a later upgrade), with all user-row locks acquired together in ONE ascending `users.id` pass after the `submissions` `FOR UPDATE`, BEFORE any weight is computed or trust effect applied, so the reads cannot race a concurrent shadowban UPDATE.
 
 ### Claude's Discretion
 - Exact uniqueness-constraint mechanism preventing a user from double-counting on the same submission (D-43).
@@ -126,7 +126,7 @@ schedule, secret write) each need a fresh user-authorization checkpoint.
 |----|-------------|------------------|
 | SC1 | `verify_location` RPC validates GPS triple server-side and inserts a verification event | Mirror `submit_location` GPS-validation block (mock/accuracy/freshness) + insert; §Pattern 2, §Code Examples |
 | SC2 | `weight = trust_multiplier × proximity_decay × accuracy_decay` (field is `weight`) | §Pattern 3 (linear decay per D-56), server-computed only |
-| SC3 | Status transitions pending → published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier; a currently-shadowbanned creator's claim still counts but the resulting location inherits shadowban_status=true and is suppressed from public search AND the creator earns no published_contribution trust credit for it (D-69) | §Pattern 5 atomic publish with `FOR UPDATE` row lock (D-57), creator shadowban read under `FOR SHARE` (D-69) |
+| SC3 | Status transitions pending → published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier; a currently-shadowbanned creator's claim still counts but the resulting location inherits shadowban_status=true and is suppressed from public search AND the creator earns no published_contribution trust credit for it (D-69) | §Pattern 5 atomic publish with `FOR UPDATE` row lock (D-57), creator/caller/verifier shadowban read under the single step-5 `FOR NO KEY UPDATE` pass (D-69) |
 | SC4 | Shadowbanned verification accepted (no hint) but `weight = 0`, no publish | §Pattern 2 shadowban-zero; mirror `search_locations_*` shadowban read pattern |
 | SC5 | Tests assert shadowban `weight = 0` does not trigger publish | §Validation Architecture pgTAP map |
 | SC6 | `trust_score` increments via `trust_events` append (`delta` sign matches `action_type`) | §Pattern 6; live `trust_events` schema + TDD sign rule |
@@ -294,7 +294,7 @@ should still add a `checkpoint:human-verify` before install per protocol.*
 
 Data flows raw-telemetry-in / server-computed-out at every stage. The client never supplies
 `weight`, `distance`, or aggregate counts. Trace the primary case: verifier GPS → discovery →
-verify RPC → (2nd nonzero verifier) → atomic publish → outbox → creator notification/fallback. The publish threshold is two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier, per the locked submission_publish_threshold. A currently-shadowbanned creator's claim still counts toward that threshold, but the atomic publish sets the new locations row's shadowban_status from the creator's CURRENT state, read under a `FOR SHARE` lock on the creator's users row so the lookup cannot race a concurrent shadowban UPDATE (D-69): a shadowbanned creator's location still publishes yet is suppressed from public search by the same `shadowban_status = false` filter the Phase 3 read RPCs already apply, and the creator earns no published_contribution trust credit for the suppressed publish.
+verify RPC → (2nd nonzero verifier) → atomic publish → outbox → creator notification/fallback. The publish threshold is two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier, per the locked submission_publish_threshold. A currently-shadowbanned creator's claim still counts toward that threshold, but the atomic publish sets the new locations row's shadowban_status from the creator's CURRENT state, read from the row already locked `FOR NO KEY UPDATE` in the step-5 pass (shared with the current caller's own row and every historical counted verifier's row) so the lookup cannot race a concurrent shadowban UPDATE (D-69): a shadowbanned creator's location still publishes yet is suppressed from public search by the same `shadowban_status = false` filter the Phase 3 read RPCs already apply, and the creator earns no published_contribution trust credit for the suppressed publish.
 
 ### Recommended File / Migration Layout (mirror Phase 4)
 ```
@@ -408,85 +408,32 @@ the D-40 raw-GPS retention decision documented in the migration comment (schema-
 Review Checks" rejects storing raw GPS samples without a retention decision).
 
 ### Pattern 5: Concurrency-safe atomic publish (D-57, row lock)
-**What:** The deciding (second) verifier must serialize lock-validate-count-and-publish so two
-simultaneous verifiers cannot double-publish, race the threshold, or insert an event against a
-target another transaction just published/cancelled out from under them.
-**How:** Inside the `verify_location` transaction, `SELECT ... FOR UPDATE` the pending `submissions`
-row and re-validate status/expiry/ownership BEFORE inserting the verifier's event — locking and
-validating first is what prevents a concurrent caller from writing an event against a submission
-that a parallel transaction is simultaneously publishing or cancelling. Only after the lock is held
-and the target re-validated does the event insert happen, followed by a re-count under the same
-lock. Because a plpgsql function runs in a single implicit transaction, all of
-lock+validate → insert-event → count → publish is atomic; a concurrent verifier blocks on the row
-lock until this commits, then re-reads current state (First-Committer-Wins) [CITED:
-postgresql.org/docs/current/explicit-locking.html]. At the publish decision the creator's CURRENT
-shadowban_status is read under a SEPARATE `SELECT ... FOR SHARE` on the creator's `public.users`
-row (D-69) — the `submissions` FOR UPDATE above locks a row in a DIFFERENT table and provides no
-protection for this lookup; a plain SELECT would be vulnerable to reading a stale pre-shadowban
-value if a concurrent admin shadowban UPDATE commits before this transaction does. Documented lock
-order: `submissions` row FOR UPDATE first, then the creator's `users` row FOR SHARE — any future
-admin/moderation write path must acquire these in the same order to avoid deadlock.
-```sql
--- lock + VALIDATE BEFORE inserting the event (prevents a race against a concurrent
--- publish/cancel of the same target) — see 05-02-PLAN.md Task 3 steps 3-7 for the full sequence.
--- SELECT INTO + FOUND check, NOT a bare PERFORM: a filtered "for update" that matches zero rows
--- (missing/own/expired/non-pending/already-published target) must return the reason-free
--- {accepted:false} result BEFORE any event is inserted — a lock statement alone is not validation.
-select submitter_id into v_submitter_id
-  from public.submissions
-  where id = p_submission_id and status = 'pending' and expires_at > now()
-    and submitter_id <> auth.uid()
-  for update;                                  -- second concurrent verifier waits here
 
-if not found then
-  return jsonb_build_object('accepted', false);       -- missing/own/expired/non-pending — no event, no reason leaked
-end if;
+**SINGLE SOURCE OF TRUTH is `05-02-PLAN.md` Task 3 steps 3, 5–9, mirrored at the invariants level in
+`05-PATTERNS.md` Pattern 5. Do NOT duplicate that transaction's SQL here.**
 
--- ... insert the immutable verification_events row here (weight already computed) ...
+A copyable SQL worked-example for this one safety-critical transaction drifted behind the plan
+across multiple prior review rounds — most recently by continuing to show weight computed before
+any user-row lock and a creator-only lock taken after the count, both superseded by the current
+design. Rather than risk a fourth drift, this section is intentionally invariants-only:
 
--- threshold = 1 (creator's implicit claim) + distinct CURRENTLY-ELIGIBLE non-creator verifiers
--- (D-52: exclude a verifier who is shadowbanned NOW, even if their recorded weight was > 0
--- when they verified — their immutable event is never rewritten, just excluded from this count)
--- LOCK NOTE (authoritative source: 05-02-PLAN.md Task 3 step 7): before this count, FOR SHARE-lock every
--- involved public.users row (creator + all weight>0 non-creator verifiers) in ascending users.id order, so
--- each shadowban_status read below is race-safe against a concurrent admin shadowban UPDATE. A plain
--- lock-free JOIN would read a stale pre-shadowban value — the same bug class fixed on the creator side.
-select 1 + count(distinct ve.user_id) into v_confirmation_count
-  from public.verification_events ve
-  join public.users u on u.id = ve.user_id
-  where ve.submission_id = p_submission_id
-    and ve.user_id <> v_submitter_id             -- use the locked row's submitter, not a second lookup
-    and ve.weight > 0
-    and u.shadowban_status is not true;
+- The deciding call locks the `submissions` row `FOR UPDATE` and re-validates status/expiry/ownership
+  BEFORE inserting the verifier's event (First-Committer-Wins, D-57) [CITED:
+  postgresql.org/docs/current/explicit-locking.html].
+- BEFORE any shadowban status is read or any weight/trust effect is applied, the RPC acquires every
+  involved `public.users` row — the creator, the CURRENT CALLER's own row, and every historical
+  qualifying verifier's row — `FOR NO KEY UPDATE` in ONE ascending-`users.id` pass. This single pass
+  is what makes the caller's own weight computation, the creator's shadowban inheritance, and the
+  eligibility count all race-safe against a concurrent admin shadowban `UPDATE`, and what keeps the
+  RPC deadlock-free against a second `verify_location` call on a different submission whose
+  involved-user set overlaps in reverse order.
+- Trust appends (creator `published_contribution`, verifier `verification_given_nonzero` +
+  `trust_multiplier` ramp) are conditional on that same lock-protected shadowban read, never
+  unconditional (D-48/D-49/D-50/D-69).
+- The exact statement order, lock acquisition point, and variable names are authoritative only in
+  `05-02-PLAN.md` Task 3 — read it directly rather than reconstructing the transaction from this
+  summary.
 
-if v_confirmation_count >= v_publish_threshold then     -- submission_publish_threshold from app_config
-  -- ATOMIC PUBLISH (all in this same transaction):
-  -- fresh creator shadowban lookup -- a real row lock (FOR SHARE), not a plain SELECT snapshot read;
-  -- the submissions FOR UPDATE above does NOT protect this different table (D-69)
-  select shadowban_status into v_creator_shadowban
-    from public.users where id = v_submitter_id for share;
-
-  insert into public.locations (name, coordinates, policy_tag, ..., confidence_value /*numeric, mid-tier start*/,
-                                access_code_confirmed_at, access_instructions /*from pending_access_code*/,
-                                shadowban_status /*inherit creator's CURRENT shadowban_status — D-69*/)
-    select ..., v_creator_shadowban
-      from public.submissions s where s.id = p_submission_id
-    returning id into v_location_id;
-  update public.submissions
-     set status = 'published', location_id = v_location_id, confirmation_count = v_confirmation_count, updated_at = now()
-     where id = p_submission_id;
-  insert into public.tags (location_id, key, value)                 -- copy submission_tags (D-62/63)
-    select v_location_id, st.key, st.value from public.submission_tags st
-    where st.submission_id = p_submission_id;
-  -- append trust_events for creator (published_contribution, D-49/D-50) ONLY WHEN
-  -- v_creator_shadowban is not true -- a currently-shadowbanned creator's suppressed publish earns
-  -- NO published_contribution credit (D-69) -- and for the deciding
-  -- verifier if their event is nonzero-weight (verification_given_nonzero, D-49) — NOT for a
-  -- creator_claim event, which is always weight=0 and never counts (see 05-02 Task 3 step 9),
-  -- ramp the giver's trust_multiplier (D-48), inc users.gps_verified_contribution_count (D-65),
-  -- insert notification_outbox row (idempotent key) — all before COMMIT.
-end if;
-```
 **Idempotency:** guard the publish branch on `status = 'pending'` (re-checked under the lock) so a
 retried/duplicate deciding call is a no-op. The notification outbox uses a unique
 `(submission_id)` / `(location_id, recipient)` key so re-drains don't double-send.
