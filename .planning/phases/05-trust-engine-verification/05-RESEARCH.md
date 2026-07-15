@@ -129,7 +129,7 @@ schedule, secret write) each need a fresh user-authorization checkpoint.
 | SC3 | Status transitions pending → published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier; a currently-shadowbanned creator's claim still counts but the resulting location inherits shadowban_status=true and is suppressed from public search AND the creator earns no published_contribution trust credit for it (D-69) | §Pattern 5 atomic publish with `FOR UPDATE` row lock (D-57), creator/caller/verifier shadowban read under the single step-5 `FOR NO KEY UPDATE` pass (D-69) |
 | SC4 | Shadowbanned verification accepted (no hint) but `weight = 0`, no publish | §Pattern 2 shadowban-zero; mirror `search_locations_*` shadowban read pattern |
 | SC5 | Tests assert shadowban `weight = 0` does not trigger publish | §Validation Architecture pgTAP map |
-| SC6 | `trust_score` increments via `trust_events` append (`delta` sign matches `action_type`) | §Pattern 6; live `trust_events` schema + TDD sign rule |
+| SC6 | `trust_score` increments via `trust_events` append (`delta` sign matches `action_type`) — the RPC itself atomically applies the same delta to `users.trust_score`, clamped 0-9; no separate trigger/helper exists | §Pattern 6; live `trust_events` schema + TDD sign rule; 05-02-PLAN.md Task 3 steps 7b/9 |
 | SC7 | VerifyFlow handles accepted/rejected/denied without leaking rejection reason | §Pattern 7; mirror SubmitFlow generic-error mapping |
 | SC8 | 48-hour auto-promote logic exists as fail-closed stub | D-60; §Pattern 8 disabled stub |
 | SC9 | Push notification to submitter on publish (reward-loop only) | §Notification Pipeline; D-66/D-67 |
@@ -264,13 +264,23 @@ should still add a `checkpoint:human-verify` before install per protocol.*
           ▲  accepted/      │  │  2. reject mock (D-45)/acc<floor   │  │
           │  rejected/      │  │     (D-46) — consume cooldown       │  │
           │  denied (generic│  │  3. FOR UPDATE lock pending row    │  │
-          │  copy, SC7)     │  │  4. compute distance (PostGIS)     │  │
-          │                 │  │  5. weight = mult×prox×acc          │  │
+          │  copy, SC7)     │  │  4. GPS/distance validation        │  │
+          │                 │  │  5. LOCK creator+caller+historical │  │
+          │                 │  │     verifiers FOR NO KEY UPDATE,   │  │
+          │                 │  │     ONE ascending users.id pass —  │  │
+          │                 │  │     BEFORE weight/trust (D-52/D-69)│  │
+          │                 │  │  6. weight=mult×prox×acc, read from│  │
+          │                 │  │     step-5 locked caller row       │  │
           │                 │  │     (shadowban → weight 0, D-38)   │  │
-          │                 │  │  6. insert immutable event         │  │
+          │                 │  │  7. insert immutable event         │  │
           │                 │  │     (uniqueness: one per user/sub) │  │
-          │                 │  │  7. 1(creator)+distinct eligible   │  │
-          │                 │  │  8. if ≥ 2 (threshold) → PUBLISH:  │  │
+          │                 │  │  7b. if weight>0: ramp giver's     │  │
+          │                 │  │      trust_multiplier + append     │  │
+          │                 │  │      trust_events + apply delta to │  │
+          │                 │  │      giver's trust_score (SC6)     │  │
+          │                 │  │  8. 1(creator)+distinct eligible,  │  │
+          │                 │  │     re-checked under step-5 lock   │  │
+          │                 │  │  9. if ≥ 2 (threshold) → PUBLISH:  │  │
           │                 │  │       insert locations,            │  │
           │                 │  │       set submission.location_id/  │  │
           │                 │  │        status='published',         │  │
@@ -278,7 +288,11 @@ should still add a `checkpoint:human-verify` before install per protocol.*
           │                 │  │       carry pending_access_code,   │  │
           │                 │  │       set numeric confidence(mid), │  │
           │                 │  │       set shadowban_status(creator)│  │
-          │                 │  │       append trust_events (D-49),  │  │
+          │                 │  │       (from step-5 locked read),   │  │
+          │                 │  │       append trust_events + apply  │  │
+          │                 │  │        delta to creator's          │  │
+          │                 │  │        trust_score (D-49, only if  │  │
+          │                 │  │        creator not shadowbanned),  │  │
           │                 │  │       inc gps_verified_contribution│  │
           │                 │  │       enqueue notification outbox  │  │
           │                 │  └────────────────────────────────────┘  │
@@ -438,18 +452,25 @@ design. Rather than risk a fourth drift, this section is intentionally invariant
 retried/duplicate deciding call is a no-op. The notification outbox uses a unique
 `(submission_id)` / `(location_id, recipient)` key so re-drains don't double-send.
 
-### Pattern 6: `trust_events` append with sign discipline (D-49, SC6)
+### Pattern 6: `trust_events` append with sign discipline AND atomic score sync (D-49, SC6)
 **What:** Every trust change is an append to `trust_events (user_id, action_type, delta, context_ref)`
-where `delta` sign MUST match `action_type`. Penalties larger than rewards (asymmetric).
+where `delta` sign MUST match `action_type`. Penalties larger than rewards (asymmetric). The append
+alone does NOT move `users.trust_score` — no trigger or helper does this anywhere in the codebase —
+so every writer of `trust_events` MUST, in the SAME transaction, also apply that exact delta to the
+affected user's `trust_score`, clamped to the live 0-9 range (SC6 requires the score to actually
+change, not just the ledger to grow).
 ```sql
 -- Source: docs/schema-contract.md §trust_events (delta integer; sign-must-match rule)
 insert into public.trust_events (user_id, action_type, delta, context_ref)
 values (v_verifier, 'verification_given_nonzero', +1, p_submission_id::text);
+-- MUST be paired with the atomic score application in the same transaction:
+update public.users set trust_score = least(9, greatest(0, trust_score + 1))
+  where id = v_verifier;
 ```
 Draft the full `action_type`/delta table (published contribution, nonzero verification given, upheld
 report −N, shadowban −N, invalid/duplicate submission −N, fraudulent verification −N) for review
 before locking it into the migration. **TDD rule (schema-contract):** all `trust_events` writes must
-assert delta sign matches action_type in pgTAP.
+assert delta sign matches action_type AND the resulting `trust_score` value in pgTAP.
 
 ### Pattern 7: VerifyFlow generic-error mapping (SC7)
 **What:** The client rethrows the RPC error unchanged; the wizard maps ANY rejection to locked
@@ -747,7 +768,7 @@ separate checkpoint (D-66). Phase 5 pgTAP execution is NOT carried forward: the 
 | SC2 | weight = mult×prox×acc computed | pgTAP | same | ❌ Wave 0 |
 | SC3 | pending→published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier (incl. concurrent) | pgTAP (2-session) | same | ❌ Wave 0 |
 | SC4/SC5 | shadowban verify → weight 0, no publish | pgTAP | same | ❌ Wave 0 |
-| SC6 | trust_events delta sign matches action_type | pgTAP | phase5_verify_publish | ❌ Wave 0 |
+| SC6 | trust_events delta sign matches action_type AND the same delta atomically applied to users.trust_score (clamped 0-9) — see 05-VALIDATION.md for the authoritative row | pgTAP | phase5_verify_publish | ❌ Wave 0 |
 | D-43 | duplicate verify by same user rejected/no-op | pgTAP | phase5_event_model | ❌ Wave 0 |
 | D-57 | publish atomic; rollback on partial failure | pgTAP | phase5_verify_publish | ❌ Wave 0 |
 | Pitfall 7 | direct authenticated INSERT still 42501 | pgTAP | phase5_event_model | ❌ Wave 0 |
