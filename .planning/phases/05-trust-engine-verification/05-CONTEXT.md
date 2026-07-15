@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Phase 5 builds the trust/verification engine that turns a Phase-4-staged `submissions` row into a published, publicly-visible `locations` row: a second-user candidate-discovery path, a weighted verification-event model, the atomic two-verification publish transaction, numeric confidence, a private personal-impact stat, and a publication push notification (pipeline built in-phase, live credentials deployed behind a separate checkpoint). Device attestation/fraud-hardening beyond client GPS telemetry, the 48-hour no-flag auto-promote route, and any UI/UX work beyond what's needed to support the above are explicitly out of scope for this phase.
+Phase 5 builds the trust/verification engine that turns a Phase-4-staged `submissions` row into a published `locations` row (publicly visible unless the creator is currently shadowbanned at the publish decision, in which case the row still publishes but inherits `shadowban_status=true` and is suppressed from public search — D-69): a second-user candidate-discovery path, a weighted verification-event model, the atomic two-verification publish transaction, numeric confidence, a private personal-impact stat, and a publication push notification (pipeline built in-phase, live credentials deployed behind a separate checkpoint). Device attestation/fraud-hardening beyond client GPS telemetry, the 48-hour no-flag auto-promote route, and any UI/UX work beyond what's needed to support the above are explicitly out of scope for this phase.
 
 </domain>
 

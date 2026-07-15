@@ -115,29 +115,15 @@ if p_captured_at is null
 ```
 Read shadowban server-side via `auth.uid()` — never a client param (Pitfall 3, mirror family_mode read in phase3_search_rpcs lines 70-73).
 
-**Two trust appends in the publish path (D-48/D-49, distinct axes):**
-```sql
--- On an ACCEPTED weight>0 event (NOT shadowban/weight=0): append verification_given_nonzero for the GIVER
---   (trust_score axis) AND ramp users.trust_multiplier toward 1.0 by trust_multiplier_step (multiplier axis).
--- On publish only: append published_contribution for the CREATOR (D-50).
-```
+**The concurrency-safe deciding-verifier publish + trust appends — SINGLE SOURCE OF TRUTH is `05-02-PLAN.md` Task 3 steps 3 / 7 / 8. Do NOT duplicate that transaction’s SQL here.**
 
-**Concurrency-safe deciding verifier (RESEARCH §Pattern 5 — NEW pattern, no analog):**
-```sql
-select * into v_submission from public.submissions where id = p_submission_id for update;
--- Require pending, unexpired, non-own target before inserting any event.
-select 1 + count(distinct ve.user_id) into v_confirmation_count
-  from public.verification_events ve
-  join public.users u on u.id = ve.user_id      -- D-52: re-check CURRENT shadowban eligibility at decision time
- where ve.submission_id = p_submission_id and ve.weight > 0
-   and u.shadowban_status is not true           -- a user shadowbanned AFTER a genuine nonzero event no longer counts
-   and ve.user_id <> v_submission.submitter_id;
-if v_confirmation_count >= v_publish_threshold then -- creator implicit claim + independent verifier
-                          -- copy submission_tags→tags, carry pending_access_code, trust_events, outbox
-end if;
-```
-> D-52 decision-time eligibility: the qualifying-verifier count MUST JOIN `public.users` and require `shadowban_status is not true` at decision time, NOT rely solely on the `weight>0` recorded at event-insert time. A user can record a genuine nonzero-weight event and then be shadowbanned before the deciding second event arrives; the recorded weight stays immutable (D-52), but the live count must exclude a now-ineligible contributor.
-Idempotency: re-check `status='pending'` under the lock so a retried deciding call is a no-op.
+A copyable SQL worked-example for this one safety-critical transaction drifted behind the plan across multiple prior review rounds (the "PATTERNS.md contradicts PLAN.md" failure that recurred in rounds 4, 5, and again in 7 — each time the duplicated block lagged a plan fix). To stop reintroducing that contradiction, this section keeps ONLY the invariants (the *why*); the exact statements, ordering, and lock modes live in the plan the executor is already reading. That transaction MUST satisfy:
+
+- **First-committer-wins serialization (D-57):** `SELECT ... FOR UPDATE` the pending `submissions` row and re-validate status/expiry/ownership BEFORE inserting the verifier event, so a concurrent deciding verifier blocks on the row lock and re-reads committed state — exactly one `locations` row, never a double publish. Re-check `status = 'pending'` under the lock so a retried deciding call is a no-op.
+- **Decision-time eligibility, lock-protected on BOTH sides (D-52 / D-69):** the qualifying count is `1` (creator’s implicit claim) `+ distinct non-creator verifiers`, where each counted verifier satisfies BOTH the immutable recorded `weight > 0` AND a live `shadowban_status is not true` re-check. That live shadowban read — for the counted verifiers **and** for the creator — is taken under a genuine `FOR SHARE` row lock, never a plain (MVCC-snapshot) `SELECT` / lock-free JOIN that could read a stale pre-shadowban value while an admin shadowban `UPDATE` is in flight. All these user-row locks are acquired in ONE deterministic global order: the `submissions` row `FOR UPDATE` first, then every involved `public.users` row (creator + counted verifiers) `FOR SHARE` in ascending `users.id` order. Any future admin/moderation shadowban write path MUST touch user rows in that same ascending-`users.id` order to stay deadlock-free.
+- **Conditional trust appends — neither is unconditional (D-48 / D-49 / D-50 / D-69):** on publish, the creator’s `published_contribution` append happens ONLY when that `FOR SHARE`-read creator `shadowban_status` is NOT true — a currently-shadowbanned creator’s suppressed publish mints NO creator trust. The deciding verifier’s `verification_given_nonzero` append + `trust_multiplier` ramp happen ONLY for a nonzero-weight (non-shadowban) event.
+- **Shadowban inheritance (D-69):** the new `locations` row’s `shadowban_status` is set from that same `FOR SHARE`-read creator value, reusing the Phase 3 `and shadowban_status = false` public-search suppression — the creator’s claim still counts toward the threshold, but a shadowbanned creator’s location publishes suppressed.
+- **Atomicity (D-57):** locations insert + submission status/location_id + `submission_tags → tags` copy + `pending_access_code` carry + trust appends + `gps_verified_contribution_count` increment + `notification_outbox` enqueue all occur in the one implicit transaction.
 
 **Publish INSERT into locations** — mirror the staged-column list from `submit_location` §1 (submission_staging lines 28-37); those columns were deliberately typed to mirror `locations` for a clean copy.
 

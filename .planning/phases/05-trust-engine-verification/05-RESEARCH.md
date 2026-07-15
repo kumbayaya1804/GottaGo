@@ -103,6 +103,9 @@ schedule, secret write) each need a fresh user-authorization checkpoint.
 - **D-67:** The publication notification goes to the **creator only**, not to verifiers.
 - **D-68:** If push permission was denied or no device token is registered, the user still gets an **in-app fallback signal** — the D-61 progress indicator naturally resolves to a "Published!" state on next view. Push must never be the only way a contributor learns their submission published.
 
+**Post-planning (plan-review) decisions**
+- **D-69:** A submission whose creator is CURRENTLY shadowbanned at the publish decision still counts the creator's implicit claim toward the publish threshold (the verifier's real contribution is preserved and still counts), and the resulting `locations` row inherits `shadowban_status=true` from the creator (reusing the exact suppression mechanism Phase 3's public search RPCs apply via `and shadowban_status = false`), but the creator receives NO `published_contribution` trust credit for the immediately-suppressed row. A non-shadowbanned creator's publish behaves exactly as originally specified. The creator's CURRENT shadowban_status — and every counted verifier's — is read under a genuine `FOR SHARE` lock (never a plain SELECT), with all user-row locks acquired in one ascending `users.id` order after the `submissions` `FOR UPDATE`, so the reads cannot race a concurrent shadowban UPDATE.
+
 ### Claude's Discretion
 - Exact uniqueness-constraint mechanism preventing a user from double-counting on the same submission (D-43).
 - Exact `trust_score` action_type/delta table values (D-49) — Claude drafts, presented for review before being locked into a migration.
@@ -444,6 +447,10 @@ end if;
 -- threshold = 1 (creator's implicit claim) + distinct CURRENTLY-ELIGIBLE non-creator verifiers
 -- (D-52: exclude a verifier who is shadowbanned NOW, even if their recorded weight was > 0
 -- when they verified — their immutable event is never rewritten, just excluded from this count)
+-- LOCK NOTE (authoritative source: 05-02-PLAN.md Task 3 step 7): before this count, FOR SHARE-lock every
+-- involved public.users row (creator + all weight>0 non-creator verifiers) in ascending users.id order, so
+-- each shadowban_status read below is race-safe against a concurrent admin shadowban UPDATE. A plain
+-- lock-free JOIN would read a stale pre-shadowban value — the same bug class fixed on the creator side.
 select 1 + count(distinct ve.user_id) into v_confirmation_count
   from public.verification_events ve
   join public.users u on u.id = ve.user_id
@@ -855,7 +862,7 @@ separate checkpoint (D-66). Phase 5 pgTAP execution is NOT carried forward: the 
 - `supabase/tests/phase4_submit.test.sql` — pgTAP conventions (role-switching, generic-error asserts, RLS denial)
 - `app/src/features/submit/{submitLocation.ts,useGpsSample.ts}`, `profile/profileStats.ts` — client RPC wrapper + GPS-capture idioms
 - `docs/schema-contract.md`, `docs/SYSTEM_MAP.md` — live schema authority (2026-07-10/11)
-- `05-CONTEXT.md` (D-35…D-68), `05-READINESS.md` (8 gaps + plan split), `ROADMAP.md` §Phase 5
+- `05-CONTEXT.md` (D-35…D-69), `05-READINESS.md` (8 gaps + plan split), `ROADMAP.md` §Phase 5
 - `app/package.json` — verified versions
 
 ### Secondary (MEDIUM confidence — current docs)
