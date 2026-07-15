@@ -8,6 +8,8 @@ Status: active, intentionally lean. This file is auto-loaded by Claude Code, so 
 2. Read `docs/context-router.md`.
 3. Read `.planning/STATE.md`.
 4. If recovering after compaction or a new terminal session, read `.beads/context/execution-state.md` if present.
+5. Invoke `superpowers:using-superpowers` and the task-relevant Superpowers skills.
+6. For artifact work, load `.claude/skills/artifact_qa_gate.md` and apply the shared core.
 
 After that, load only the context tier selected by `docs/context-router.md`. Do not read the full roster, product spec, schema contract, roadmap, stale scan, Codex guide, or Antigravity guide unless the router makes that file relevant to the current task.
 
@@ -27,8 +29,10 @@ For file-changing work, keep `.claude/review-queue.txt` current. For code or beh
 Claude writes packets. The user runs reviewers.
 
 - `/antigravity-review` writes `.claude/antigravity-prompt-latest.md`.
-- The user runs `agy` or `antigravity` with a short prompt pointing at that file and saves the verdict to `.claude/antigravity-review-latest.md`.
+- The packet includes `### Required Skills`: the shared Artifact QA Gate, Antigravity overlay, Superpowers bootstrap, completion verification, and task-relevant domain/process skills.
+- The user runs `agy` or `antigravity` with Gemini 3.5 Flash (High), points it at that file, and saves the verdict to `.claude/antigravity-review-latest.md`.
 - `/codex-prompt` writes `.claude/codex-prompt-latest.md`.
+- The packet includes `### Required Skills`: the shared Artifact QA Gate, Codex overlay, and task-relevant skills available in the Codex harness.
 - The user runs `codex exec` with a short prompt pointing at that file and saves the verdict to `.claude/codex-review-latest.md`.
 
 Do not invoke Antigravity or Codex directly from Claude unless the user explicitly overrides this rule. Do not inline full packet contents into a command line.
@@ -41,6 +45,8 @@ Use the relevant Superpowers skills before task actions. In this project, that u
 - `superpowers:brainstorming` for behavior or workflow design.
 - `superpowers:systematic-debugging` before investigating failures.
 - `superpowers:test-driven-development` before non-trivial app behavior changes.
+- `superpowers:writing-skills` for skill creation or revision.
+- `superpowers:receiving-code-review` before applying reviewer findings.
 - `superpowers:verification-before-completion` before claiming work is complete.
 
 TDD Guard is active for app source work. Do not bypass hooks without explicit user approval and a recorded reason.

@@ -1,7 +1,7 @@
 # Agent Harness
 
 Status: active project contract.
-Last reviewed: 2026-07-04.
+Last reviewed: 2026-07-11.
 
 This document defines how Claude, Antigravity, Codex, and GSD coordinate on Gotta Go. It focuses on handoff artifacts, review gates, permissions, and failure handling. Context selection is defined in `docs/context-router.md`.
 
@@ -31,6 +31,12 @@ This document defines how Claude, Antigravity, Codex, and GSD coordinate on Gott
 8. Codex orchestration is an explicit contingency.
    When the human explicitly assigns orchestration to Codex, including during a Claude availability or rate-limit interruption, GPT-5.6 Sol may temporarily own GSD-compatible planning, scoped implementation, verification, packet preparation, and finding resolution. Terra and Luna may receive bounded delegated tasks under `docs/codex-model-routing.md`. This does not let the implementing Sol session self-approve or replace Antigravity and the separate Codex review run.
 
+9. Artifact QA is a shared permanent gate.
+   For artifact creation, modification, review, debugging, finalization, and handoff-state changes, load `.claude/skills/artifact_qa_gate.md`. Codex and Antigravity apply the same shared evidence core plus their distinct role overlays. The shared skill standardizes proof without merging reviewer roles or verdicts.
+
+10. Superpowers and Artifact QA compose.
+    When Superpowers is installed, invoke `superpowers:using-superpowers` before task actions, then the task-relevant process skills. Artifact QA defines what evidence is required; Superpowers defines how the task is performed. Antigravity always applies `superpowers:verification-before-completion` before an approval claim. Packets declare `### Required Skills`; verdicts declare `### Skills Applied`.
+
 ## Current Reviewer Execution Model
 
 Claude does not invoke reviewer CLIs by default.
@@ -58,13 +64,14 @@ Artifacts do not replace inspecting actual files from disk.
 3. Claude verifies locally and records commands, results, and blockers.
 4. Claude ensures `.claude/review-queue.txt` matches current changed files.
 5. Claude stages the exact queue, inspects the staged diff, and computes the staged `scope_hash`.
-6. Claude runs `/antigravity-review` to generate the Antigravity packet.
-7. User runs Antigravity and saves the verdict artifact with the same `scope_hash`.
-8. Claude runs `/codex-prompt` to generate the Codex packet.
-9. User runs Codex and saves the verdict artifact with the same `scope_hash`.
-10. Claude resolves all BLOCK and REQUEST CHANGES findings.
-11. Affected files re-enter the queue; changed bytes are re-staged, re-fingerprinted, and reviewers re-review.
-12. Commit only after both reviewers APPROVE and relevant stale-info findings are resolved or explicitly deferred.
+6. Claude loads `.claude/skills/artifact_qa_gate.md` and includes its shared contract, target reviewer overlay, and a task-specific `### Required Skills` section in each packet.
+7. Claude runs `/antigravity-review` to generate the Antigravity packet.
+8. User runs Antigravity on Gemini 3.5 Flash (High); Antigravity invokes Superpowers, applies the shared gate plus Antigravity overlay, and saves a verdict with `### Skills Applied` and the same `scope_hash`.
+9. Claude runs `/codex-prompt` to generate the Codex packet.
+10. User runs Codex, applies the shared gate plus Codex overlay, and saves the verdict artifact with the same `scope_hash`.
+11. Claude resolves all BLOCK and REQUEST CHANGES findings.
+12. Affected files re-enter the queue; changed bytes are re-staged, re-fingerprinted, and reviewers re-review.
+13. Commit only after both reviewers APPROVE and relevant stale-info findings are resolved or explicitly deferred.
 
 ## Scope Rules
 
@@ -92,6 +99,8 @@ Every packet includes:
 Use context tiers:
 
 - Tier 0: always include queue, diff, verification, role summary, verdict format, and runtime/mock audit instructions.
+- Tier 0 also includes the shared artifact-QA contract and the target reviewer's role overlay from `.claude/skills/artifact_qa_gate.md`.
+- Tier 0 includes `### Required Skills`; Antigravity always lists `superpowers:using-superpowers` and `superpowers:verification-before-completion`, plus task-relevant process/domain skills.
 - Tier 1: include boundary-specific excerpts from product, schema, harness, stale-info, CODEX, or ANTIGRAVITY docs.
 - Tier 2: include full source docs only when the doc itself is in scope or an excerpt would be misleading.
 

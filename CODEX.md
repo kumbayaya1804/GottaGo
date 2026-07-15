@@ -26,16 +26,30 @@ codex exec --sandbox workspace-write "You are Codex reviewing Gotta Go. Read .cl
 For every review:
 
 1. Read `.claude/codex-prompt-latest.md`; if missing, stop and report missing scope.
-2. Inspect queued files from disk. The packet is input, not proof.
-3. Trace nearest callers, callees, providers, route guards, hooks, RPCs, policies, migrations, lifecycle effects, and tests/mocks.
-4. Compare mocks with production behavior, especially auth, routing, Supabase, GPS, RLS, network, and parent layouts.
-5. Run practical verification when available.
-6. Put findings first with exact `file:line` references and required fixes.
-7. Do not approve uninspected code or unverifiable safety claims.
+2. Read `.claude/skills/artifact_qa_gate.md`; apply its shared core and **Codex Overlay**.
+3. Inspect queued files from disk. The packet is input, not proof.
+4. Trace nearest callers, callees, providers, route guards, hooks, RPCs, policies, migrations, lifecycle effects, and tests/mocks.
+5. Compare mocks with production behavior, especially auth, routing, Supabase, GPS, RLS, network, and parent layouts.
+6. Run practical verification at the risk-appropriate evidence level.
+7. Put findings first with exact `file:line` references and required fixes.
+8. Do not approve uninspected code or unverifiable safety claims.
 
 ## Context Loading
 
 Use `docs/context-router.md` before loading broad context. Read `docs/agent-harness.md` for workflow, review-gate, prompt, artifact, command, or agent-instruction changes. Read `docs/stale-info-scan.md` when reviewing docs, prompts, planning, dependency, schema, generated-type, launch, or workflow drift.
+
+### Routed Artifact QA
+
+`.claude/skills/artifact_qa_gate.md` is mandatory for Codex artifact work and every
+Codex review. Apply the shared preflight, evidence ladder, saved-artifact readback,
+diff inspection, verification, stress-boundary, and fail-closed rules, then apply the
+Codex-specific implementation/security/privacy/test overlay. This routed skill is the
+project-local permanent contract; the global Codex `artifact-qa-gate` skill may add
+generic tooling guidance but does not replace the project overlay.
+
+When Codex is the authorized implementer or contingency orchestrator, the same gate
+applies to implementation, but that session cannot produce the independent Codex
+approval required by the review gate.
 
 ## Review Priorities
 
@@ -119,6 +133,9 @@ scope_hash: sha256:<exact packet fingerprint>
 
 ### Reviewed Queue
 - List every queued file inspected for this verdict.
+
+### Skills Applied
+- List the shared gate, Codex overlay, and task-relevant skills actually used.
 
 ### Findings
 - [CRITICAL/MAJOR/MINOR] file:line - Description, impact, and required fix.

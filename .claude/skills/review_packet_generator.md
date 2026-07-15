@@ -9,6 +9,7 @@ Generate lean, evidence-rich Antigravity and Codex packets. Packets must let rev
 - `.claude/review-queue.txt`
 - staged index for every queued path (`git add -A -- <queued paths>`)
 - `docs/context-router.md`
+- `.claude/skills/artifact_qa_gate.md`
 - `git status --short`
 - `git diff HEAD -- <queued files>`
 - queued file contents or exact diffs
@@ -25,6 +26,8 @@ Include:
 - git status and queued-file diff
 - verification commands and outcomes
 - required verdict format
+- shared Artifact QA Gate contract and the target reviewer's overlay
+- `### Required Skills` with the shared gate, target overlay, and only the process/domain skills whose triggers match the queue
 - Runtime Boundary And Mock Audit
 - full queued files or exact diff hunks
 
@@ -86,8 +89,24 @@ Every non-trivial packet includes:
 
 Auth, routing, GPS, Supabase writes, RLS-sensitive reads, trust/shadowban logic, and async UI flows require event-ordering and failure-path review.
 
+## Required Skills Contract
+
+Every Antigravity packet requires:
+
+- `.claude/skills/artifact_qa_gate.md` shared core and `Antigravity Overlay`;
+- `superpowers:using-superpowers`;
+- `superpowers:verification-before-completion`;
+- task-relevant Superpowers skills selected by trigger;
+- task-relevant project skills such as `postgis_optimizer.md`, `rls_security_guard.md`, or `trust_engine_validator.md` when their boundary is touched.
+
+Every Codex packet requires `.claude/skills/artifact_qa_gate.md`, the `Codex Overlay`,
+and task-relevant skills actually available to Codex. Do not claim unavailable skills.
+Every verdict includes `### Skills Applied`; an unavailable required skill is a named
+verification gap, not an implied invocation.
+
 ## Rules
 
+- Route every Antigravity and Codex packet through `.claude/skills/artifact_qa_gate.md`; include only the shared core and target reviewer overlay, never the other reviewer's conclusions.
 - Prefer excerpts, diffs, and dependency chains over full-doc dumps.
 - Do not include secrets, tokens, private `.env` values, service-role keys, or precise user location data.
 - Do not reuse a verdict if its packet manifest, queue, or diff is stale.

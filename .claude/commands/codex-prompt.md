@@ -5,7 +5,7 @@ Generate `.claude/codex-prompt-latest.md` for the files in `.claude/review-queue
 ## Steps
 
 1. Read `.claude/review-queue.txt`. If missing or empty, report that there is nothing to review and stop.
-2. Read `docs/context-router.md` and `.claude/skills/review_packet_generator.md`.
+2. Read `docs/context-router.md`, `.claude/skills/artifact_qa_gate.md`, `.claude/skills/review_packet_generator.md`, and `CODEX.md`.
 3. Collect Tier 0 context:
    - stage the exact queue, including deletions, and inspect `git diff --cached`
    - run `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`
@@ -15,6 +15,8 @@ Generate `.claude/codex-prompt-latest.md` for the files in `.claude/review-queue
    - full queued files or explicit diffs
    - verification evidence and blockers
    - Runtime Boundary And Mock Audit
+   - shared Artifact QA Gate contract plus the Codex overlay
+   - `### Required Skills` naming `.claude/skills/artifact_qa_gate.md`, the `Codex Overlay`, and task-relevant skills available in the Codex harness
    - Codex verdict format from `CODEX.md`, including `### Reviewed Queue`
 4. Add Tier 1 excerpts only when the queued files require them:
    - product/user-flow excerpts for emergency UX or product guarantees
@@ -56,6 +58,8 @@ After writing the packet, report:
 - selected context tier
 - exact command for the user to run
 - reminder that Codex must inspect files from disk and include `Runtime Boundary Check`
+- reminder that Codex must apply `.claude/skills/artifact_qa_gate.md` shared core plus its Codex overlay
+- reminder that the verdict must include `### Skills Applied`
 - reminder that Codex must list every inspected queue file under `### Reviewed Queue`
 
 ## Rules

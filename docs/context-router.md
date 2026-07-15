@@ -13,6 +13,16 @@ Keep review quality high while avoiding default full-document dumps. Start from 
 - `.metaswarm/project-profile.json`
 - `.beads/context/execution-state.md` when recovering, resuming, or checking current phase state
 
+For any artifact creation, change, review, debugging, finalization, or handoff-state
+update, also read `.claude/skills/artifact_qa_gate.md` and apply the current role's
+overlay. Skip it only for read-only questions that create no artifact or review claim.
+
+When Superpowers is installed, start with `superpowers:using-superpowers`, then invoke
+only the skills whose trigger matches the task. The shared Artifact QA Gate remains
+mandatory for artifact work and composes with those process skills; it does not replace
+them. Every review packet names its required skills, and every verdict names the skills
+actually applied.
+
 Read `CLAUDE.md` only when operating in Claude Code and it was not already auto-loaded. Read `AGENTS_ROSTER.md` only when editing agent roles.
 
 ## Never Default To Full Reads
@@ -82,6 +92,8 @@ Do not load every prior phase. Prefer summaries, explicit dependencies, and rece
 
 Read:
 - `.claude/review-queue.txt`.
+- `.claude/skills/artifact_qa_gate.md` (shared core plus the target reviewer's overlay).
+- The target packet's `### Required Skills`, including task-relevant Superpowers and project domain skills.
 - `git status --short`.
 - `git diff HEAD -- <queued files>`.
 - Full queued files.

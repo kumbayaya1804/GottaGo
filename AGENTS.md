@@ -7,7 +7,9 @@ Status: active, intentionally short. This file is auto-loaded by Codex and may b
 1. Read this file.
 2. Read `docs/context-router.md`.
 3. Use the router to choose the smallest task-appropriate context set.
-4. Load full source docs only when the router says the whole document is directly relevant.
+4. When Superpowers is installed, invoke `superpowers:using-superpowers` and each task-relevant Superpowers skill before acting.
+5. For artifact creation, modification, review, or finalization, load `.claude/skills/artifact_qa_gate.md` and apply the role-specific overlay.
+6. Load full source docs only when the router says the whole document is directly relevant.
 
 Do not start by loading `SPEC.md`, `docs/schema-contract.md`, `AGENTS_ROSTER.md`, `CODEX.md`, `ANTIGRAVITY.md`, `.planning/PROJECT.md`, or `.planning/ROADMAP.md` in full. Those are source documents, not default startup context.
 
@@ -23,6 +25,12 @@ Claude does not self-approve. Non-trivial code, workflow, schema, security, priv
 ## Current Review Workflow
 
 Claude prepares review artifacts. The user runs the reviewer CLIs.
+
+Both reviewers apply the shared `.claude/skills/artifact_qa_gate.md` core to the exact
+same staged bytes. Codex applies the Codex overlay; Antigravity applies the Antigravity
+overlay. Antigravity also invokes `superpowers:using-superpowers`, the task-relevant
+Superpowers skills, and `superpowers:verification-before-completion` before its verdict.
+Their runs, evidence, artifacts, and verdicts remain independent.
 
 1. Claude verifies the task locally and ensures `.claude/review-queue.txt` lists the changed files for the current task.
 2. Claude runs `/antigravity-review` to write `.claude/antigravity-prompt-latest.md`.

@@ -86,6 +86,16 @@ function artifactScopeHash(content) {
   return match ? match[1].toLowerCase() : null;
 }
 
+function artifactVerdicts(content) {
+  const verdicts = [];
+  const pattern = /^\s*(?:\*\*)?VERDICT:\s*(APPROVE|REQUEST CHANGES|BLOCK)(?:\*\*)?\s*$/gim;
+  let match;
+  while ((match = pattern.exec(content)) !== null) {
+    verdicts.push(match[1].toUpperCase());
+  }
+  return verdicts;
+}
+
 const queueFile = path.join('.claude', 'review-queue.txt');
 const queueEntries = readLines(queueFile);
 const queue = new Set(queueEntries);
@@ -150,29 +160,46 @@ if (queuedStagedFiles.length > 0) {
     {
       file: path.join('.claude', 'antigravity-prompt-latest.md'),
       label: 'Antigravity prompt packet',
-      headings: ['Runtime Boundary And Mock Audit', 'Claim And State Audit'],
-      requiredText: ['review-manifest', 'reviewer: antigravity'],
+      headings: ['Required Skills', 'Runtime Boundary And Mock Audit', 'Claim And State Audit'],
+      requiredText: [
+        'review-manifest',
+        'reviewer: antigravity',
+        '.claude/skills/artifact_qa_gate.md',
+        'Antigravity Overlay',
+        'superpowers:using-superpowers',
+        'superpowers:verification-before-completion',
+      ],
       verdict: false,
     },
     {
       file: path.join('.claude', 'codex-prompt-latest.md'),
       label: 'Codex prompt packet',
-      headings: ['Runtime Boundary And Mock Audit'],
-      requiredText: ['review-manifest', 'reviewer: codex'],
+      headings: ['Required Skills', 'Runtime Boundary And Mock Audit'],
+      requiredText: [
+        'review-manifest',
+        'reviewer: codex',
+        '.claude/skills/artifact_qa_gate.md',
+        'Codex Overlay',
+      ],
       verdict: false,
     },
     {
       file: path.join('.claude', 'antigravity-review-latest.md'),
       label: 'Antigravity review verdict',
-      headings: ['Runtime Boundary Check', 'Claim And State Audit'],
-      requiredText: ['VERDICT: APPROVE'],
+      headings: ['Skills Applied', 'Runtime Boundary Check', 'Claim And State Audit'],
+      requiredText: [
+        '.claude/skills/artifact_qa_gate.md',
+        'Antigravity Overlay',
+        'superpowers:using-superpowers',
+        'superpowers:verification-before-completion',
+      ],
       verdict: true,
     },
     {
       file: path.join('.claude', 'codex-review-latest.md'),
       label: 'Codex review verdict',
-      headings: ['Runtime Boundary Check'],
-      requiredText: ['VERDICT: APPROVE'],
+      headings: ['Skills Applied', 'Runtime Boundary Check'],
+      requiredText: ['.claude/skills/artifact_qa_gate.md', 'Codex Overlay'],
       verdict: true,
     },
   ];
@@ -206,6 +233,26 @@ if (queuedStagedFiles.length > 0) {
           '.'
       );
       failed = true;
+    }
+
+    if (req.verdict) {
+      const verdicts = artifactVerdicts(content);
+      if (verdicts.length === 0) {
+        console.error(
+          'BLOCKED: ' + req.label + ' (' + req.file + ') is missing one valid verdict declaration.'
+        );
+        failed = true;
+      } else if (verdicts.length > 1) {
+        console.error(
+          'BLOCKED: ' + req.label + ' (' + req.file + ') contains multiple verdict declarations: ' + verdicts.join(', ') + '.'
+        );
+        failed = true;
+      } else if (verdicts[0] !== 'APPROVE') {
+        console.error(
+          'BLOCKED: ' + req.label + ' (' + req.file + ') declares verdict ' + verdicts[0] + ', not APPROVE.'
+        );
+        failed = true;
+      }
     }
 
     for (const heading of req.headings) {
@@ -244,7 +291,7 @@ if (queuedStagedFiles.length > 0) {
 if (failed) {
   console.error('');
   console.error('Regenerate reviewer packets and verdicts for the current .claude/review-queue.txt scope.');
-  console.error('Prompt packets must include a review-manifest and the current staged scope_hash. Verdicts must be APPROVE, repeat that scope_hash, and mention the staged queued files.');
+  console.error('Prompt packets must include a review-manifest, Required Skills, and the current staged scope_hash. Verdicts must be APPROVE, repeat that scope_hash, identify Skills Applied, and mention the staged queued files.');
   console.error('');
   process.exit(1);
 }

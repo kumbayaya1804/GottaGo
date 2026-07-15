@@ -5,7 +5,7 @@ Generate `.claude/antigravity-prompt-latest.md` for the files in `.claude/review
 ## Steps
 
 1. Read `.claude/review-queue.txt`. If missing or empty, report that there is nothing to review and stop.
-2. Read `docs/context-router.md`, `.claude/skills/review_packet_generator.md`, and `ANTIGRAVITY.md`. Carry Antigravity's adversarial-review discipline and approval gates into the packet; do not copy only the verdict headings.
+2. Read `docs/context-router.md`, `.claude/skills/artifact_qa_gate.md`, `.claude/skills/review_packet_generator.md`, and `ANTIGRAVITY.md`. Carry the shared artifact-QA core, Antigravity overlay, adversarial-review discipline, and approval gates into the packet; do not copy only the verdict headings.
 3. Collect Tier 0 context:
    - stage the exact queue, including deletions, and inspect `git diff --cached`
    - run `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`
@@ -15,6 +15,12 @@ Generate `.claude/antigravity-prompt-latest.md` for the files in `.claude/review
    - full queued files or explicit diffs
    - verification evidence and blockers
    - Runtime Boundary And Mock Audit
+   - shared Artifact QA Gate contract plus the Antigravity overlay
+   - `### Required Skills` containing:
+     - `.claude/skills/artifact_qa_gate.md` shared core and `Antigravity Overlay`
+     - `superpowers:using-superpowers`
+     - `superpowers:verification-before-completion`
+     - only the additional Superpowers and project domain skills whose triggers match this queue
    - Antigravity verdict format from `ANTIGRAVITY.md`, including `### Reviewed Queue` and `### Claim And State Audit`
 4. Add Tier 1 excerpts for PostGIS, RLS, trust, confidence, Supabase, migrations, schema, harness, or stale-info behavior only when touched by the queue.
    - For a changed/recreated `SECURITY DEFINER` RPC, include its complete body, return shape, current generated table/RPC types, relevant later schema migrations, execute grants/revokes, and current callers. Ask for an explicit return/filter/ACL assessment; "unchanged" or "no caller" is not a safety conclusion.
@@ -38,7 +44,7 @@ context_tier: 0|1|2
 8. Tell the user to run Antigravity, for example:
 
 ```powershell
-agy -p "You are Antigravity reviewing Gotta Go. Read .claude/antigravity-prompt-latest.md in full, treat its claims as untrusted until verified against every queued file, audit the complete resulting security and active-state surface, write your verdict to .claude/antigravity-review-latest.md, and print the same verdict."
+agy --model "Gemini 3.5 Flash (High)" -p "You are Antigravity reviewing Gotta Go. Invoke superpowers:using-superpowers, read .claude/antigravity-prompt-latest.md in full, apply every skill in its Required Skills section, treat its claims as untrusted until verified against every queued file, audit the complete resulting security and active-state surface, write your verdict to .claude/antigravity-review-latest.md, and print the same verdict."
 ```
 
 If `agy` is unavailable but `antigravity` is available, use the same short prompt with `antigravity -p`.
@@ -55,6 +61,9 @@ After writing the packet, report:
 - selected context tier
 - exact command for the user to run
 - reminder that Antigravity must inspect files from disk and include `Runtime Boundary Check`
+- reminder that Antigravity must apply `.claude/skills/artifact_qa_gate.md` shared core plus its Antigravity overlay
+- reminder that Antigravity must invoke the packet's Superpowers and project skills, including `superpowers:verification-before-completion`
+- reminder that the verdict must include `### Skills Applied`
 - reminder that Antigravity must include `Claim And State Audit` and apply every pre-APPROVE gate from `ANTIGRAVITY.md`
 - reminder that Antigravity must list every inspected queue file under `### Reviewed Queue`
 

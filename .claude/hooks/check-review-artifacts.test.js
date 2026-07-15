@@ -47,27 +47,57 @@ function getStagedScopeHash(root) {
 
 function writeApprovalArtifacts(root, queuedFile, options = {}) {
   const includeClaimAudit = options.includeClaimAudit !== false;
+  const includeQaSkillRouting = options.includeQaSkillRouting !== false;
+  const includeSuperpowersRouting = options.includeSuperpowersRouting !== false;
+  const antigravityVerdict = options.antigravityVerdict || 'APPROVE';
+  const codexVerdict = options.codexVerdict || 'APPROVE';
+  const incidentalApprovalText = options.incidentalApprovalText
+    ? '\n### Approved\nThe required approval token is VERDICT: APPROVE.\n'
+    : '\n';
+  const conflictingCodexVerdict = options.conflictingCodexVerdict
+    ? '\n**VERDICT: REQUEST CHANGES**\n'
+    : '\n';
   const claimHeading = includeClaimAudit ? '\n### Claim And State Audit\nconfirmed\n' : '\n';
+  const antigravitySkills = includeQaSkillRouting
+    ? `\n### Required Skills\n- .claude/skills/artifact_qa_gate.md\n- Antigravity Overlay\n${
+        includeSuperpowersRouting
+          ? '- superpowers:using-superpowers\n- superpowers:verification-before-completion\n'
+          : ''
+      }`
+    : '\n';
+  const codexSkills = includeQaSkillRouting
+    ? '\n### Required Skills\n- .claude/skills/artifact_qa_gate.md\n- Codex Overlay\n'
+    : '\n';
+  const antigravityApplied = includeQaSkillRouting
+    ? `\n### Skills Applied\n- .claude/skills/artifact_qa_gate.md\n- Antigravity Overlay\n${
+        includeSuperpowersRouting
+          ? '- superpowers:using-superpowers\n- superpowers:verification-before-completion\n'
+          : ''
+      }`
+    : '\n';
+  const codexApplied = includeQaSkillRouting
+    ? '\n### Skills Applied\n- .claude/skills/artifact_qa_gate.md\n- Codex Overlay\n'
+    : '\n';
   const scopeHash = getStagedScopeHash(root);
   write(
     root,
     '.claude/antigravity-prompt-latest.md',
-    `review-manifest\nreviewer: antigravity\nscope_hash: ${scopeHash}\n${queuedFile}\n### Runtime Boundary And Mock Audit\nchecked\n${claimHeading}`
+    `review-manifest\nreviewer: antigravity\nscope_hash: ${scopeHash}\n${queuedFile}\n${antigravitySkills}\n### Runtime Boundary And Mock Audit\nchecked\n${claimHeading}`
   );
   write(
     root,
     '.claude/codex-prompt-latest.md',
-    `review-manifest\nreviewer: codex\nscope_hash: ${scopeHash}\n${queuedFile}\n### Runtime Boundary And Mock Audit\nchecked\n`
+    `review-manifest\nreviewer: codex\nscope_hash: ${scopeHash}\n${queuedFile}\n${codexSkills}\n### Runtime Boundary And Mock Audit\nchecked\n`
   );
   write(
     root,
     '.claude/antigravity-review-latest.md',
-    `VERDICT: APPROVE\nscope_hash: ${scopeHash}\n${queuedFile}\n### Runtime Boundary Check\nchecked\n${claimHeading}`
+    `**VERDICT: ${antigravityVerdict}**\nscope_hash: ${scopeHash}\n${queuedFile}\n${antigravityApplied}\n### Runtime Boundary Check\nchecked\n${claimHeading}${incidentalApprovalText}`
   );
   write(
     root,
     '.claude/codex-review-latest.md',
-    `VERDICT: APPROVE\nscope_hash: ${scopeHash}\n${queuedFile}\n### Runtime Boundary Check\nchecked\n`
+    `**VERDICT: ${codexVerdict}**\n${conflictingCodexVerdict}scope_hash: ${scopeHash}\n${queuedFile}\n${codexApplied}\n### Runtime Boundary Check\nchecked\n${incidentalApprovalText}`
   );
 }
 
@@ -136,6 +166,83 @@ test('requires Claim And State Audit in Antigravity packet and verdict', () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Antigravity prompt packet.*Claim And State Audit/);
   assert.match(result.stderr, /Antigravity review verdict.*Claim And State Audit/);
+});
+
+test('requires the shared Artifact QA Gate and role overlay in both reviewer packets and verdicts', () => {
+  const root = createRepo();
+  const queuedFile = 'app/src/example.ts';
+  write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+  stage(root, queuedFile);
+  writeApprovalArtifacts(root, queuedFile, { includeQaSkillRouting: false });
+
+  const result = runHook(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Antigravity prompt packet.*Required Skills/);
+  assert.match(result.stderr, /Codex prompt packet.*Required Skills/);
+  assert.match(result.stderr, /Antigravity review verdict.*Skills Applied/);
+  assert.match(result.stderr, /Codex review verdict.*Skills Applied/);
+});
+
+test('requires Antigravity to invoke the Superpowers bootstrap and verification skill', () => {
+  const root = createRepo();
+  const queuedFile = 'app/src/example.ts';
+  write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+  stage(root, queuedFile);
+  writeApprovalArtifacts(root, queuedFile, { includeSuperpowersRouting: false });
+
+  const result = runHook(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Antigravity prompt packet.*superpowers:using-superpowers/);
+  assert.match(result.stderr, /Antigravity prompt packet.*superpowers:verification-before-completion/);
+  assert.match(result.stderr, /Antigravity review verdict.*superpowers:using-superpowers/);
+  assert.match(result.stderr, /Antigravity review verdict.*superpowers:verification-before-completion/);
+});
+
+test('blocks REQUEST CHANGES even when unrelated prose contains the approval token', () => {
+  const root = createRepo();
+  const queuedFile = 'app/src/example.ts';
+  write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+  stage(root, queuedFile);
+  writeApprovalArtifacts(root, queuedFile, {
+    codexVerdict: 'REQUEST CHANGES',
+    incidentalApprovalText: true,
+  });
+
+  const result = runHook(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Codex review verdict.*declares verdict REQUEST CHANGES/);
+});
+
+test('blocks BLOCK even when unrelated prose contains the approval token', () => {
+  const root = createRepo();
+  const queuedFile = 'app/src/example.ts';
+  write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+  stage(root, queuedFile);
+  writeApprovalArtifacts(root, queuedFile, {
+    antigravityVerdict: 'BLOCK',
+    incidentalApprovalText: true,
+  });
+
+  const result = runHook(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Antigravity review verdict.*declares verdict BLOCK/);
+});
+
+test('blocks duplicate or conflicting verdict declarations', () => {
+  const root = createRepo();
+  const queuedFile = 'app/src/example.ts';
+  write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+  stage(root, queuedFile);
+  writeApprovalArtifacts(root, queuedFile, { conflictingCodexVerdict: true });
+
+  const result = runHook(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Codex review verdict.*multiple verdict declarations/);
 });
 
 test('passes when queued scope and all required artifacts agree', () => {

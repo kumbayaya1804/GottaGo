@@ -16,7 +16,7 @@ Current workflow:
 Example:
 
 ```powershell
-agy -p "You are Antigravity reviewing Gotta Go. Read .claude/antigravity-prompt-latest.md in full, treat its claims as untrusted until verified against every queued file, audit the complete resulting security and active-state surface, write your verdict to .claude/antigravity-review-latest.md, and print the same verdict."
+agy --model "Gemini 3.5 Flash (High)" -p "You are Antigravity reviewing Gotta Go. Invoke superpowers:using-superpowers, read .claude/antigravity-prompt-latest.md in full, apply every skill in its Required Skills section, treat its claims as untrusted until verified against every queued file, audit the complete resulting security and active-state surface, write your verdict to .claude/antigravity-review-latest.md, and print the same verdict."
 ```
 
 Never require the full packet to be passed inline on the command line.
@@ -24,6 +24,8 @@ Never require the full packet to be passed inline on the command line.
 ## Quick Start
 
 - Read `.claude/antigravity-prompt-latest.md`; if missing, stop and report missing scope.
+- Invoke `superpowers:using-superpowers`, then every available skill named under the packet's `### Required Skills`.
+- Read `.claude/skills/artifact_qa_gate.md`; apply its shared core and **Antigravity Overlay**.
 - Read `.claude/review-queue.txt`, verify it matches the packet manifest, and inspect every queued file from disk.
 - Treat packet descriptions, claimed root causes, live-verification summaries, and statements such as "unchanged," "legacy," or "no callers" as claims to test, not facts to inherit.
 - Validate database context against live schema names (`locations`, `users`, `coordinates`) when schema behavior is involved.
@@ -31,6 +33,7 @@ Never require the full packet to be passed inline on the command line.
 - Check whether tests mock live database, auth, routing, GPS, RLS, or trust-engine behavior.
 - Reconcile active state, handoff, and `*-latest` documents with the implementation and verification evidence in the same queue.
 - Execute the 60-second user advocacy check.
+- Invoke `superpowers:verification-before-completion` before an APPROVE or completion claim.
 - Output findings first with exact `file:line` references.
 - Never approve uninspected code or developer intent alone.
 
@@ -47,6 +50,26 @@ Never require the full packet to be passed inline on the command line.
 ## Context Loading
 
 Use `docs/context-router.md` before loading broad context. Read `docs/agent-harness.md` for workflow, review-gate, prompt, artifact, command, or agent-instruction changes. Read `docs/schema-contract.md`, `SPEC.md`, or planning docs only when the packet scope requires them. Migrations are schema authority; generated types reveal the current row/RPC surface and must be reconciled with migrations when return shapes or sensitive columns are involved.
+
+### Routed Artifact QA
+
+`.claude/skills/artifact_qa_gate.md` is mandatory for Antigravity artifact work and
+every Antigravity review. Apply the shared preflight, evidence ladder, saved-artifact
+readback, diff inspection, verification, stress-boundary, and fail-closed rules, then
+apply the Antigravity-specific architecture/PostGIS/RLS/trust/migration overlay.
+
+The shared core does not import Codex's conclusions, collapse reviewer roles, or permit
+one approval to substitute for the other. Antigravity independently rebuilds evidence
+from the staged files and authority sources.
+
+### Gemini 3.5 Flash Review Posture
+
+Use Gemini 3.5 Flash (High) for Gotta Go architecture, security, concurrency, RLS,
+PostGIS, trust, and migration reviews when the model is available. Use its long-context
+and agentic capabilities to trace authority and failure paths across files, but keep
+the packet lean and evidence-led. Model confidence, prior approvals, and long-context
+recall are not proof: inspect current disk bytes, run checks, and fail closed at missing
+runtime, permission, live-state, or independent-review boundaries.
 
 Treat `.planning/STATE.md`, `.beads/context/execution-state.md`, any handoff they name, and `*-latest` scan artifacts as active operational documents unless they carry an explicit historical/superseded banner. Dated audit reports may remain historical, but active recovery documents must agree with the batch's actual completion, verification, review, and deployment state.
 
@@ -111,6 +134,9 @@ scope_hash: sha256:<exact packet fingerprint>
 ### Reviewed Queue
 - List every queued file inspected for this verdict.
 
+### Skills Applied
+- List the shared gate, Antigravity overlay, Superpowers skills, and project skills actually used.
+
 ### Issues
 - [CRITICAL/MAJOR/MINOR] file:line - Description, impact, and required fix.
 
@@ -141,6 +167,7 @@ If the packet restricts verdict tokens, use the strongest allowed non-approval v
 Before APPROVE, confirm all of the following:
 
 - Every queued file was semantically inspected, not merely named.
+- Every available skill listed in the packet's `### Required Skills` was invoked and named under `### Skills Applied`; unavailable skills are reported as verification gaps.
 - Every material packet claim was checked against repository evidence.
 - Every changed/recreated definer RPC has an explicit return/filter/ACL assessment.
 - Active state and handoff artifacts agree with actual work and verification.
