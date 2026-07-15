@@ -261,16 +261,17 @@ should still add a `checkpoint:human-verify` before install per protocol.*
   │  VerifyFlow   │─ verify │  ┌────────────────────────────────────┐  │
   │  (RN screen)  ├────────►│  │ verify_location(sub_id, gps triple)│  │
   └───────────────┘         │  │  1. auth + cooldown (D-36)         │  │
-          ▲  accepted/      │  │  2. reject mock (D-45)/acc<floor   │  │
-          │  rejected/      │  │     (D-46) — consume cooldown       │  │
-          │  denied (generic│  │  3. FOR UPDATE lock pending row    │  │
-          │  copy, SC7)     │  │  4. GPS/distance validation        │  │
-          │                 │  │  5. LOCK creator+caller+historical │  │
+          ▲  accepted/      │  │  2. FOR UPDATE lock pending row    │  │
+          │  rejected/      │  │  3. GPS validation: reject mock    │  │
+          │  denied (generic│  │     (D-45)/acc<floor(D-46)/stale-  │  │
+          │  copy, SC7)     │  │     future — preserves cooldown    │  │
+          │                 │  │  4. distance gate, THEN LOCK       │  │
+          │                 │  │     creator+caller+historical      │  │
           │                 │  │     verifiers FOR NO KEY UPDATE,   │  │
           │                 │  │     ONE ascending users.id pass —  │  │
           │                 │  │     BEFORE weight/trust (D-52/D-69)│  │
           │                 │  │  6. weight=mult×prox×acc, read from│  │
-          │                 │  │     step-5 locked caller row       │  │
+          │                 │  │     step-4 locked caller row       │  │
           │                 │  │     (shadowban → weight 0, D-38)   │  │
           │                 │  │  7. insert immutable event         │  │
           │                 │  │     (uniqueness: one per user/sub) │  │
@@ -279,7 +280,7 @@ should still add a `checkpoint:human-verify` before install per protocol.*
           │                 │  │      trust_events + apply delta to │  │
           │                 │  │      giver's trust_score (SC6)     │  │
           │                 │  │  8. 1(creator)+distinct eligible,  │  │
-          │                 │  │     re-checked under step-5 lock   │  │
+          │                 │  │     re-checked under step-4 lock   │  │
           │                 │  │  9. if ≥ 2 (threshold) → PUBLISH:  │  │
           │                 │  │       insert locations,            │  │
           │                 │  │       set submission.location_id/  │  │
@@ -288,7 +289,7 @@ should still add a `checkpoint:human-verify` before install per protocol.*
           │                 │  │       carry pending_access_code,   │  │
           │                 │  │       set numeric confidence(mid), │  │
           │                 │  │       set shadowban_status(creator)│  │
-          │                 │  │       (from step-5 locked read),   │  │
+          │                 │  │       (from step-4 locked read),   │  │
           │                 │  │       append trust_events + apply  │  │
           │                 │  │        delta to creator's          │  │
           │                 │  │        trust_score (D-49, only if  │  │
@@ -305,6 +306,10 @@ should still add a `checkpoint:human-verify` before install per protocol.*
   └───────────────┘ fallback│  └────────────────────────────────────┘  │
                             └─────────────────────────────────────────┘
 ```
+
+The diagram's step numbers are its own compressed illustration (step 4 merges the distance gate
+into the lock pass) and are NOT the same numbering as `05-02-PLAN.md` Task 3, which is the sole
+authoritative source for the exact step sequence, lock modes, and variable names.
 
 Data flows raw-telemetry-in / server-computed-out at every stage. The client never supplies
 `weight`, `distance`, or aggregate counts. Trace the primary case: verifier GPS → discovery →
@@ -463,14 +468,24 @@ change, not just the ledger to grow).
 -- Source: docs/schema-contract.md §trust_events (delta integer; sign-must-match rule)
 insert into public.trust_events (user_id, action_type, delta, context_ref)
 values (v_verifier, 'verification_given_nonzero', +1, p_submission_id::text);
--- MUST be paired with the atomic score application in the same transaction:
-update public.users set trust_score = least(9, greatest(0, trust_score + 1))
+-- MUST be paired with the atomic score application in the same transaction (coalesce required,
+-- see below — trust_score is nullable and a bare `trust_score + delta` on NULL silently zeroes it):
+update public.users set trust_score = least(9, greatest(0, coalesce(trust_score, 9) + 1))
+  where id = v_verifier;
+```
+`users.trust_score` is NULLABLE live (`integer default 9`, no `NOT NULL`). PostgreSQL's `GREATEST`/
+`LEAST` silently ignore NULL arguments, so a bare `trust_score + delta` on a NULL row collapses to
+exactly `0` under a naive clamp — the opposite of a synchronized increment. Always anchor on
+`coalesce(trust_score, 9)`:
+```sql
+update public.users set trust_score = least(9, greatest(0, coalesce(trust_score, 9) + 1))
   where id = v_verifier;
 ```
 Draft the full `action_type`/delta table (published contribution, nonzero verification given, upheld
 report −N, shadowban −N, invalid/duplicate submission −N, fraudulent verification −N) for review
 before locking it into the migration. **TDD rule (schema-contract):** all `trust_events` writes must
-assert delta sign matches action_type AND the resulting `trust_score` value in pgTAP.
+assert delta sign matches action_type AND the resulting `trust_score` value in pgTAP, including the
+NULL-input case.
 
 ### Pattern 7: VerifyFlow generic-error mapping (SC7)
 **What:** The client rethrows the RPC error unchanged; the wizard maps ANY rejection to locked
@@ -784,7 +799,7 @@ separate checkpoint (D-66). Phase 5 pgTAP execution is NOT carried forward: the 
 ### Wave 0 Gaps
 - [ ] `supabase/tests/phase5_event_model.test.sql` — SC(event), D-43, lockdown regression
 - [ ] `supabase/tests/phase5_discovery.test.sql` — 500m, exclusions, cap, privacy
-- [ ] `supabase/tests/phase5_verify_publish.test.sql` — concurrency, shadowban-zero, atomicity, rollback, trust sign
+- [ ] `supabase/tests/phase5_verify_publish.test.sql` — concurrency, shadowban-zero, atomicity, rollback, trust sign + trust_score sync — see 05-VALIDATION.md Wave 0 Requirements for the authoritative, current list of named two-session races
 - [ ] `supabase/tests/phase5_confidence.test.sql` — numeric authority + tier derivation + backfill
 - [ ] `supabase/tests/phase5_notifications.test.sql` — outbox idempotency, RLS token isolation
 - [ ] `app/src/features/verify/__tests__/` — VerifyFlow states, generic-error mapping
