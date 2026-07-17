@@ -774,15 +774,15 @@ separate checkpoint (D-66). Phase 5 pgTAP execution is NOT carried forward: the 
 | DB test dir | `supabase/tests/*.test.sql` |
 | Client test dir | `app/src/features/**/__tests__/` |
 | Quick run (client) | `cd app && npx jest <path>` |
-| Full DB suite | `supabase test db` |
+| Full DB suite | `supabase test db --local` for every file EXCEPT `phase5_verify_publish.test.sql`, which MUST run via `node supabase/scripts/run-isolated-db-suite.js` (see 05-VALIDATION.md) |
 
 ### Phase Requirements → Test Map
 | Req | Behavior | Test Type | Command | File Exists? |
 |-----|----------|-----------|---------|-------------|
-| SC1 | verify_location validates GPS triple + inserts event | pgTAP | `supabase test db` (phase5_verify_publish) | ❌ Wave 0 |
-| SC2 | weight = mult×prox×acc computed | pgTAP | same | ❌ Wave 0 |
-| SC3 | pending→published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier (incl. concurrent) | pgTAP (2-session) | same | ❌ Wave 0 |
-| SC4/SC5 | shadowban verify → weight 0, no publish | pgTAP | same | ❌ Wave 0 |
+| SC1 | verify_location validates GPS triple + inserts event | pgTAP | `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql` — REQUIRED for this file, never plain `supabase test db`; see 05-VALIDATION.md Test Infrastructure for why | ❌ Wave 0 |
+| SC2 | weight = mult×prox×acc computed | pgTAP | same isolated-runner command | ❌ Wave 0 |
+| SC3 | pending→published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier (incl. concurrent) | pgTAP (2-session) | same isolated-runner command | ❌ Wave 0 |
+| SC4/SC5 | shadowban verify → weight 0, no publish | pgTAP | same isolated-runner command | ❌ Wave 0 |
 | SC6 | trust_events delta sign matches action_type AND the same delta atomically applied to users.trust_score (clamped 0-9) — see 05-VALIDATION.md for the authoritative row | pgTAP | phase5_verify_publish | ❌ Wave 0 |
 | D-43 | duplicate verify by same user rejected/no-op | pgTAP | phase5_event_model | ❌ Wave 0 |
 | D-57 | publish atomic; rollback on partial failure | pgTAP | phase5_verify_publish | ❌ Wave 0 |
@@ -793,7 +793,7 @@ separate checkpoint (D-66). Phase 5 pgTAP execution is NOT carried forward: the 
 
 ### Sampling Rate
 - **Per task commit:** relevant jest file or targeted pgTAP suite.
-- **Per wave merge:** full jest + `supabase test db` (when Docker available).
+- **Per wave merge:** full jest + `supabase test db --local` for every suite file EXCEPT `phase5_verify_publish.test.sql`, which MUST run via `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql` instead (when Docker available) — see 05-VALIDATION.md Test Infrastructure.
 - **Phase gate:** the full inherited + Phase 5 pgTAP suite must be green before the first Phase 5 live push and `/gsd:verify-work`; Phase 5 may NOT reuse the Phase 3/4 unexecuted-pgTAP carry-forward override — execution on a Docker-capable or isolated non-production environment is required, not deferred.
 
 ### Wave 0 Gaps

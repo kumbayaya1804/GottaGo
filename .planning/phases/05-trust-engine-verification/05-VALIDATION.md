@@ -20,7 +20,7 @@ created: 2026-07-11
 | **Framework** | pgTAP via `supabase test db` (DB) + jest `^29.7.0` (client) |
 | **Config file** | `supabase/tests/*.test.sql` (DB) / `app/jest.config.js` (client) |
 | **Quick run command** | `cd app && npx jest <path>` |
-| **Full suite command** | `supabase test db` on a Docker-capable or isolated non-production environment + `cd app && npm test` |
+| **Full suite command** | `supabase test db --local` on a Docker-capable environment + `cd app && npm test`, EXCEPT `phase5_verify_publish.test.sql` (contains HISTORICAL-VERIFIER-SHADOWBAN-RACE, which commits a real global `app_config` mutation) — that file MUST run via `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql`, which provisions a disposable, single-use instance and ALWAYS ATTEMPTS teardown after any start attempt (not only after success); a teardown that itself fails is reported as a hard failure with the workdir preserved for manual recovery — it is not silently downgraded to a warning, but it is also not an unconditional guarantee that no external resource can ever remain. A shared/persistent Docker environment is not an acceptable substitute for that one file |
 | **Estimated runtime** | ~30-60s client suite; DB duration measured on first required execution |
 
 ---
@@ -28,7 +28,7 @@ created: 2026-07-11
 ## Sampling Rate
 
 - **After every task commit:** Run the relevant jest file or targeted pgTAP suite file.
-- **After every plan wave:** Run full jest suite (`cd app && npm test`) + `supabase test db` when Docker is available.
+- **After every plan wave:** Run full jest suite (`cd app && npm test`) + `supabase test db --local` when Docker is available (use `node supabase/scripts/run-isolated-db-suite.js` for any run that includes `phase5_verify_publish.test.sql`).
 - **Before the first Phase 5 live push and `/gsd:verify-work`:** the full inherited + Phase 5 pgTAP suite must be green. Phase 5 may not reuse the Phase 3/4 unexecuted-pgTAP override because trust/publish concurrency depends on it.
 - **Max feedback latency:** ~60s (jest suite).
 
@@ -38,18 +38,18 @@ created: 2026-07-11
 
 | Req | Behavior | Test Type | Automated Command | File Exists | Status |
 |-----|----------|-----------|-------------------|-------------|--------|
-| SC1 | `verify_location` validates GPS triple + inserts event | pgTAP | `supabase test db` (`phase5_verify_publish`) | ❌ Wave 0 | ⬜ pending |
-| SC2 | `weight = trust_multiplier × proximity_decay × accuracy_decay` computed correctly | pgTAP | same | ❌ Wave 0 | ⬜ pending |
-| SC3 | pending→published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier; currently-shadowbanned creator's claim still counts but published location inherits shadowban_status=true (suppressed from public search) and the creator earns no published_contribution trust credit for it (D-69) | pgTAP — named two-session races: CREATOR-SHADOWBAN-RACE (session 2 must block, then reflect committed state — not a sequential either/or), HISTORICAL-VERIFIER-SHADOWBAN-RACE (threshold=3 REAL COMMITTED change, not a savepoint — invisible-to-other-sessions overrides cannot work — run serialized/isolated from the rest of the suite with a guaranteed restore to threshold=2), CURRENT-CALLER-SHADOWBAN-RACE, plus a RECIPROCAL-USER lock-order test across two different submissions with overlapping creator/caller sets (proves no deadlock) | same | ❌ Wave 0 | ⬜ pending |
-| SC4/SC5 | shadowbanned user's verification → weight 0, no publish, including the CURRENT CALLER being shadowbanned CONCURRENTLY mid-call (not just already-shadowbanned before the call starts) | pgTAP — single-session SHADOWBAN-AFTER-EVENT plus two-session CURRENT-CALLER-SHADOWBAN-RACE | same | ❌ Wave 0 | ⬜ pending |
-| SC6 | `trust_events` delta sign matches `action_type`, AND that same delta is atomically applied to the affected user's `users.trust_score` via `least(9, greatest(0, coalesce(trust_score, 9) + delta))` in the same transaction — the ledger append alone is not sufficient; no trigger/helper exists elsewhere to sync them; `trust_score` is nullable live, so the NULL-input case (must apply the delta against a coalesced 9, never silently zero) is asserted explicitly, alongside ordinary and both-saturation-boundary cases | pgTAP | `phase5_verify_publish` | ❌ Wave 0 | ⬜ pending |
-| D-43 | duplicate verify by same user on same submission rejected/no-op | pgTAP | `phase5_event_model` | ❌ Wave 0 | ⬜ pending |
-| D-57 | atomic publish transaction; rollback on partial failure | pgTAP | `phase5_verify_publish` | ❌ Wave 0 | ⬜ pending |
-| D-36 | discovery + verification cooldowns are server-enforced and rejected verify attempts persist the timestamp | pgTAP | `phase5_discovery`, `phase5_verify_publish` | ❌ Wave 0 | ⬜ pending |
-| D-40/D-41 | timed raw-GPS purge preserves derived evidence; account deletion purges immediately | pgTAP | `phase5_event_model`, `phase5_lifecycle_jobs` | ❌ Wave 0 | ⬜ pending |
-| D-59 | past-due pending submissions become expired with events retained | pgTAP | `phase5_lifecycle_jobs` | ❌ Wave 0 | ⬜ pending |
-| D-62/D-64 | selected accessibility tags stage/copy; grandfathered missing tags stay untagged | pgTAP + jest | `phase5_verify_publish`, submit tests | ❌ Wave 0 | ⬜ pending |
-| D-68 | unseen publication is owner-scoped, renderable after pending row disappears, and acknowledgeable | pgTAP + jest | `phase5_verify_publish`, submission-publication tests | ❌ Wave 0 | ⬜ pending |
+| SC1 | `verify_location` validates GPS triple + inserts event | pgTAP | `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql` (REQUIRED for this file — never plain `supabase test db`, see Test Infrastructure above) | ❌ Wave 0 | ⬜ pending |
+| SC2 | `weight = trust_multiplier × proximity_decay × accuracy_decay` computed correctly | pgTAP | same isolated-runner command | ❌ Wave 0 | ⬜ pending |
+| SC3 | pending→published after two identities total: the creator's implicit claim (which counts even when the creator is currently shadowbanned — see D-69) plus one currently-eligible independent verifier; currently-shadowbanned creator's claim still counts but published location inherits shadowban_status=true (suppressed from public search) and the creator earns no published_contribution trust credit for it (D-69) | pgTAP — named two-session races: CREATOR-SHADOWBAN-RACE (session 2 must block, then reflect committed state — not a sequential either/or), HISTORICAL-VERIFIER-SHADOWBAN-RACE (threshold=3 REAL COMMITTED change, not a savepoint — invisible-to-other-sessions overrides cannot work — run via `node supabase/scripts/run-isolated-db-suite.js`, which provisions a disposable single-use instance so this committed mutation can never race a concurrent invocation), CURRENT-CALLER-SHADOWBAN-RACE, plus a RECIPROCAL-USER lock-order test across two different submissions with overlapping creator/caller sets (proves no deadlock) | same isolated-runner command | ❌ Wave 0 | ⬜ pending |
+| SC4/SC5 | shadowbanned user's verification → weight 0, no publish, including the CURRENT CALLER being shadowbanned CONCURRENTLY mid-call (not just already-shadowbanned before the call starts) | pgTAP — single-session SHADOWBAN-AFTER-EVENT plus two-session CURRENT-CALLER-SHADOWBAN-RACE | same isolated-runner command | ❌ Wave 0 | ⬜ pending |
+| SC6 | `trust_events` delta sign matches `action_type`, AND that same delta is atomically applied to the affected user's `users.trust_score` via `least(9, greatest(0, coalesce(trust_score, 9) + delta))` in the same transaction — the ledger append alone is not sufficient; no trigger/helper exists elsewhere to sync them; `trust_score` is nullable live, so the NULL-input case (must apply the delta against a coalesced 9, never silently zero) is asserted explicitly, alongside ordinary and both-saturation-boundary cases | pgTAP | `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql` | ❌ Wave 0 | ⬜ pending |
+| D-43 | duplicate verify by same user on same submission rejected/no-op | pgTAP | `supabase test db --local supabase/tests/phase5_event_model.test.sql` | ❌ Wave 0 | ⬜ pending |
+| D-57 | atomic publish transaction; rollback on partial failure | pgTAP | `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql` | ❌ Wave 0 | ⬜ pending |
+| D-36 | discovery + verification cooldowns are server-enforced and rejected verify attempts persist the timestamp | pgTAP | `supabase test db --local supabase/tests/phase5_discovery.test.sql` PLUS `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql` | ❌ Wave 0 | ⬜ pending |
+| D-40/D-41 | timed raw-GPS purge preserves derived evidence; account deletion purges immediately | pgTAP | `supabase test db --local supabase/tests/phase5_event_model.test.sql supabase/tests/phase5_lifecycle_jobs.test.sql` | ❌ Wave 0 | ⬜ pending |
+| D-59 | past-due pending submissions become expired with events retained | pgTAP | `supabase test db --local supabase/tests/phase5_lifecycle_jobs.test.sql` | ❌ Wave 0 | ⬜ pending |
+| D-62/D-64 | selected accessibility tags stage/copy; grandfathered missing tags stay untagged | pgTAP + jest | `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql`, submit tests | ❌ Wave 0 | ⬜ pending |
+| D-68 | unseen publication is owner-scoped, renderable after pending row disappears, and acknowledgeable | pgTAP + jest | `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql`, submission-publication tests | ❌ Wave 0 | ⬜ pending |
 | — | direct authenticated INSERT into `verification_events` still rejected (42501) | pgTAP | `phase5_event_model` | ❌ Wave 0 | ⬜ pending |
 | SC7 | VerifyFlow accepted/rejected/denied states, generic rejection copy (no reason leaked) | jest | `cd app && npx jest features/verify` | ❌ Wave 0 | ⬜ pending |
 | SC10 | private, non-comparative impact stat renders correctly | jest | `cd app && npx jest features/profile` | ❌ Wave 0 | ⬜ pending |
@@ -80,7 +80,7 @@ created: 2026-07-11
 |----------|-------------|------------|-------------------|
 | Live GPS-based verification walkthrough | SC1/SC7 | Requires physical device + real location fix | Discover within 500m, move to within the 100m server verification gate, run accepted/rejected/denied/offline/retry paths, and confirm generic server-rejection copy |
 | Push notification delivery end-to-end | SC9 | Requires live Expo push credentials — explicitly deferred behind a separate deployment checkpoint (D-66) | After live credentials are authorized and deployed, submit → verify → confirm push arrives on a physical device |
-| pgTAP suite execution | SC1-SC6 and trust/lifecycle/RLS/concurrency boundaries | Current workstation lacks Docker | BLOCK the first Phase 5 live push until `supabase test db` passes on a Docker-capable or isolated non-production environment |
+| pgTAP suite execution | SC1-SC6 and trust/lifecycle/RLS/concurrency boundaries | Current workstation lacks Docker | BLOCK the first Phase 5 live push until `supabase test db --local` passes on a Docker-capable environment for every suite file, AND `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql` passes specifically for the file containing HISTORICAL-VERIFIER-SHADOWBAN-RACE (a plain shared-environment run is not sufficient for that file) |
 
 ---
 
@@ -90,7 +90,7 @@ created: 2026-07-11
 - [ ] Sampling continuity: no 3 consecutive tasks without automated verify
 - [ ] Wave 0 covers all MISSING references
 - [ ] No watch-mode flags
-- [ ] Feedback latency < 60s (client); the full inherited + Phase 5 pgTAP DB suite is a BLOCKING pre-push gate (no carry-forward override — see line 32) that must pass on a Docker-capable or isolated non-production environment before any Phase 5 live push
+- [ ] Feedback latency < 60s (client); the full inherited + Phase 5 pgTAP DB suite is a BLOCKING pre-push gate (no carry-forward override — see line 32) that must pass on a Docker-capable environment before any Phase 5 live push, with `phase5_verify_publish.test.sql` specifically run via `node supabase/scripts/run-isolated-db-suite.js` rather than plain `supabase test db`
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
