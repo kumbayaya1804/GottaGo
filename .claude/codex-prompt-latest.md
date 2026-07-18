@@ -1,178 +1,87 @@
 <!-- review-manifest
 reviewer: codex
-generated_at: 2026-07-10T23:07:26Z
-scope_hash: sha256:87b008d0fdf36f710ce3f1e2659a52a3a420dea7ba36a7e7f4f9abbcb39cb66d
+generated_at: 2026-07-18T18:00:00Z
+scope_hash: sha256:a8fe306667b6a6bab8d3f6e2ebcf84c37f6b23f796961ffa13172316cbcff9fe
 queue:
-  - .beads/context/execution-state.md
-  - .planning/CLAUDE-HANDOFF-2026-07-09.md
-  - .planning/ROADMAP.md
-  - .planning/STATE.md
-  - .planning/project-audit-2026-07-09.md
-  - .planning/stale-info-scan-latest.md
-  - .planning/phases/05-trust-engine-verification/05-READINESS.md
-  - .planning/phases/05-trust-engine-verification/05-DISCUSSION-DRAFT.md
-  - ANTIGRAVITY.md
-  - .claude/commands/codex-prompt.md
-  - .claude/commands/antigravity-review.md
-  - .claude/commands/review-gate.md
-  - .claude/hooks/check-review-artifacts.js
-  - .claude/hooks/check-review-artifacts.test.js
-  - .claude/skills/review_packet_generator.md
-  - app/src/app/(components)/LocationDetailSheet.tsx
-  - app/src/app/(tabs)/index.tsx
-  - app/src/app/(tabs)/nearby.tsx
-  - app/src/app/__tests__/(components)/LocationDetailSheet.test.tsx
-  - app/src/app/__tests__/(components)/LocationDetailSheet.updateCode.test.tsx
-  - app/src/app/__tests__/(tabs)/MapScreen.test.tsx
-  - app/src/app/__tests__/(tabs)/nearby.test.tsx
-  - app/src/app/__tests__/(tabs)/submit.test.tsx
-  - app/src/features/locations/__tests__/useCurrentPosition.test.ts
-  - app/src/features/locations/__tests__/useDeniedLocationState.test.ts
-  - app/src/features/locations/__tests__/useFamilyMode.test.ts
-  - app/src/features/locations/__tests__/useLocationDetail.test.ts
-  - app/src/features/locations/__tests__/useLocationsBbox.test.ts
-  - app/src/features/locations/__tests__/useNearby.test.ts
-  - app/src/features/locations/types.ts
-  - app/src/features/locations/useCurrentPosition.ts
-  - app/src/features/locations/useDeniedLocationState.ts
-  - app/src/features/locations/useLocationDetail.ts
-  - app/src/features/locations/useLocationsBbox.ts
-  - app/src/features/locations/useNearby.ts
-  - app/src/features/submit/__tests__/useMyPendingSubmissions.test.ts
-  - app/src/features/submit/useMyPendingSubmissions.ts
-  - app/src/lib/database.types.ts
-  - docs/agent-harness.md
-  - docs/context-router.md
-  - docs/codex-model-routing.md
-  - CODEX.md
-  - supabase/migrations/20260710000000_phase5prep_drop_verification_events_direct_insert.sql
-  - supabase/migrations/20260710010000_phase3_postgis_schema_qualification_fix.sql
-  - supabase/migrations/20260710020000_drop_legacy_radius_rpcs.sql
-  - supabase/migrations/20260710030000_drop_legacy_radius_rpcs_all_overloads.sql
-  - supabase/migrations/20260710121534_verification_events_client_write_acl_lockdown.sql
-  - supabase/tests/phase5prep_verification_events_lockdown.test.sql
-  - supabase/tests/phase5prep_legacy_radius_rpcs_dropped.test.sql
-diff_base: HEAD (30272ceda89700a863771fe211d8ff85ebe72d30)
+  - supabase/migrations/20260717120000_phase5_event_model.sql
+  - supabase/migrations/20260717120100_phase5_discovery_rpc.sql
+  - supabase/tests/phase5_event_model.test.sql
+  - supabase/tests/phase5_discovery.test.sql
+  - supabase/tests/phase5_discovery_cooldown_race.test.sql
+  - app/src/features/submit/withdrawSubmission.ts
+diff_base: HEAD
 context_tier: 1
 -->
 
-# P0 Remediation Batch - Fresh Review Round 8 (post Round 7 fingerprint fix)
+# Codex Review — Phase 5 Plan 01 (Event Model + Discovery), Round 5 (Rebuttal, No Code Change)
 
-## Goal
+## Task Goal
 
-Your own prior verdict, saved at `.claude/codex-review-latest.md`, is **Round 7: REQUEST CHANGES** with one MAJOR review-gate freshness finding. This packet describes the deterministic staged-scope fingerprint fix and retains the already-closed Round 6 findings for context. Verify all 49 staged paths from disk/index and do not reuse any prior verdict text.
+This round is different from every prior round: **no file in the queue has changed.** The `scope_hash` is identical to round 4 (`sha256:a8fe306667...`) because none of the 6 queued bytes changed. Antigravity's round-4 verdict was APPROVE and remains current against this unchanged scope_hash. Your round-4 verdict was REQUEST CHANGES with exactly one MAJOR finding, and this packet is a technical rebuttal of that specific finding, not a new set of fixes.
 
-No prior verdict is current. Round 7's fingerprint finding is the active baseline; Round 6's findings below are retained only to confirm they remain closed.
+**Your round-4 finding, verbatim:** "The bounded polling loop repeatedly reads `pg_stat_activity` inside one `DO` transaction without calling `pg_stat_clear_snapshot()`. PostgreSQL 17 caches the current-activity snapshot after its first access in a transaction and can continue returning that same snapshot until transaction end... [PostgreSQL 17 monitoring documentation] explicitly documents the transaction-scoped caching behavior and `pg_stat_clear_snapshot()` remedy."
 
-## Round 7 Finding And Claimed Fix
+**Before implementing this, the same PostgreSQL 17 monitoring documentation page you cited was fetched and read directly.** It draws an explicit distinction between two categories of statistics:
 
-Round 7 found that filename-only artifact checks did not bind APPROVE verdicts to the exact bytes being committed. The staged 49-file queue is now frozen at:
+1. **Cumulative statistics views** (`pg_stat_user_tables`, `pg_stat_database`, etc.) — these ARE subject to the transaction-scoped snapshot cache, and `pg_stat_clear_snapshot()` IS the documented remedy for these.
+2. **Dynamic/current-activity information** (`pg_stat_activity`'s per-backend live fields, collected via `track_activities`) — the doc's own words: **"However, current-query information collected by `track_activities` is always up-to-date."** This is stated as an explicit exception to the caching behavior just described for the cumulative views, not an instance of it.
 
-`scope_hash: sha256:87b008d0fdf36f710ce3f1e2659a52a3a420dea7ba36a7e7f4f9abbcb39cb66d`
+`wait_event_type`/`wait_event` are part of that per-backend current-activity information (governed by `track_activities`), not the cumulative-statistics subsystem `pg_stat_clear_snapshot()` targets. On this reading, the polling loop in `phase5_discovery_cooldown_race.test.sql` does not have the staleness problem described — each iteration's `select wait_event_type into v_wait_type from pg_stat_activity where pid = v_pid` should already observe live state, with no snapshot to clear.
 
-`check-review-artifacts.js` deterministically hashes sorted queue paths plus their staged index descriptors, requires this exact fingerprint in both packets and both verdicts, and rejects missing/mismatched hashes. Its CLI prints the staged hash for packet generation. The isolated fixture suite is now 15/15 and includes approve -> re-stage changed queued bytes -> prior artifacts fail. Durable generator, command, harness, Codex, and Antigravity contracts were updated to stage the exact queue, carry the fingerprint, and require full re-review after re-staging.
+**This packet does not implement the suggested `pg_stat_clear_snapshot()` call**, per this project's standing discipline of verifying reviewer findings against primary sources rather than implementing them on assertion alone (`superpowers:receiving-code-review`), and per this project's own anti-cruft convention against adding code that doesn't fix a real problem. The user was informed of this specific disagreement before this packet was sent, given your consistently high hit-rate on this project to date — this is being treated as a genuine technical question to resolve, not a dismissal.
 
-## Round 6 Findings And Claimed Fixes
+## What We're Asking
 
-1. **[MAJOR] `app/src/features/locations/useDeniedLocationState.ts:35`** — MapScreen mounted this hook alongside `useCurrentPosition`, causing a duplicate `requestForegroundPermissionsAsync()` call in production with only a fulfillment handler (no rejection/unmount guard on the older hook).
-   - Claimed fix: `app/src/app/(tabs)/index.tsx` no longer imports or calls `useDeniedLocationState`. It now derives `showManualSearch` / `positionUnavailable` / `manualSearchActive` purely from `useCurrentPosition()`'s own `status` field, and `useCurrentPosition.ts` itself was extended with a `retry()` method and a `try/catch` around both the permission call and the GPS fix, setting `status: 'unavailable'` on rejection instead of leaving an unhandled promise rejection. An `active` flag guards against post-unmount state writes for both the permission and position promises.
-   - The now-orphaned `useDeniedLocationState.ts` and its standalone test were deleted and are explicitly included in the review queue. A repository scan finds no remaining reference.
+Please re-examine your round-4 finding against the exact documentation text quoted above (from the same page you cited) and do ONE of the following:
 
-2. **[MAJOR] `app/src/app/(tabs)/nearby.tsx:74`** — Nearby only offered Retry for `unavailable`; `denied` and `undetermined` had no recovery action, and the existing test asserted the dead end rather than a recovery path.
-   - Claimed fix: `nearby.tsx` now branches on `positionStatus` (`unavailable` / `denied` / `undetermined`) with distinct copy for each, a Retry button wired to `retryPosition()` for `unavailable`, and an "Open settings" button wired to `Linking.openSettings()` for `denied`. `undetermined` renders a non-actionable "Finding your location" pending state with no buttons. Three new/updated tests in `nearby.test.tsx` assert: the denied-state settings button calls `Linking.openSettings`, the undetermined state shows no actionable buttons, and the unavailable state's Retry button calls the hook's `retry()`.
+- **Confirm the pushback:** if you agree `pg_stat_activity`'s dynamic fields (including `wait_event_type`) are exempt from the snapshot cache your finding described, retract this finding as a false positive and note what led to conflating it with the cumulative-stats behavior.
+- **Defend the original finding:** if you have evidence that `wait_event_type` specifically (as opposed to the "current query text" the doc's example emphasizes) IS subject to snapshot caching despite the "always up-to-date" language — e.g., a documented distinction between `track_activities`'s different sub-fields, a version-specific caveat, or empirical evidence — cite it precisely, and we will implement the fix.
+- **Something in between:** if the answer is genuinely ambiguous or version/configuration-dependent, say so explicitly and recommend whether the defensive `pg_stat_clear_snapshot()` call is still worth adding out of caution even if not strictly required.
 
-3. **[MAJOR] `.claude/review-queue.txt:26`** — The queue/manifest omitted the changed `app/src/features/locations/__tests__/useCurrentPosition.test.ts` regression file.
-   - Claimed fix: the queue (and this packet's manifest above) now includes that test file. Confirm queue/manifest/git-status all agree — see verification below.
-
-## Files Changed To Close Round 6
-
-Use `git diff --cached -- <path>` and inspect the staged files directly; this summary is not proof. Re-inspect every file in the 49-file queue.
-
-### app/src/app/(tabs)/index.tsx
-
-- Removed `useDeniedLocationState` import/call entirely.
-- `showManualSearch = positionStatus === 'denied'`, `positionUnavailable = positionStatus === 'unavailable'`, `manualSearchActive = (showManualSearch || positionUnavailable) && !manualBrowseEnabled`.
-- New `manualBrowseEnabled` local state, reset to `false` via `useEffect` whenever `coords !== null`.
-- The manual-search overlay now shows `LOCATION_UNAVAILABLE_COPY` + a Retry button (calls `retryPosition`) when `positionUnavailable`, vs. the original `DENIED_COPY` + "Search this area" (now sets `manualBrowseEnabled(true)` instead of directly calling `bboxQuery.refetch()`).
-- All the `showManualSearch` gates that controlled pin rendering, chip row, and empty-state logic were switched to `manualSearchActive`.
-
-### app/src/app/(tabs)/nearby.tsx
-
-- Imports `expo-linking`.
-- New copy constants for `unavailable` (`LOCATION_UNAVAILABLE` / retry) and `denied` (`LOCATION_DENIED_COPY` / "Open settings" via `Linking.openSettings()`); `undetermined` shows `FINDING_LOCATION` with no action.
-- `useCurrentPosition()` destructures `status` and `retry` now (previously only `coords`).
-
-### app/src/app/__tests__/(tabs)/nearby.test.tsx
-
-- Extends the existing denied-GPS test to assert the settings button fires `Linking.openSettings`.
-- Adds a test for the `undetermined` pending state asserting NO actionable buttons render (`queryByLabelText` for both action labels returns null).
-- Adds a test for the `unavailable` state asserting Retry calls the hook's `retry` mock and `fetchNearby` is never invoked.
-
-### app/src/app/__tests__/(tabs)/MapScreen.test.tsx
-
-- Removed both hook-level mocks. The provider-rejection recovery test now exercises the real `useCurrentPosition` hook through the shared `expo-location` mock, proves Retry invokes permission acquisition again, and proves manual viewport browsing remains available.
-
-### Removed duplicate permission boundary
-
-- Deleted `app/src/features/locations/useDeniedLocationState.ts` and `app/src/features/locations/__tests__/useDeniedLocationState.test.ts`; no production or test reference remains.
-
-### app/src/features/locations/useCurrentPosition.ts + its test
-
-- `PermissionStatus` gains a fourth value: `'unavailable'`.
-- Hook return type gains `retry: () => void`, backed by an `attempt` counter that re-runs the effect.
-- The permission call and the GPS-fix call are now both wrapped in one `try/catch`; any rejection from either sets `status: 'unavailable'` (never an unhandled rejection).
-- An `active` boundary flag, set false in the effect's cleanup, guards every `setState` call against firing after unmount — including mid-flight on `retry()`.
-- New tests cover: permission-provider rejection then successful retry, GPS-acquisition rejection, a permission result arriving after unmount (must not call `getCurrentPositionAsync`), a GPS fix arriving after unmount (must not throw/update), and a provider rejection arriving after unmount.
+Everything else in the queue is unchanged and already covered by your round-4 "Approved" section (the drain-call fix, the two wording fixes, all prior production-code approval) — no need to re-review those.
 
 ## Runtime Boundary And Mock Audit
 
-- `MapScreen` (`index.tsx`) and `NearbyScreen` (`nearby.tsx`) are now BOTH single-permission-boundary consumers of `useCurrentPosition` only. Confirm no other screen, layout, or provider still imports `useDeniedLocationState` or duplicates a foreground-permission request — a second real `requestForegroundPermissionsAsync()` call in production (even from a screen not covered by this queue) would reproduce the original Round 6 #1 risk elsewhere.
-- `MapScreen.test.tsx` uses the real hook through mocked `expo-location`; `nearby.test.tsx` mocks `useCurrentPosition` directly. Confirm both boundaries and the Nearby mock shape against the real return contract.
-- Check `retry()` re-entrancy. The effect cleanup runs on every `attempt` dependency change as well as unmount, setting the previous attempt's `active` flag false before the next effect; verify this prevents a superseded attempt from overwriting newer state.
-- Confirm `Linking.openSettings()` is mocked in the test (not calling the real OS API in Jest) and that the mock is asserted for call count, not just presence.
+Unchanged from round 4 — no production code, client caller, or RLS/ACL surface changed this round; the only difference is the resolution of one static-analysis finding about a test-harness polling loop, which touches no runtime boundary or mock. See round 4's packet for the full audit if needed; nothing here invalidates it.
 
-## Required Verdict Format (from CODEX.md)
+## Required Skills
+
+- `.claude/skills/artifact_qa_gate.md` shared core and **Codex Overlay**
+- `.claude/skills/postgis_optimizer.md` (unchanged file, no re-review needed)
+- `.claude/skills/rls_security_guard.md`
+- `.claude/skills/trust_engine_validator.md`
+
+## Required Verdict Format
+
+Write your verdict to `.claude/codex-review-latest.md`:
 
 ```md
-## Codex Review - [filename or change set]
+## Codex Review - Phase 5 Plan 01 (Event Model + Discovery), Round 5 (Rebuttal)
 
 **VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
 
-scope_hash: sha256:87b008d0fdf36f710ce3f1e2659a52a3a420dea7ba36a7e7f4f9abbcb39cb66d
+scope_hash: sha256:a8fe306667b6a6bab8d3f6e2ebcf84c37f6b23f796961ffa13172316cbcff9fe
 
 ### Reviewed Queue
-- List every queued file inspected for this verdict.
+- List every queued file inspected for this verdict (unchanged bytes, but confirm).
+
+### Skills Applied
+- List the shared gate, Codex overlay, and task-relevant skills actually used.
 
 ### Findings
-- [CRITICAL/MAJOR/MINOR] file:line - Description, impact, and required fix.
+- State plainly whether the round-4 `pg_stat_clear_snapshot()` finding is retracted, confirmed, or refined, with the exact documentation basis either way.
 
 ### Open Questions
-- Questions only when the answer affects merge safety.
+- Any remaining ambiguity.
 
 ### Verification
-- Commands run and results, or why verification was not run.
+- Commands/sources checked, including direct re-reading of the cited documentation.
 
 ### Runtime Boundary Check
-- Call-path and mock-boundary assessment, including any production behavior not covered by tests.
+- Unchanged from round 4 unless this finding's resolution changes that assessment.
 
 ### Approved
-- What is correct or ready to merge.
+- What is correct or ready to merge, including whether this queue is now clear to commit pending the isolated-runner execution.
 ```
 
-## Local Verification Evidence (Claude-run, re-verify independently)
-
-- `npm run typecheck` in `app/`: exit 0, no errors.
-- `npm run lint` in `app/`: exit 0; 0 errors, 30 disclosed pre-existing warnings (BOM + a few others), none new.
-- `npm run test:coverage -- --runInBand` in `app/`: 46/46 suites, 389/389 tests, 100% coverage on `features/**`/`lib/**`, clean process exit (no `--forceExit` needed), 34.6s. The suite/test count decreased only because the orphaned hook's one suite/three tests were deleted.
-- `node --test .claude/hooks/check-review-artifacts.test.js`: 15/15 pass, including stale-approval invalidation after changed bytes are re-staged.
-- `git diff --cached --check`: exit 0; staged queue fingerprint independently printed as the hash above.
-- pgTAP (`supabase/tests/phase5prep_*.test.sql`) still NOT executed — no Docker in this environment. Tracked override, unchanged from prior rounds.
-- No live Supabase push, no device UAT performed. The ACL forward migration `20260710121534` remains local/undeployed pending its own separately authorized push.
-
-## What To Do
-
-1. Independently re-run or re-verify the commands above (or explain why you can't).
-2. Re-inspect all 49 queued files from the staged index/disk, including both deleted paths, four new workflow-contract paths, and the active-state documents.
-3. Judge whether Round 6's three findings are actually closed, including complete removal of the orphaned duplicate hook.
-4. Judge the new re-entrancy question above (rapid Retry double-press) as an open question if you can't rule it out from static inspection alone.
-5. Write your verdict to `.claude/codex-review-latest.md`, labeled `Round 8`, repeat the exact `scope_hash` line above, and print it.
+Print the same verdict after writing it. If BLOCK is not an accepted token by your runtime, use REQUEST CHANGES but retain the true severity in the Findings section.
