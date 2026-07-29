@@ -5,7 +5,21 @@
 -- Mark as applied: supabase migration repair --status applied 20260519010000
 
 -- Extensions
-create extension if not exists postgis;
+-- PostGIS is installed in the `extensions` schema on the live project (verified).
+-- Later migrations reference PostGIS both ways: explicitly qualified
+-- (`extensions.geography`, e.g. 20260710010000_phase3_postgis_schema_qualification_fix.sql)
+-- and bare (`geography`, `st_makepoint`, etc., e.g. 20260519020000_fix_schema.sql,
+-- 20260624000000_block_fixes.sql, 20260704010002_phase3_search_rpcs.sql, seed.sql) —
+-- the bare references resolve because Supabase's bootstrap sets the migration
+-- role's search_path to include `extensions`, not because PostGIS lives in `public`.
+-- This statement never actually ran against the live database (see header above
+-- — this migration is a schema capture, marked applied via `migration repair`
+-- without executing its SQL), so adding the schema qualifier here has zero live
+-- effect; it only fixes replaying these migrations from scratch (local Docker,
+-- CI, or a fresh Supabase branch), where an unqualified `create extension`
+-- installs postgis into the search_path default instead of `extensions`,
+-- breaking every later `extensions.geography`/`extensions.geometry` reference.
+create extension if not exists postgis with schema extensions;
 create extension if not exists pgcrypto;
 
 -- ─── users ───────────────────────────────────────────────────────────────────
