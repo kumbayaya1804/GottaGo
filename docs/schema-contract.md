@@ -162,9 +162,9 @@ Purpose: record GPS-verified user checks for a bathroom.
 
 Actual fields (as of live schema / migrations):
 - `id uuid primary key default gen_random_uuid()`
-- `location_id uuid not null references locations(id)`
-- `user_id uuid not null references users(id)`
-- `gps_location geography(Point,4326)` — PostGIS point of user GPS at verification time
+- `location_id uuid not null references locations(id)` — Phase 5 (05-01) alters this nullable as part of the polymorphic submission_id/location_id evolution (D-39); not yet changed live as of this doc pass
+- `user_id uuid references users(id) on delete set null` — nullable (NOT NULL was dropped by `20260627000003_nullable_user_fks.sql`, which also switched the FK to `ON DELETE SET NULL` for account-deletion anonymization)
+- `gps_location geography(Point,4326)` — PostGIS point of user GPS at verification time; the sole raw-coordinate column (the original `gps_lat`/`gps_lon` numeric columns were backfilled into this column and dropped by `20260519020000_fix_schema.sql`)
 - `distance_from_location_meters numeric not null` — distance from user to location at time of event
 - `weight numeric not null` — verification weight (NOT `weighted_value`)
 - `event_type text not null` — type of verification event (NOT `result`)
@@ -228,7 +228,7 @@ Purpose: audit trail for trust/reputation changes.
 
 Actual fields (as of live schema / migrations):
 - `id uuid primary key default gen_random_uuid()`
-- `user_id uuid not null references users(id)`
+- `user_id uuid references users(id) on delete set null` — nullable (NOT NULL was dropped by `20260627000003_nullable_user_fks.sql`, which also switched the FK to `ON DELETE SET NULL` for account-deletion anonymization, same as `verification_events.user_id` above)
 - `action_type text not null` — column is `action_type`, NOT `event_type`
 - `delta integer not null` — column is `delta`, NOT `score_delta`; integer not numeric
 - `context_ref text` — column is `context_ref`, NOT `reason`

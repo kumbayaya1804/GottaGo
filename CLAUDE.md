@@ -30,7 +30,7 @@ Claude writes packets. The user runs reviewers.
 
 - `/antigravity-review` writes `.claude/antigravity-prompt-latest.md`.
 - The packet includes `### Required Skills`: the shared Artifact QA Gate, Antigravity overlay, Superpowers bootstrap, completion verification, and task-relevant domain/process skills.
-- The user runs `agy` or `antigravity` with Gemini 3.5 Flash (High), points it at that file, and saves the verdict to `.claude/antigravity-review-latest.md`.
+- The user runs `agy` or `antigravity` with Gemini 3.6 Flash (High), points it at that file, and saves the verdict to `.claude/antigravity-review-latest.md`.
 - `/codex-prompt` writes `.claude/codex-prompt-latest.md`.
 - The packet includes `### Required Skills`: the shared Artifact QA Gate, Codex overlay, and task-relevant skills available in the Codex harness.
 - The user runs `codex exec` with a short prompt pointing at that file and saves the verdict to `.claude/codex-review-latest.md`.

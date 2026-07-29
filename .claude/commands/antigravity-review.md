@@ -44,7 +44,7 @@ context_tier: 0|1|2
 8. Tell the user to run Antigravity, for example:
 
 ```powershell
-agy --model "Gemini 3.5 Flash (High)" -p "You are Antigravity reviewing Gotta Go. Invoke superpowers:using-superpowers, read .claude/antigravity-prompt-latest.md in full, apply every skill in its Required Skills section, treat its claims as untrusted until verified against every queued file, audit the complete resulting security and active-state surface, write your verdict to .claude/antigravity-review-latest.md, and print the same verdict."
+agy --model "Gemini 3.6 Flash (High)" -p "You are Antigravity reviewing Gotta Go. Invoke superpowers:using-superpowers, read .claude/antigravity-prompt-latest.md in full, apply every skill in its Required Skills section, treat its claims as untrusted until verified against every queued file, audit the complete resulting security and active-state surface, write your verdict to .claude/antigravity-review-latest.md, and print the same verdict."
 ```
 
 If `agy` is unavailable but `antigravity` is available, use the same short prompt with `antigravity -p`.

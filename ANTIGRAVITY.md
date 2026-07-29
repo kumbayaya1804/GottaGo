@@ -16,7 +16,7 @@ Current workflow:
 Example:
 
 ```powershell
-agy --model "Gemini 3.5 Flash (High)" -p "You are Antigravity reviewing Gotta Go. Invoke superpowers:using-superpowers, read .claude/antigravity-prompt-latest.md in full, apply every skill in its Required Skills section, treat its claims as untrusted until verified against every queued file, audit the complete resulting security and active-state surface, write your verdict to .claude/antigravity-review-latest.md, and print the same verdict."
+agy --model "Gemini 3.6 Flash (High)" -p "You are Antigravity reviewing Gotta Go. Invoke superpowers:using-superpowers, read .claude/antigravity-prompt-latest.md in full, apply every skill in its Required Skills section, treat its claims as untrusted until verified against every queued file, audit the complete resulting security and active-state surface, write your verdict to .claude/antigravity-review-latest.md, and print the same verdict."
 ```
 
 Never require the full packet to be passed inline on the command line.
@@ -51,6 +51,11 @@ Never require the full packet to be passed inline on the command line.
 
 Use `docs/context-router.md` before loading broad context. Read `docs/agent-harness.md` for workflow, review-gate, prompt, artifact, command, or agent-instruction changes. Read `docs/schema-contract.md`, `SPEC.md`, or planning docs only when the packet scope requires them. Migrations are schema authority; generated types reveal the current row/RPC surface and must be reconciled with migrations when return shapes or sensitive columns are involved.
 
+### CLI Permission Persistence Workaround
+
+> [!IMPORTANT]
+> Due to a known bug in the Antigravity CLI's project-routing layer (which binds all project-level permissions to a placeholder `default-cli-project` with an empty JSON structure that fails to persist), any project-scoped permission grants will be lost between sessions. For narrow, reusable, low-risk command matchers (routine read-only inspection, a specific lint/build/test command), select the **Global/"Always allow"** scope so the grant survives across sessions. This does not relax `docs/agent-harness.md`'s Permission Posture: destructive, external, credential/secret, deployment, or live-database actions still require one-time or session-scoped approval on every prompt — never grant those Global/"Always allow", even to work around this bug.
+
 ### Routed Artifact QA
 
 `.claude/skills/artifact_qa_gate.md` is mandatory for Antigravity artifact work and
@@ -62,9 +67,9 @@ The shared core does not import Codex's conclusions, collapse reviewer roles, or
 one approval to substitute for the other. Antigravity independently rebuilds evidence
 from the staged files and authority sources.
 
-### Gemini 3.5 Flash Review Posture
+### Gemini 3.6 Flash Review Posture
 
-Use Gemini 3.5 Flash (High) for Gotta Go architecture, security, concurrency, RLS,
+Use Gemini 3.6 Flash (High) for Gotta Go architecture, security, concurrency, RLS,
 PostGIS, trust, and migration reviews when the model is available. Use its long-context
 and agentic capabilities to trace authority and failure paths across files, but keep
 the packet lean and evidence-led. Model confidence, prior approvals, and long-context

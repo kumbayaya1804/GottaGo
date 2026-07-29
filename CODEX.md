@@ -38,6 +38,11 @@ For every review:
 
 Use `docs/context-router.md` before loading broad context. Read `docs/agent-harness.md` for workflow, review-gate, prompt, artifact, command, or agent-instruction changes. Read `docs/stale-info-scan.md` when reviewing docs, prompts, planning, dependency, schema, generated-type, launch, or workflow drift.
 
+### CLI Permission Persistence Workaround
+
+> [!IMPORTANT]
+> Due to a known bug in the Antigravity CLI's project-routing layer (which binds all project-level permissions to a placeholder `default-cli-project` with an empty JSON structure that fails to persist), any project-scoped permission grants will be lost between sessions. For narrow, reusable, low-risk command matchers (routine read-only inspection, a specific lint/build/test command), select the **Global/"Always allow"** scope so the grant survives across sessions. This does not relax `docs/agent-harness.md`'s Permission Posture: destructive, external, credential/secret, deployment, or live-database actions still require one-time or session-scoped approval on every prompt — never grant those Global/"Always allow", even to work around this bug.
+
 ### Routed Artifact QA
 
 `.claude/skills/artifact_qa_gate.md` is mandatory for Codex artifact work and every

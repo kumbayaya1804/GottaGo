@@ -66,7 +66,7 @@ Artifacts do not replace inspecting actual files from disk.
 5. Claude stages the exact queue, inspects the staged diff, and computes the staged `scope_hash`.
 6. Claude loads `.claude/skills/artifact_qa_gate.md` and includes its shared contract, target reviewer overlay, and a task-specific `### Required Skills` section in each packet.
 7. Claude runs `/antigravity-review` to generate the Antigravity packet.
-8. User runs Antigravity on Gemini 3.5 Flash (High); Antigravity invokes Superpowers, applies the shared gate plus Antigravity overlay, and saves a verdict with `### Skills Applied` and the same `scope_hash`.
+8. User runs Antigravity on Gemini 3.6 Flash (High); Antigravity invokes Superpowers, applies the shared gate plus Antigravity overlay, and saves a verdict with `### Skills Applied` and the same `scope_hash`.
 9. Claude runs `/codex-prompt` to generate the Codex packet.
 10. User runs Codex, applies the shared gate plus Codex overlay, and saves the verdict artifact with the same `scope_hash`.
 11. Claude resolves all BLOCK and REQUEST CHANGES findings.
