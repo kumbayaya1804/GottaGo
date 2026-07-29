@@ -1,0 +1,44 @@
+name: Phase 5 DB Verification
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "supabase/**"
+      - ".github/workflows/phase5-db-verify.yml"
+
+jobs:
+  pgtap:
+    name: pgTAP suites (Docker-capable)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.107.0
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Run standard pgTAP suites (Phase 3/4/5, excluding the dblink race suite)
+        run: |
+          supabase test db \
+            supabase/tests/phase3_read_rpcs.test.sql \
+            supabase/tests/phase4_access_code.test.sql \
+            supabase/tests/phase4_submit.test.sql \
+            supabase/tests/phase5prep_legacy_radius_rpcs_dropped.test.sql \
+            supabase/tests/phase5prep_verification_events_lockdown.test.sql \
+            supabase/tests/phase5_event_model.test.sql \
+            supabase/tests/phase5_discovery.test.sql
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup
+
+      - name: Run isolated dblink cooldown-race suite
+        run: node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_discovery_cooldown_race.test.sql
