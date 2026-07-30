@@ -43,10 +43,10 @@ key-decisions:
   - "delete_account and withdraw_submission both hardened from their inherited public/public,auth search_path to the Phase 5 fixed-empty '' contract, with every referenced object schema-qualified (public.*, auth.*)."
   - "Discovery RPC coalesces discovery_radius_m to 500 and verify_cooldown_s to 3 since those app_config keys are not seeded until 05-02 — matches the documented '05-02 not yet run' dependency, not a gap in this plan."
 
-requirements-completed: []  # Task 5 (live push) is BLOCKED — nothing is live yet; requirements are not yet satisfiable in production.
+requirements-completed: []  # See "Update (2026-07-30)" below — Task 5's live push has since happened; Task 4 (regenerate database.types.ts) has not. This list is not yet re-audited against the live schema; do not treat as authoritative until Task 4 completes and this is revisited.
 
 # Metrics
-duration: partial (checkpoint reached; live-push authorization pending)
+duration: partial (checkpoint reached; live-push authorization pending) — SUPERSEDED, see "Update (2026-07-30)" below
 completed: 2026-07-17
 ---
 
@@ -54,7 +54,19 @@ completed: 2026-07-17
 
 **Polymorphic verification_events event model (D-39/D-43), event-aware withdraw + hardened delete_account, and a rate-limited 500m pending-candidate discovery RPC — migrations and pgTAP authored, live push BLOCKED pending human authorization and the project's mandatory Antigravity + Codex review gate.**
 
+## Update (2026-07-30) — Task 5's live push HAS happened; this doc's "BLOCKED" framing below is historical, not current
+
+Discovered incidentally on 2026-07-30 while investigating an unrelated live production bug (a separate, pre-existing PL/pgSQL ambiguous-column defect in three Phase 3 search RPCs — see `.planning/STATE.md`'s 2026-07-30 entries; unrelated to this plan's own content). The live project's `supabase_migrations.schema_migrations` table records `20260717120000` (27 statements) and `20260717120100` (5 statements) as applied, and direct catalog/object checks confirm all of this plan's Task 2/3 deliverables exist live: `search_pending_submissions_nearby`, `submission_tags`, `private.verification_rate_limits`, the three new `verification_events` columns (`gps_accuracy_m`, `captured_at`, `raw_gps_purge_after`), `verification_events.submission_id`, and the `submissions.status` CHECK including `'cancelled'`.
+
+**Not reconstructed: when, by whom, or through which exact mechanism** (`supabase db push` vs. the Supabase MCP `apply_migration` tool) this push happened — the schema_migrations ledger carries no timestamp column, and no session's `.planning/STATE.md` entries between the 2026-07-17 checkpoint below and this discovery record it. The statement counts (27, 5) indicate genuine execution, not a `migration repair --status applied` marker, so this was a real push, not just a ledger correction.
+
+**What this changes vs. the "Status: CHECKPOINT" section immediately below (kept as-written for historical accuracy — it was true as of 2026-07-17):** Task 5 is no longer blocked or outstanding. The 4 files that section describes as uncommitted were, at some point, committed, reviewed (presumably — not verified either way), and pushed. **Task 4 (`supabase gen types typescript` → regenerate `app/src/lib/database.types.ts`) is CONFIRMED still not done** — `grep "search_pending_submissions_nearby" app/src/lib/database.types.ts` returns 0 matches as of 2026-07-30, and the file's last regeneration (commit `c5f4f7b`, 2026-07-10) predates this plan's own migrations by a week. This is the actual next action for this plan, not the live-push authorization the "Next Phase Readiness" checklist below describes.
+
+Since the 2026-07-17 checkpoint, this same 2026-07-30 session also found and fixed two further real defects unrelated to this plan's own content, both reviewed (Antigravity + Codex) and pushed live: a PostGIS extension bootstrap gap breaking from-scratch migration replay (zero live effect — see `.planning/STATE.md`), and the ambiguous-`id` bug mentioned above (a genuine 26-day production outage for signed-in map search, in Phase 3 code, not Phase 5's). Neither affects this plan's own deliverables.
+
 ## Status: CHECKPOINT — stopped at Task 5 (BLOCKING live-push checkpoint)
+
+**(Historical — accurate as of 2026-07-17; see "Update (2026-07-30)" above for current state.)**
 
 Per the plan's `autonomous: false` frontmatter and Task 5's `type="checkpoint:human-verify" gate="blocking"`, execution stopped before any `supabase db push`. Tasks 1-3 are fully implemented (RED tests + GREEN schema objects). Task 4 (`supabase gen types`) cannot run until Task 5's live push applies the migrations. **No `supabase db push` was attempted.**
 
@@ -124,17 +136,17 @@ None yet — Task 5 (the live push) has not run. Once authorized, the live push 
 
 ## Next Phase Readiness
 
-**Not ready to proceed to 05-02 yet.** Blocking items before Task 5 (and therefore before 05-02, which depends on `private.verification_rate_limits` and the event model existing live):
+**(Original 2026-07-17 checklist below is superseded — see "Update (2026-07-30)" near the top. Kept for historical record, annotated per-item.)**
 
-1. Run `supabase test db` (inherited Phase 3/4 suites + `phase5_event_model.test.sql` + `phase5_discovery.test.sql`) on a Docker-capable or isolated non-production environment — must pass clean.
-2. Route the 4 uncommitted `supabase/**` files through this project's Antigravity + Codex review loop (packets → both APPROVE) per `docs/agent-harness.md`.
-3. Commit the reviewed files.
-4. Obtain explicit human authorization for the live `supabase db push` (Task 5's checkpoint).
-5. Run Task 4 (`supabase gen types typescript`) against the live schema to regenerate `app/src/lib/database.types.ts`.
+1. ~~Run `supabase test db` ... must pass clean.~~ — Done. As of 2026-07-30, `phase5_event_model.test.sql` and `phase5_discovery.test.sql` both pass in a real Docker-capable CI run (`.github/workflows/phase5-db-verify.yml`, added 2026-07-29), alongside the previously-never-executed Phase 3/4 suites. The suite's third file, `phase5_discovery_cooldown_race.test.sql` (the isolated dblink race proof), does **not** yet pass — deferred as a non-blocking test-infrastructure gap (2 real networking defects found across 2 attempted fixes; see `.planning/STATE.md` 2026-07-30). The RPC it targets is already live and covered by the passing standard discovery suite.
+2. ~~Route the 4 uncommitted files through review.~~ — Presumed done (files are live), mechanism not reconstructed.
+3. ~~Commit the reviewed files.~~ — Presumed done (files are live and in the local migration history), mechanism not reconstructed.
+4. ~~Obtain explicit human authorization for the live push.~~ — Done; push has happened (ledger + object checks confirmed 2026-07-30).
+5. **Run Task 4 (`supabase gen types typescript`) against the live schema.** — **STILL NOT DONE as of 2026-07-30.** This is the actual next action for this plan.
 
-Once those complete, `search_pending_submissions_nearby` and `private.verification_rate_limits` are the foundation 05-02's `verify_location` + atomic-publish RPC builds on directly.
+Once Task 4 completes, `search_pending_submissions_nearby` and `private.verification_rate_limits` are confirmed as the foundation 05-02's `verify_location` + atomic-publish RPC can build on directly — they already exist live; only the generated TypeScript surface is missing.
 
 ---
 *Phase: 05-trust-engine-verification*
 *Plan: 01*
-*Status: checkpoint (Task 5 blocked pending live-push authorization + review gate)*
+*Status: Tasks 1-3 and 5 complete (live push confirmed 2026-07-30); Task 4 (regenerate database.types.ts) outstanding — see "Update (2026-07-30)" above*
