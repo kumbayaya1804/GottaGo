@@ -68,7 +68,7 @@ declare
 begin
   -- Server-side family_mode read (never a client param — Pitfall 3).
   if auth.uid() is not null then
-    select family_mode into v_family from public.users where id = auth.uid();
+    select u.family_mode into v_family from public.users u where u.id = auth.uid();
   end if;
   v_family := coalesce(v_family, false);
 
@@ -196,7 +196,7 @@ declare
   v_family boolean := false;
 begin
   if auth.uid() is not null then
-    select family_mode into v_family from public.users where id = auth.uid();
+    select u.family_mode into v_family from public.users u where u.id = auth.uid();
   end if;
   v_family := coalesce(v_family, false);
 
@@ -273,7 +273,7 @@ declare
   v_family boolean := false;
 begin
   if auth.uid() is not null then
-    select family_mode into v_family from public.users where id = auth.uid();
+    select u.family_mode into v_family from public.users u where u.id = auth.uid();
   end if;
   v_family := coalesce(v_family, false);
 

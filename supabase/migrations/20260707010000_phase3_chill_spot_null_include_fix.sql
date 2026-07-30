@@ -50,7 +50,7 @@ declare
   v_max_pins integer;
 begin
   if auth.uid() is not null then
-    select family_mode into v_family from public.users where id = auth.uid();
+    select u.family_mode into v_family from public.users u where u.id = auth.uid();
   end if;
   v_family := coalesce(v_family, false);
 
@@ -169,7 +169,7 @@ declare
   v_family boolean := false;
 begin
   if auth.uid() is not null then
-    select family_mode into v_family from public.users where id = auth.uid();
+    select u.family_mode into v_family from public.users u where u.id = auth.uid();
   end if;
   v_family := coalesce(v_family, false);
 

@@ -1,47 +1,66 @@
--- Whole-project audit P0-1 fix (2026-07-09 audit, remediated 2026-07-10) — schema-
--- qualify every bare PostGIS type/function/operator reference inside SECURITY
--- DEFINER functions that run under `set search_path = public`.
+-- Live defect fix (2026-07-30) — `column reference "id" is ambiguous` (SQLSTATE 42702)
+-- in the three PL/pgSQL search RPCs.
 --
--- PostGIS is installed in the `extensions` schema on this project (verified live),
--- not `public`. A function body that runs with `search_path = public` cannot
--- resolve bare `geography`/`geometry` types, `st_*` functions, or the `&&`/`<->`
--- operators — `extensions` is never implicitly searched the way `pg_catalog` is.
--- This was silently masked in local/CLI sessions that happen to have a wider
--- search_path, but fails at actual call time in production. Confirmed live before
--- this fix (2026-07-10): `select * from public.search_locations_bbox(...)`,
--- `search_locations_nearby(...)`, and `count_locations_within(...)` all raised
--- `42704: type "geometry"/"geography" does not exist` — i.e. THE MAP'S ENTIRE PIN
--- SEARCH PATH WAS BROKEN IN PRODUCTION, not just a latent risk.
+-- DEFECT
+-- ------
+-- search_locations_bbox, search_locations_nearby, and get_location_detail all
+-- declare `returns table (id uuid, ...)`. In PL/pgSQL, every RETURNS TABLE output
+-- column is implicitly declared as a variable visible throughout the function body.
+-- Each function's family_mode lookup was written unqualified:
 --
--- This mirrors the fix already applied to Phase 4's submission RPCs in
--- 20260707020000_phase4_submission_staging.sql (extensions.st_setsrid /
--- extensions.st_makepoint / extensions.st_x / extensions.st_y / extensions.geography).
--- This migration applies the identical convention to the five functions the audit
--- and a full grep of every SECURITY DEFINER migration found still using bare
--- references, `create or replace`-ing each to its current (latest) body:
+--     select family_mode into v_family from public.users where id = auth.uid();
 --
---   search_locations_bbox     (latest body: 20260707010000 chill_spot null-include fix)
---   search_locations_nearby   (latest body: 20260707010000 chill_spot null-include fix)
---   get_location_detail       (latest body: 20260704010002, unchanged since)
---   get_locations_in_radius   (latest body: 20260624000002 ratings privacy fix;
---                              superseded by search_locations_* for current client
---                              use per `grep -rn "get_locations_in_radius" app/src`
---                              returning zero matches, but still live, still
---                              granted to anon/authenticated, and still broken —
---                              fixed rather than left as a dead but callable trap)
---   count_locations_within    (latest body: 20260624000002 ratings privacy fix;
---                              same legacy/unused-but-live status as above)
+-- so `id` matches BOTH the implicit output-column variable and public.users.id.
+-- Under `plpgsql.variable_conflict = error` — PostgreSQL's default, confirmed set
+-- to `error` on the live project — this raises at RUNTIME, not at create time,
+-- which is why every migration applied cleanly while the functions were broken.
 --
--- No query logic changes: filter semantics, moderation clauses, D-08 null-include
--- behavior, and grants are byte-for-byte identical to each function's current
--- body. Only type casts (`::extensions.geography`, `::extensions.geometry`),
--- function calls (`extensions.st_y`, `extensions.st_x`, `extensions.st_distance`,
--- `extensions.st_dwithin`, `extensions.st_setsrid`, `extensions.st_makepoint`,
--- `extensions.st_makeenvelope`), and operators (`OPERATOR(extensions.&&)`,
--- `OPERATOR(extensions.<->)`) are qualified. `OPERATOR(schema.op)` is required
--- because bare infix operator symbols resolve via search_path exactly like
--- function names do — confirmed live that `&&` and `<->` for geography/geometry
--- are defined in `extensions`, not `pg_catalog` (which alone is always implicit).
+-- BLAST RADIUS
+-- ------------
+-- The failing statement sits inside `if auth.uid() is not null then ... end if`,
+-- so ANONYMOUS callers were unaffected and the map's public read path kept working.
+-- Every AUTHENTICATED caller of these three RPCs got the exception instead of
+-- results — i.e. map viewport search, Nearby list, and location detail were broken
+-- for signed-in users only. Live since 20260704010002 shipped (2026-07-04); the
+-- 20260710010000 PostGIS fix rewrote these same bodies but carried the defect
+-- forward unchanged, so it survived that remediation.
+--
+-- WHY IT WAS NEVER CAUGHT
+-- -----------------------
+-- supabase/tests/phase3_read_rpcs.test.sql covers exactly this path but had never
+-- been executed — no Docker-capable environment existed in this project until
+-- 2026-07-29. Its first-ever run (CI run 30521939613) failed 19/22 subtests on this
+-- defect. Independently reproduced against the LIVE database on 2026-07-30 with a
+-- read-only, self-aborting DO block that set request.jwt.claims and called
+-- search_locations_bbox: SQLSTATE 42702, same DETAIL/CONTEXT as CI.
+--
+-- FIX
+-- ---
+-- Alias-qualify the lookup so neither name can be read as the implicit variable:
+--
+--     select u.family_mode into v_family from public.users u where u.id = auth.uid();
+--
+-- Chosen over `#variable_conflict use_column`, which would flip resolution semantics
+-- for the entire function body rather than disambiguating the one real collision.
+--
+-- SCOPE / RELATIONSHIP TO THE HISTORICAL MIGRATIONS
+-- -------------------------------------------------
+-- The identical one-line fix is also applied at point of origin in
+-- 20260704010002_phase3_search_rpcs.sql, 20260707010000_phase3_chill_spot_null_include_fix.sql,
+-- and 20260710010000_phase3_postgis_schema_qualification_fix.sql, so a from-scratch
+-- replay is correct at every intermediate step and the defect cannot be copy-pasted
+-- forward again (it propagated through all three files exactly that way). Those
+-- migrations are already recorded applied on live and are never re-executed, so this
+-- forward migration is what actually repairs the live database.
+--
+-- The function bodies below are byte-identical to the corrected
+-- 20260710010000 bodies — same PostGIS schema qualification, same moderation
+-- filters, same D-08 null-include semantics, same grants. Only the family_mode
+-- lookup line differs from what is currently live.
+--
+-- get_locations_in_radius and count_locations_within are deliberately NOT recreated
+-- here: 20260710020000 / 20260710030000 dropped them, and this migration must not
+-- resurrect a retired, publicly-granted RPC.
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- (a) search_locations_bbox
@@ -308,96 +327,3 @@ $$;
 revoke execute on function public.get_location_detail(uuid, numeric, numeric) from public;
 grant  execute on function public.get_location_detail(uuid, numeric, numeric) to anon;
 grant  execute on function public.get_location_detail(uuid, numeric, numeric) to authenticated;
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- (d) get_locations_in_radius — legacy, superseded by search_locations_* for
---     current client use, but still live/granted/broken; fixed rather than left
---     as a dead but callable trap.
--- ═══════════════════════════════════════════════════════════════════════════════
-create or replace function public.get_locations_in_radius(
-  user_lat              numeric,
-  user_lng              numeric,
-  radius_m              numeric  default 5000,
-  filter_open_now       boolean  default false,
-  filter_chill_spot     boolean  default false,
-  filter_wheelchair     boolean  default false,
-  filter_changing       boolean  default false,
-  filter_no_purchase    boolean  default false,
-  filter_gender_neutral boolean  default false,
-  filter_high_conf      boolean  default false
-)
-returns setof public.locations
-language sql
-security definer
-stable
-set search_path = public
-as $$
-  select l.*
-  from public.locations l
-  where l.deleted_at is null
-    and l.shadowban_status = false
-    and extensions.st_dwithin(
-          l.coordinates::extensions.geography,
-          extensions.st_setsrid(extensions.st_makepoint(user_lng, user_lat), 4326)::extensions.geography,
-          radius_m
-        )
-    and (not filter_open_now     or l.is_open_now = true)
-    and (not filter_chill_spot   or l.chill_spot = true)
-    and (not filter_wheelchair   or exists (
-           select 1 from public.tags t
-           where t.location_id = l.id
-             and t.key = 'accessibility' and t.value = 'wheelchair'
-         ))
-    and (not filter_changing     or exists (
-           select 1 from public.tags t
-           where t.location_id = l.id
-             and t.key = 'amenity' and t.value = 'changing_table'
-         ))
-    and (not filter_no_purchase  or exists (
-           select 1 from public.tags t
-           where t.location_id = l.id
-             and t.key = 'purchase_required' and t.value = 'false'
-         ))
-    and (not filter_gender_neutral or exists (
-           select 1 from public.tags t
-           where t.location_id = l.id
-             and t.key = 'gender' and t.value = 'neutral'
-         ))
-    and (not filter_high_conf    or l.confidence_tier = 'High')
-  order by l.coordinates::extensions.geography OPERATOR(extensions.<->) extensions.st_setsrid(extensions.st_makepoint(user_lng, user_lat), 4326)::extensions.geography;
-$$;
-
-grant execute on function public.get_locations_in_radius(
-  numeric, numeric, numeric, boolean, boolean, boolean, boolean, boolean, boolean, boolean
-) to anon;
-grant execute on function public.get_locations_in_radius(
-  numeric, numeric, numeric, boolean, boolean, boolean, boolean, boolean, boolean, boolean
-) to authenticated;
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- (e) count_locations_within — legacy, same status as (d).
--- ═══════════════════════════════════════════════════════════════════════════════
-create or replace function public.count_locations_within(
-  p_lat      numeric,
-  p_lon      numeric,
-  p_radius_m numeric default 5000
-)
-returns bigint
-language sql
-security definer
-stable
-set search_path = public
-as $$
-  select count(*)
-  from public.locations
-  where deleted_at is null
-    and shadowban_status = false
-    and extensions.st_dwithin(
-          coordinates::extensions.geography,
-          extensions.st_setsrid(extensions.st_makepoint(p_lon, p_lat), 4326)::extensions.geography,
-          p_radius_m
-        );
-$$;
-
-grant execute on function public.count_locations_within(numeric, numeric, numeric) to anon;
-grant execute on function public.count_locations_within(numeric, numeric, numeric) to authenticated;
