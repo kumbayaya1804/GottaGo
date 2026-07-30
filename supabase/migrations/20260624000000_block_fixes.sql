@@ -95,9 +95,9 @@ as $$
   from locations l
   where l.deleted_at is null
     and l.shadowban_status = false
-    and st_dwithin(
-          l.coordinates::geography,
-          st_point(user_lng, user_lat)::geography,
+    and extensions.st_dwithin(
+          l.coordinates::extensions.geography,
+          extensions.st_point(user_lng, user_lat)::extensions.geography,
           radius_m
         )
     and (not filter_open_now     or l.is_open_now = true)
@@ -123,7 +123,7 @@ as $$
              and t.key = 'gender' and t.value = 'neutral'
          ))
     and (not filter_high_conf    or l.confidence_tier = 'High')
-  order by l.coordinates::geography <-> st_point(user_lng, user_lat)::geography;
+  order by l.coordinates::extensions.geography OPERATOR(extensions.<->) extensions.st_point(user_lng, user_lat)::extensions.geography;
 $$;
 
 grant execute on function get_locations_in_radius(
@@ -150,9 +150,9 @@ as $$
   from locations
   where deleted_at is null
     and shadowban_status = false
-    and st_dwithin(
-          coordinates::geography,
-          st_point(p_lon, p_lat)::geography,
+    and extensions.st_dwithin(
+          coordinates::extensions.geography,
+          extensions.st_point(p_lon, p_lat)::extensions.geography,
           p_radius_m
         );
 $$;

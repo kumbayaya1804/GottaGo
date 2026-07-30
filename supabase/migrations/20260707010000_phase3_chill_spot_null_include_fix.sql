@@ -61,8 +61,8 @@ begin
     return query
     select l.id,
            l.name,
-           st_y(l.coordinates::geometry)::double precision as lat,
-           st_x(l.coordinates::geometry)::double precision as lng,
+           extensions.st_y(l.coordinates::extensions.geometry)::double precision as lat,
+           extensions.st_x(l.coordinates::extensions.geometry)::double precision as lng,
            l.policy_tag,
            l.confidence_tier,
            l.verification_count,
@@ -71,9 +71,9 @@ begin
            l.chill_spot
     from public.locations l
     where (
-            l.coordinates && st_makeenvelope(min_lng, min_lat, 180, max_lat, 4326)::geography
+            l.coordinates OPERATOR(extensions.&&) extensions.st_makeenvelope(min_lng, min_lat, 180, max_lat, 4326)::extensions.geography
             or
-            l.coordinates && st_makeenvelope(-180, min_lat, max_lng, max_lat, 4326)::geography
+            l.coordinates OPERATOR(extensions.&&) extensions.st_makeenvelope(-180, min_lat, max_lng, max_lat, 4326)::extensions.geography
           )
       and l.deleted_at is null
       and l.suppressed_at is null
@@ -99,8 +99,8 @@ begin
     return query
     select l.id,
            l.name,
-           st_y(l.coordinates::geometry)::double precision as lat,
-           st_x(l.coordinates::geometry)::double precision as lng,
+           extensions.st_y(l.coordinates::extensions.geometry)::double precision as lat,
+           extensions.st_x(l.coordinates::extensions.geometry)::double precision as lng,
            l.policy_tag,
            l.confidence_tier,
            l.verification_count,
@@ -108,7 +108,7 @@ begin
            l.is_open_now,
            l.chill_spot
     from public.locations l
-    where l.coordinates && st_makeenvelope(min_lng, min_lat, max_lng, max_lat, 4326)::geography
+    where l.coordinates OPERATOR(extensions.&&) extensions.st_makeenvelope(min_lng, min_lat, max_lng, max_lat, 4326)::extensions.geography
       and l.deleted_at is null
       and l.suppressed_at is null
       and l.shadowban_status = false
@@ -176,16 +176,16 @@ begin
   return query
   select l.id,
          l.name,
-         st_y(l.coordinates::geometry)::double precision as lat,
-         st_x(l.coordinates::geometry)::double precision as lng,
+         extensions.st_y(l.coordinates::extensions.geometry)::double precision as lat,
+         extensions.st_x(l.coordinates::extensions.geometry)::double precision as lng,
          l.policy_tag,
          l.confidence_tier,
          l.verification_count,
          l.last_verified_at,
          l.is_open_now,
          l.chill_spot,
-         st_distance(l.coordinates,
-                     st_setsrid(st_makepoint(user_lng, user_lat), 4326)::geography)::double precision as distance_m
+         extensions.st_distance(l.coordinates,
+                     extensions.st_setsrid(extensions.st_makepoint(user_lng, user_lat), 4326)::extensions.geography)::double precision as distance_m
   from public.locations l
   where l.deleted_at is null
     and l.suppressed_at is null
@@ -204,7 +204,7 @@ begin
          or exists (select 1 from public.tags t
                     where t.location_id = l.id and t.key = 'amenity' and t.value = 'changing_table'))
     and (not filter_high_conf or l.confidence_tier is null or l.confidence_tier = 'High')
-  order by l.coordinates <-> st_setsrid(st_makepoint(user_lng, user_lat), 4326)::geography
+  order by l.coordinates OPERATOR(extensions.<->) extensions.st_setsrid(extensions.st_makepoint(user_lng, user_lat), 4326)::extensions.geography
   limit result_limit;
 end;
 $$;
