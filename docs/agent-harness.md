@@ -175,4 +175,4 @@ A commit is allowed only when all are true:
 
 ## Superpowers And TDD
 
-Use relevant Superpowers skills before action. For app source behavior, TDD order is test -> fail -> implement -> pass. TDD Guard applies to `app/src/**` source work. The protected-path review queue and canonical artifact checks have no environment-variable bypass.
+Use relevant Superpowers skills before action. For app source behavior, TDD order is test -> fail -> implement -> pass. Probity (`probity.config.ts`, migrated from TDD Guard 2026-07-31) applies to `app/src/**` source work. The protected-path review queue and canonical artifact checks have no environment-variable bypass.

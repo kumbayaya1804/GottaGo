@@ -1,5 +1,5 @@
 {
-  "dependencies": {
-    "tdd-guard": "^1.6.8"
+  "devDependencies": {
+    "@nizos/probity": "^1.10.0"
   }
 }

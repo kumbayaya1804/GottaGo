@@ -1,7 +1,7 @@
 {
   "metaswarm_version": "0.12.0",
   "installed_at": "2026-06-22T00:00:00Z",
-  "updated_at": "2026-07-04T00:00:00Z",
+  "updated_at": "2026-07-31T00:00:00Z",
   "detection": {
     "language": "typescript",
     "framework": "expo-react-native",
@@ -11,7 +11,7 @@
     "package_manager": "npm",
     "type_checker": "tsc",
     "ci": "github-actions",
-    "git_hooks": "tdd-guard"
+    "git_hooks": "probity"
   },
   "choices": {
     "coverage_threshold": 100,

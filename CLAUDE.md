@@ -54,7 +54,7 @@ Use the relevant Superpowers skills before task actions. In this project, that u
 - `superpowers:receiving-code-review` before applying reviewer findings.
 - `superpowers:verification-before-completion` before claiming work is complete.
 
-TDD Guard is active for app source work. Do not bypass hooks without explicit user approval and a recorded reason.
+Probity is active for `app/src/**` source work (`probity.config.ts`; migrated from TDD Guard 2026-07-31). Do not bypass hooks without explicit user approval and a recorded reason.
 
 ## Project Sources
 

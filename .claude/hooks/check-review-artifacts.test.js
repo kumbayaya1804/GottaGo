@@ -255,6 +255,8 @@ const reviewRequiredPaths = [
   '.claude/hooks/example.js',
   '.claude/skills/example.md',
   '.claude/tdd-guard/data/instructions.md',
+  '.claude/probity/data/instructions.md',
+  'probity.config.ts',
   '.claude/antigravity-review-policy.json',
   '.claude/antigravity-calibration-contract.json',
   '.claude/settings.json',

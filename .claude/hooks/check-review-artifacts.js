@@ -36,9 +36,16 @@ const REVIEW_REQUIRED_PATTERNS = [
   /^app\//,
   /^supabase\//,
   /^docs\//,
-  /^\.claude\/(commands|hooks|skills|tdd-guard)\//,
+  /^\.claude\/(commands|hooks|skills|tdd-guard|probity)\//,
   /^\.claude\/antigravity-(review-policy|calibration-contract)\.json$/,
   /^\.claude\/settings\.json$/,
+  // The actual live Probity policy is this root config, not a path under
+  // .claude/ - the pattern above only ever covered a hypothetical
+  // .claude/probity/ subtree that Probity has never been observed to write
+  // to. Without this, probity.config.ts could be weakened or have its
+  // app/src/** scope silently widened without ever entering the review
+  // queue (2026-07-31 Codex finding, reproduced against the live predicate).
+  /^probity\.config\.ts$/,
   /^(SPEC|CODEX|ANTIGRAVITY|CLAUDE|AGENTS)\.md$/,
   // The pre-commit wrapper is the gate's actual caller. A change there can
   // disable every check below, so it is protected like the gate itself.
