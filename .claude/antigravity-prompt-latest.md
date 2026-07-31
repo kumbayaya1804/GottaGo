@@ -1,53 +1,38 @@
 <!-- review-manifest
 reviewer: antigravity
-generated_at: 2026-07-31T13:15:00Z
-scope_hash: sha256:3860387c8e9d52ab5121a39e9bb17a0adcd3ff570ba308aa6c56351b64673b7a
-review_id: rg-2026-07-31-tdd-guard-to-probity-migration-03
-risk_level: medium
+generated_at: 2026-07-31T15:35:00Z
+scope_hash: sha256:09e3550afcaa3400c47315fb5f044dff62822a71413ca6e558fd14d06386f6c9
+review_id: rg-2026-07-31-agent-harness-known-limitations-04
+risk_level: low
 runtime_required: false
 blind_review: true
 queue:
-  - .claude/hooks/check-review-artifacts.js
-  - .claude/hooks/check-review-artifacts.test.js
-  - .claude/tdd-guard/data/instructions.md
-  - .metaswarm/project-profile.json
-  - CLAUDE.md
   - docs/agent-harness.md
-  - package-lock.json
-  - package.json
-  - probity.config.test.js
-  - probity.config.ts
 diff_base: HEAD
 context_tier: 1
 -->
 
-# Antigravity Review Packet — TDD Guard → Probity Migration, ROUND 3
+# Antigravity Review Packet — `docs/agent-harness.md` Known Limitations Section, ROUND 4
 
-Your round-2 ADVISORY was clean and correctly re-verified all three round-1 Codex findings as
-fixed. But Codex's round-2 REQUEST CHANGES found a fourth real MAJOR defect your round-2 pass
-missed: `probity.config.ts`'s `PROJECT_TDD_ADDENDUM` claimed to preserve the deleted
-`.claude/tdd-guard/data/instructions.md` "verbatim," but the addendum silently omitted the entire
-`## TDD Order` section (write a failing test first, watch it fail, then implement). Codex proved
-this by measuring the source character counts (1,329 deleted vs. 1,127 ported) and by running the
-real config through Probity's actual `loadConfig()`/`evaluate()` path with a prompt-capturing fake
-agent — the effective validator prompt reaching the AI contained every other project section but
-not `### TDD Order`.
+Your round-3 ADVISORY was clean and independently confirmed the exact same pointer-path-vs-archive
+distinction the other reviewer's round-3 REQUEST CHANGES was about to demand — good agreement
+there. But the other reviewer's round-3 pass found one more real defect your round-3 pass didn't
+flag: the round-3 fix's concluding sentence.
 
-**Only two files changed since round 2, both new/modified in this round:**
-- `probity.config.ts` — restored the missing `### TDD Order` section verbatim, in its original
-  position (between RLS Tests and Coverage), matching the deleted source exactly.
-- `probity.config.test.js` (NEW) — a regression suite that loads the REAL `probity.config.ts`
-  through Probity's real `loadConfig()`/`evaluate()` (not a reimplementation): proves an
-  `app/src/**` write invokes `enforceTdd` while a write outside that scope (including to
-  `probity.config.ts` itself) does not, and asserts the captured effective prompt contains
-  Probity's own default Red-Green-Refactor text plus all six ported project sections by name,
-  including `### TDD Order` and the exact restored rule text. This test was mutation-tested before
-  being trusted: reverting the `TDD Order` fix in a scratch copy made exactly one assertion fail
-  (the `TDD Order` one), with the other two tests still passing — confirming the test actually
-  catches the class of defect Codex found, not just a passing artifact.
+The other reviewer's feedback across rounds 2-3 found two related real defects in limitation 1's
+archive-binding claim: round 2 said the canonical `*-review-latest.md` *pathnames* are OID-bound to
+the Git index (false — only a derived content-addressed archive copy is); round 3 found the fix's
+concluding sentence then swung too far the other way, claiming an unstaged edit to "any" listed
+input (including canonical verdicts) is invisible to the commit — also false, because when the gate
+passes, a byte-identical archive copy of the exact reviewed canonical content IS guaranteed to be in
+the commit, even though the pointer pathname itself may commit different bytes.
 
-All 9 previously-reviewed files are byte-identical to round 2 — do not re-review them from
-scratch; focus your evidence-gathering on the two files above.
+**Current fix:** the paragraph now states plainly — the gate/caller reads canonical content via
+`readFileSafe(req.file)` and passes it to `hasArchivedCopy()`, which derives and OID-compares only
+the content-addressed archive path, never the canonical pointer path's own index entry; canonical
+verdicts are a real exception to the "invisible to the commit" problem (their reviewed content is
+captured via the archive), while policy, the review queue, calibration contract/evidence, and
+prompt packets have no equivalent guarantee and are genuinely invisible when edited unstaged.
 
 **BLIND REVIEW:** review independently. Do not read the other reviewer's saved output for this
 scope before saving your own verdict.
@@ -59,35 +44,26 @@ scope before saving your own verdict.
 - `superpowers:verification-before-completion`
 
 ## Reviewed Queue
-10 files (9 unchanged from round 2 + `probity.config.test.js`, new this round). Only
-`probity.config.ts` and `probity.config.test.js` have different bytes than round 2.
-
-### Runtime Boundary And Mock Audit
-This round changes only local developer tooling: a config source file (`probity.config.ts`) and
-a new regression test (`probity.config.test.js`). The test imports Probity's actual installed
-`dist/config.js`/`dist/engine.js` directly (no reimplementation, no mock of the loader/resolver);
-the only substitution is a deterministic fake `ctx.agent.reason()` standing in for a real LLM call,
-used solely to capture the exact prompt text Probity would send — not to fabricate a pass/fail
-verdict on TDD quality. No application, database, Supabase, or production runtime boundary is
-touched by this scope.
-
-### Claim And State Audit
-- Packet claim: `### TDD Order` is restored "verbatim" — verify directly against
-  `git show HEAD:.claude/tdd-guard/data/instructions.md` rather than trusting this prose.
-- Packet claim: the new test "would have caught" the round-2 defect — verify by reproducing the
-  mutation yourself, not by trusting the packet's description of having done so.
-- `docs/agent-harness.md` carries this batch's already-approved staged content only; its separate
-  unstaged Known Limitations edit is intentionally outside this scope and this verdict.
+- `docs/agent-harness.md` (limitation 1's paragraph; limitation 2 is unchanged since round 1)
 
 ## What To Verify
-- Load `probity.config.ts` through the real installed `@nizos/probity` `loadConfig()` and confirm
-  the `### TDD Order` section is present in `PROJECT_TDD_ADDENDUM` with the same text as
-  `git show HEAD:.claude/tdd-guard/data/instructions.md` (adjusted only for the `##`→`###` heading
-  depth this addendum already uses throughout).
-- Run `node --test probity.config.test.js` against the real installed package and confirm it
-  passes.
-- Do not just trust the test file's docstring claims — either re-run the mutation yourself
-  (temporarily strip the `### TDD Order` section and confirm the suite fails at the expected
-  assertion) or independently trace why the assertion would fail without that section present.
-- Confirm `.claude/review-queue.txt` now lists `probity.config.test.js` and that the packet's
-  `scope_hash` matches `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`.
+- Read the gate's main check-A loop and `hasArchivedCopy()` together and confirm: who reads the
+  canonical verdict content (the loop, via `readFileSafe`), and what `hasArchivedCopy()` itself
+  receives as its `content` parameter vs. what path it independently derives and OID-checks.
+- Independently confirm, using real `git ls-files --stage` / working-tree hash-object output on
+  this repo's current canonical pointer files, that their index OIDs differ from their working-tree
+  OIDs right now, while a byte-identical archive copy under `.claude/reviews/**` does have a
+  matching staged OID.
+- Confirm the "real exception, not another instance" framing is accurate and doesn't overclaim or
+  underclaim relative to the other four working-tree-only inputs (policy, queue, calibration,
+  packets), which have no archive-copy equivalent at all.
+
+### Runtime Boundary And Mock Audit
+Pure documentation change. No code, hook, application, database, Supabase, or production runtime
+boundary is touched. Verification is direct source-reading plus real `git` OID inspection of this
+repo's actual current state — no mocks involved.
+
+### Claim And State Audit
+- Packet claim: limitation 2 has been stable and confirmed accurate since round 1 — no need to
+  re-derive it, though a fresh spot-check is welcome.
+- Packet claim: this is the only currently-queued file; no other batch is in flight.

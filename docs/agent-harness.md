@@ -173,6 +173,48 @@ A commit is allowed only when all are true:
 - Reviewer conflicts are documented and resolved.
 - The commit message records verification and reviewer verdicts.
 
+## Known Limitations
+
+The commit gate above is not a fully closed system. Two architectural gaps are disclosed, tracked, and
+were accepted as explicit risk by the user (commit `d03bfe7`, 2026-07-31) rather than being silently
+carried or resolved:
+
+1. **Working-tree reads for decision-bearing trust inputs.** `check-review-artifacts.js` reads policy
+   (`.claude/antigravity-review-policy.json`), the review queue (`.claude/review-queue.txt` — itself
+   gitignored and never part of any commit), calibration contract/evidence and its cited prompt and
+   verdict-receipt files, prompt packets, and canonical verdicts from the working tree
+   (`fs.readFileSync`), not the Git index. The queue's working-tree content directly drives
+   `stagedScopeHash()`, so an unstaged queue edit changes what the gate evaluates without changing
+   what the commit records. Archive binding to the Git index is narrower than it sounds, and the
+   pathname is not the bound thing: the gate reads a canonical verdict's content from the working
+   tree (`readFileSafe(req.file)`) and passes it to `hasArchivedCopy()` (since round 6), which
+   derives the content-addressed archive path that content hashes to and OID-compares *that
+   archive path's* index and working-tree blobs — it never inspects the canonical
+   `.claude/antigravity-review-latest.md` / `.claude/codex-review-latest.md` paths' own index
+   entries, which remain ordinary working-tree reads like everything else in this list. This makes
+   canonical verdicts a real exception to the "invisible to the commit" problem below, not another
+   instance of it: when the gate passes, a byte-identical archive copy of the exact reviewed
+   content is guaranteed to be in the commit, even though the pointer pathname itself may commit
+   older or different bytes. Calibration receipt archives under `.claude/reviews/**` get no such
+   guarantee — content-addressed and existence-checked, but never required to be staged, so a
+   calibration row can cite a real, correctly-hashed archive that was never committed. For every
+   other input in this list — policy, the review queue, calibration contract/evidence, prompt
+   packets — an unstaged edit is genuinely invisible to what a commit records: nothing else in the
+   gate captures a committed copy of their reviewed bytes the way `hasArchivedCopy()` does for
+   canonical verdict content.
+2. **Self-asserted calibration truth.** Calibration `passed` (per row) and `falseApprovals` (header) are
+   supplied by the evidence author, not derived from a trusted, independently-verifiable expected
+   outcome. Receipt shape, uniqueness, archive binding, and the `passingVerdicts` value check (see
+   `ANTIGRAVITY.md` § Calibration Exit Gate) all narrow forgery, but none of them proves a calibration
+   run actually detected a hidden failing case — they prove a review occurred, not that it was correct.
+
+Both gaps were reaffirmed as real and unchanged by both reviewers across rounds 3-8 of the 2026-07-30/31
+review-gate hardening workstream; neither reviewer's approval treats them as resolved. Closing them
+requires an architectural change (index-based reads for all trust inputs; a trusted case manifest or
+oracle for calibration) considered out of scope for the session that authored the surrounding hardening,
+and deliberately left to whichever session takes it on next. Full round-by-round history is in
+`.planning/STATE.md`'s 2026-07-30/31 entries.
+
 ## Superpowers And TDD
 
 Use relevant Superpowers skills before action. For app source behavior, TDD order is test -> fail -> implement -> pass. Probity (`probity.config.ts`, migrated from TDD Guard 2026-07-31) applies to `app/src/**` source work. The protected-path review queue and canonical artifact checks have no environment-variable bypass.
