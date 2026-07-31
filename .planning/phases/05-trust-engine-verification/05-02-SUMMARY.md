@@ -2,156 +2,184 @@
 phase: 05-trust-engine-verification
 plan: 02
 subsystem: database
-tags: [postgres, trust-engine, confidence, app-config, checkpoint, decision-gate]
+tags: [postgres, pgtap, postgis, supabase, trust-engine, concurrency, row-locking, confidence, outbox, tdd]
 
 # Dependency graph
 requires:
   - phase: 05-trust-engine-verification
     plan: 01
-    provides: verification_events event model, private.verification_rate_limits, submission_tags, raw_gps_purge_after column
-provides: []   # NOTHING SHIPPED — halted at Task 1's blocking decision checkpoint before any migration was written
+    provides: polymorphic verification_events, private.verification_rate_limits, submission_tags, raw_gps_purge_after column, submissions 'cancelled' status
+provides:
+  - "app_config tunables: discovery_radius_m, verify_cooldown_s, accuracy_floor_m, accuracy_decay_span_m, confidence thresholds/start, confidence_floor_value, trust_multiplier_step, raw_gps_retention_days"
+  - "locations.confidence_value — the 0-100 numeric confidence authority (D-53) + confidence_tier_for() derivation helper"
+  - "all three public readers derive the display tier from the numeric authority"
+  - "notification_outbox table with enqueue idempotency, claim lease, and terminal-failure state"
+  - "verify_location RPC — server-computed weight, single-pass FOR NO KEY UPDATE lock, atomic publish, dual trust appends with trust_score sync"
+  - "submit_location rewritten (14-arg signature, old 12-arg overload dropped, search_path='' hardened) writing creator_claim evidence + staged accessibility tags"
+  - "get_my_unseen_submission_publications / acknowledge_submission_publication (D-68 fallback)"
+  - "submissions.publication_seen_at"
 affects:
-  - "05-02 Tasks 2-5 (blocked on the Task 1 reply)"
-  - "05-06 (raw_gps_retention_days seed + legacy NULL-deadline backfill depends on the value locked here)"
-  - "06 (confidence decay job consumes the confidence scale locked here — see Finding 2 scale conflict)"
+  - "05-03 (VerifyFlow UI consumes verify_location)"
+  - "05-05 (outbox consumer/drain builds on notification_outbox)"
+  - "05-06 (raw-GPS purge consumes raw_gps_retention_days; legacy NULL-deadline backfill)"
+  - "06 (confidence decay job consumes confidence_value + confidence_floor_value)"
 
 # Tech tracking
 tech-stack:
   added: []
-  patterns: []
+  patterns:
+    - "Single-pass ascending-users.id FOR NO KEY UPDATE lock loop — explicit per-row loop because SELECT ... ORDER BY ... FOR NO KEY UPDATE does not guarantee sorted acquisition order"
+    - "Reason-free {accepted:false} return contract so a pre-validation cooldown write survives an expected rejection (raising would roll it back)"
+    - "coalesce(trust_score, 9)-anchored clamp for every trust_score mutation (nullable column + NULL-ignoring GREATEST/LEAST)"
+    - "Hard gate strictly tighter than decay span on BOTH the proximity and accuracy axes, so no admitted event can compute weight 0"
+    - "Staging-key → public-tag-vocabulary mapping at publish (submission_tags.changing_table → tags(amenity, changing_table))"
 
 key-files:
-  created: []
-  modified: []
+  created:
+    - supabase/migrations/20260731000000_phase5_app_config_seeds.sql
+    - supabase/migrations/20260731000100_phase5_confidence_numeric.sql
+    - supabase/migrations/20260731000200_phase5_notification_outbox.sql
+    - supabase/migrations/20260731000300_phase5_verify_and_publish.sql
+    - supabase/tests/phase5_confidence.test.sql
+    - supabase/tests/phase5_verify_publish.test.sql
+  modified:
+    - app/src/app/(tabs)/submit.tsx
+    - app/src/features/submit/types.ts
+    - app/src/features/submit/submitLocation.ts
+    - app/src/features/submit/__tests__/submitLocation.test.ts
 
 key-decisions:
-  - "Halted at Task 1 (checkpoint:decision, gate=blocking) — the plan's FIRST task. Zero migrations written, per Task 1's explicit 'Do NOT write these values into any migration until the user replies.'"
-  - "Three substantive defects/conflicts found in the plan's own drafted defaults while grounding the draft; all three are surfaced for the user's decision rather than silently patched."
+  - "Task 1 checkpoint resolved 'adopt defaults' WITH the recommended Finding 1 fix: accuracy_floor_m=50 (hard reject) + new accuracy_decay_span_m=100 (decay span), max_accuracy_m untouched."
+  - "Finding 2 resolved by seeding a NEW scale-matched confidence_floor_value=5 rather than mutating the shipped 0-1-scale confidence_floor."
+  - "Finding 3 resolved: the confidence backfill maps NULL→NULL to preserve Phase 3's D-08 null-include behavior under filter_high_conf."
+  - "The three public readers were rewritten from 20260730000000 (the ambiguity-fixed bodies), NOT from 20260704010002 — starting from the older file would have reintroduced a fixed 26-day production outage."
+  - "The step-5b user-row lock uses an explicit per-row loop rather than a single ORDER BY ... FOR NO KEY UPDATE statement, because PostgreSQL may lock during the scan before the sort and a non-deterministic order defeats the whole lock-order design."
 
-requirements-completed: []
+requirements-completed: []   # R-VERIFY/R-WEIGHT/R-PUBLISH/R-CONFIDENCE are IMPLEMENTED but NOT verified — no pgTAP has executed (no Docker) and no live push has happened. Do not mark complete until Task 5's gate passes.
 
 # Metrics
-duration: partial (halted at Task 1 blocking decision checkpoint)
+duration: partial (Tasks 1-3 complete; Task 4 blocked on Task 5; halted at Task 5 blocking checkpoint)
 completed: 2026-07-31
 ---
 
 # Phase 5 Plan 02: Trust Engine Core Summary
 
-**Halted at Task 1 — the plan's first task is a blocking decision checkpoint that locks the trust delta table, confidence scale, and decay constants. No migration was written, because Task 1 forbids writing these values before the user replies. Grounding the draft against the live schema surfaced three real defects in the plan's own recommended defaults, including a silent weight-0 dead zone that would permanently burn a verifier's one-shot slot.**
+**verify_location with server-computed weight, a single-pass ascending-users.id `FOR NO KEY UPDATE` lock covering creator + caller + historical verifiers, the atomic two-verification publish with dual trust appends and real `trust_score` sync, the 0-100 numeric confidence authority, and the submit_location rewrite that finally forwards the accessibility selections — all written and statically verified, none pushed, and two-session concurrency coverage still outstanding.**
 
-## Status: CHECKPOINT — stopped at Task 1 (BLOCKING decision gate)
+## Status: CHECKPOINT — stopped at Task 5 (BLOCKING live-push gate)
 
-Plan 05-02's task list opens with a `checkpoint:decision gate="blocking"` task. Its action is explicit:
-
-> Present the drafted trust action_type/delta table ... **Do NOT write these values into any migration until the user replies. PAUSE for the decision.**
-
-and its acceptance criteria require:
-
-> The drafted delta table ... **were presented before any migration hardcoded them.**
-> **Execution paused until the user replied**; migrations use the reply's locked values.
-
-`.planning/config.json` confirms `workflow.auto_advance: false` and `workflow._auto_chain_active: false`, so auto-mode checkpoint auto-selection does **not** apply — blocking checkpoints stop execution. The orchestrator's dispatch brief independently reinforced this: *"Present your draft clearly and STOP for a response; do not lock values in yourself."*
-
-Tasks 2-5 all consume the Task-1-locked values (Task 2 seeds them into `app_config`; Task 3 bakes the deltas, the decay spans, and the `raw_gps_retention_days` coalesce fallback into `verify_location`; Task 4 depends on Task 3; Task 5 is the second blocking checkpoint). **No task in this plan is reachable without the Task 1 reply.** Consequently zero `supabase/**`, `app/**`, or `docs/**` files were created or modified.
+Task 1's decision checkpoint was answered ("adopt defaults" + the recommended Finding 1 fix) and execution continued through Tasks 2 and 3. **Task 4 (`supabase gen types`) cannot run** — it regenerates against the LIVE schema, which requires Task 5's push first. **Task 5 is a blocking human-verify checkpoint and no `supabase db push` was attempted.**
 
 ## Performance
 
-- **Tasks:** 0 of 5 executed. Halted at Task 1 (blocking decision gate, first task in the plan).
-- **Files created:** 1 (this SUMMARY.md). No migrations, no pgTAP suites, no app changes.
+- **Tasks:** 3 of 5 complete (1 decision, 2, 3). Task 4 blocked by dependency; Task 5 halted per checkpoint protocol.
+- **Files:** 6 created, 4 modified — **all 10 uncommitted** (see Task Commits).
+- **App suite:** 46/46 suites, 393/393 tests passing. `tsc --noEmit` clean.
 
 ## Accomplishments
 
-No implementation — but the checkpoint draft was **grounded against the live schema and shipped migrations rather than restated from the plan text**, which is what surfaced the three findings below. Verification performed:
+### Task 1 — constants locked (decision checkpoint)
 
-- Enumerated the complete live `app_config` key set across all three seeding migrations (`20260519010000_remote_schema.sql` L432, `20260519020000_fix_schema.sql` L21, `20260704010001_phase3_max_pins_config.sql` L13) and confirmed **none of the eight proposed new keys collide**.
-- Confirmed `verification_events.weight numeric not null` (`20260519010000_remote_schema.sql` L173) — the plan's explicit `weight = 0` requirement for the `creator_claim` evidence row is correct and load-bearing.
-- Confirmed `users.trust_score integer default 9` with **no** `NOT NULL` (`docs/schema-contract.md` L48) — the plan's `coalesce(trust_score, 9)` clamp requirement is correct.
-- Confirmed the exact 12-argument `submit_location` signature the plan drops matches the live definition byte-for-byte (`20260708000000_phase4_code_review_fixes.sql` L201-213), and that it currently carries `set search_path = public` (L219) — so the plan's hardening-to-`''` requirement is real, not hypothetical.
-- Confirmed `submit_location` uses `max_accuracy_m` as a **hard reject** (L214-216: `p_accuracy_m > v_max_accuracy` → `raise 'gps rejected'`), which is what exposed Finding 1.
-- Confirmed the Phase 3 search RPCs' null-tier handling (`20260704010002_phase3_search_rpcs.sql` L117, L152: `l.confidence_tier is null or l.confidence_tier = 'High'`) — null-tier rows currently **pass** the high-confidence filter, which constrains the backfill (Finding 3).
+Deltas: `published_contribution` +1, `verification_given_nonzero` +1, `submission_invalid_or_duplicate` −2, `upheld_report` −3, `verification_fraudulent` −4, `shadowban_action` −5. `no_upheld_reports` is **defined but never emitted** — there is no measurable eligibility window (`reports.location_id` is NOT NULL, the same root cause behind D-60's deferral), so emitting it would be a phantom reward. Only the two positive types are wired in Phase 5; the negatives are a forward contract for Phase 7 moderation.
 
-## Findings — three defects in the plan's own drafted defaults
+Confidence 0-100: High ≥70, Medium ≥40, Low <40, publish start 50. Backfill High→85, Medium→55, Low→20, NULL→NULL.
 
-These are presented for decision, not silently patched, because they change values the checkpoint exists to lock.
+Grounding the draft against the live schema surfaced three defects in the plan's own recommended defaults; all three were surfaced for decision rather than silently patched, and all three are now fixed in the migrations:
 
-### Finding 1 (blocking, correctness) — the drafted accuracy constants create a silent weight-0 dead zone
+1. **Accuracy dead zone (blocking).** The drafted `accuracy_floor_m=100` + decay span `max_accuracy_m=50` pairing is inverted relative to the proximity pair. Any fix with accuracy in [50,100] would pass the hard reject but compute `accuracy_decay = 0`, hence **weight 0** — accepted, counting toward nothing, earning no trust, and permanently burning the user's one D-43 slot for that submission (the duplicate-conflict path returns `accepted:true` with no side effect). Indistinguishable from a shadowban and strictly worse than a rejection. Fixed by `accuracy_floor_m=50` + new `accuracy_decay_span_m=100`, mirroring the proximity design (gate strictly tighter than span). Admitted accuracies now yield `accuracy_decay ∈ [0.5, 1.0]`. This also avoids overloading `max_accuracy_m`, which `submit_location` uses as a hard reject — reusing it as a decay span would have coupled two RPCs' semantics through one key.
+2. **Confidence scale conflict.** The shipped `confidence_floor=0.05` is on a 0-1 scale; on the new 0-100 scale it is effectively zero, defeating Phase 6's "never decay to zero" guarantee. Seeded a new scale-matched `confidence_floor_value=5`; the shipped key is left untouched.
+3. **Backfill regression risk.** Phase 3 readers treat a null tier as *passing* `filter_high_conf`. Backfilling nulls to a mid value would have flipped existing rows from included to excluded. Backfill maps NULL→NULL and the rewritten filter keeps the null-include escape on the numeric column; both are asserted in pgTAP.
 
-The plan's `draft-defaults` option proposes:
-- Hard accuracy reject: `accuracy_floor_m = 100`
-- Accuracy decay span: `max_accuracy_m = 50`
+### Task 2 — three migrations
 
-With RESEARCH.md Pattern 3's `accuracy_decay = greatest(0, 1 - accuracy_m / accuracy_span)`:
+- **`20260731000000_phase5_app_config_seeds.sql`** — 10 new keys via `on conflict (key) do nothing`. Verified against all three existing seed sites that none of the 8 shipped keys collide, and that `verify_radius_m` / `max_accuracy_m` / `decay_half_life_days` / `confidence_floor` are neither re-inserted nor altered.
+- **`20260731000100_phase5_confidence_numeric.sql`** — `locations.confidence_value` with a 0..100 CHECK, the Task-1 backfill, and `confidence_tier_for(numeric)` as the **single** tier-derivation definition (`security definer stable set search_path=''`). All three public readers rewritten to derive the label from the numeric, filter on it with the null-include escape preserved, and order by `confidence_value desc nulls last` instead of the TEXT ladder (Pitfall 2). Legacy text columns marked deprecated via `COMMENT`, not dropped. No app_config-backed generated column was promised — a generated column cannot query another table, so the helper is the only correct mechanism.
+- **`20260731000200_phase5_notification_outbox.sql`** — enqueue idempotency (`unique(submission_id)`), claim lease (`claimed_at`/`claim_token`/`claim_expires_at`), bounded retry + terminal `failed_at`, Expo two-phase ticket/receipt state, FK indexes, a partial due/claimable index, RLS on, and **zero** client privileges (the D-68 fallback reads the owner-scoped RPCs, not this queue). A CHECK enforces that a claim is either fully absent or fully present, so 05-05's compare-and-set can never settle against a null token.
 
-| accuracy_m | passes hard reject (≤100)? | accuracy_decay (span 50) | resulting weight |
-|---|---|---|---|
-| 0-49 | yes | 0.02 - 1.0 | positive |
-| **50-100** | **yes** | **exactly 0** | **exactly 0** |
-| >100 | no (rejected) | — | no event |
+### Task 3 — verify_location, atomic publish, submit_location rewrite
 
-Any verification with GPS accuracy in **[50, 100]** is *accepted* (`accepted: true`) but carries weight exactly 0. Because of D-43's `verification_events_user_submission_uniq` index, that user can **never retry on that submission** — Task 3 step 7's duplicate-conflict path returns `{accepted:true}` with no side effect. The user sees success, contributes nothing, earns no `verification_given_nonzero`, no `trust_multiplier` ramp, and has permanently burned their one slot. The outcome is byte-identical to a shadowbanned user's event. This is materially **worse than a rejection**, which at least permits a retry with a better fix.
+`verify_location(uuid, numeric, numeric, numeric, boolean, timestamptz) returns jsonb`, `security definer set search_path=''`, authed-only. Step order and the reasoning behind each lock are documented inline. Highlights:
 
-The proximity pair is well-formed by contrast — gate (`verify_radius_m=100`) is *tighter* than span (`discovery_radius_m=500`), so admitted `proximity_decay ∈ [0.8, 1.0]`, never zero. The accuracy pair is inverted: gate (100) is *looser* than span (50).
+- **Durable cooldown (D-36):** the caller's own rate-limit row is locked and stamped *before* any domain validation, and every expected rejection **returns** `{"accepted": false}` rather than raising — raising would roll the cooldown write back and make rejected attempts free.
+- **Single lock pass:** creator + current caller + every historical qualifying verifier are locked `FOR NO KEY UPDATE` in one ascending-`users.id` loop, **before** any shadowban read, weight computation, or trust effect. Deliberately an explicit per-row loop: `SELECT ... ORDER BY ... FOR NO KEY UPDATE` does not guarantee acquisition in sorted order (PostgreSQL may lock during the scan, before the sort), and a non-deterministic order defeats the entire design. No row is ever locked and later upgraded.
+- **Trust:** both appends are conditional and both are paired with a `coalesce(trust_score, 9)`-anchored clamped UPDATE in the same transaction. The coalesce is load-bearing — `trust_score` is nullable and `GREATEST`/`LEAST` ignore NULL, so a bare `trust_score + delta` on a NULL row collapses to exactly 0 regardless of sign.
+- **D-69:** the published row inherits the creator's lock-read `shadowban_status`; a suppressed publish mints **no** creator trust, while the verifier's credit is preserved.
+- **Tag mapping:** staging keys are not the public vocabulary. The publish maps `changing_table → (amenity, changing_table)` and `wheelchair → (accessibility, wheelchair)` — a verbatim key copy would have produced tags no Phase 3 reader can match.
+- **`submit_location`** rewritten from the WR-02 body, hardened from `search_path = public` to `''`, given the two accessibility params, writing a `creator_claim` row with an explicit `weight = 0` (the column is NOT NULL; pinning 0 also means the row can never inflate a count even if the exclusion filter were refactored away), with the exact 12-arg overload dropped first.
+- **D-68 RPCs** `get_my_unseen_submission_publications` / `acknowledge_submission_publication`, both owner-scoped via `auth.uid()`, never a parameter.
 
-Second problem: reusing `max_accuracy_m` as a decay span **semantically overloads a live key**. It currently means "hard reject" in `submit_location`. An admin loosening it to 80 to accept more submissions would silently widen the verification decay curve, making mid-accuracy verifications count *more* — a coupled, non-obvious effect across two different RPCs.
-
-Third problem: as drafted, verification accepts sloppier GPS (100m) than submission does (50m). Verification is the fraud-sensitive physical-presence proof; it should not have the looser bar.
-
-**Recommended:** introduce a dedicated `accuracy_decay_span_m = 100` and set `accuracy_floor_m = 50`, mirroring the proximity design (gate strictly tighter than span). Admitted accuracies ∈ [0, 50] → `accuracy_decay ∈ [0.5, 1.0]`, never zero, and the verification bar matches `submit_location`'s existing 50m bar. `max_accuracy_m` is left untouched as `submit_location`'s hard reject. Note this sets the floor at 50m rather than D-46's parenthetical "e.g. ~100m" example — D-46's value is explicitly an example and these constants are Claude's Discretion per CONTEXT.md, but it is a deviation the user should confirm. Options B and C in the checkpoint message preserve 100m if preferred.
-
-### Finding 2 (cross-phase, non-blocking for this plan) — `confidence_floor = 0.05` is on a different scale than the proposed 0-100 confidence
-
-`confidence_floor = 0.05` is already seeded, described as *"Minimum confidence score — locations never decay to zero"* — clearly a 0-1 scale. The draft locks `confidence_value` as **0-100**. Phase 6's decay job consumes `confidence_floor`; on a 0-100 scale a floor of 0.05 is effectively zero (0.05%), defeating the "never decay to zero" guarantee. Task 2 is explicitly forbidden from altering `confidence_floor`, so the clean fix is a new key. Surfaced here because the **scale is being locked at this checkpoint** and Phase 6 inherits it.
-
-### Finding 3 (backfill correctness) — NULL `confidence_tier` must backfill to NULL, not to a mid value
-
-Phase 3's search RPCs treat a null tier as *passing* the high-confidence filter (`not filter_high_conf or l.confidence_tier is null or l.confidence_tier = 'High'`). Backfilling null-tier locations to a numeric Medium would flip them from included to **excluded** under `filter_high_conf` — a live behavior regression on existing rows. Backfill must map `NULL → NULL`. Proposed tier values round-trip stably through the thresholds (High→85, Medium→55, Low→20).
-
-## Task Commits
-
-Only this SUMMARY.md is committed. No `supabase/**`, `app/**`, or `docs/**` files exist to commit — none were created, because Task 1 blocks all of them.
-
-The project's dual-reviewer pre-commit gate (`.claude/hooks/check-review-artifacts.js`, patterns `^app/`, `^supabase/`, `^docs/`, `^\.claude/(commands|hooks|skills|tdd-guard)/`, `^\.beads/hooks/`, root policy docs) was inspected and confirmed **not** to cover `.planning/**`, so this commit runs with hooks enabled and no bypass. `REVIEW_GATE_ALLOW_UNREVIEWED` was not used and is in any case rejected for protected paths per the hook's own header comment (L17).
-
-## Files Created/Modified
-
-- `.planning/phases/05-trust-engine-verification/05-02-SUMMARY.md` — this file (committed)
-
-Nothing else. **No complete-but-uncommitted `supabase/**` work exists for the orchestrator to route through review this round** — unlike 05-01, which halted at Task 5 with four finished files pending review. This dispatch halted at Task 1, before any file could legitimately be written.
-
-## Decisions Made
-
-- Did not exercise the "auto-select first option" auto-mode checkpoint path: `auto_advance` and `_auto_chain_active` are both `false` in `.planning/config.json`, and the orchestrator brief explicitly instructed a stop.
-- Did not partially execute Task 2(c) (`notification_outbox`), which is the one sub-unit with no dependency on the Task-1 values. Task 2 is a single atomic task with one commit and one review packet; shipping a third of it would fragment the review unit and leave the SUMMARY/review-queue state ambiguous for no schedule gain, since Tasks 2(a)/2(b)/3 remain blocked regardless.
-- Surfaced Findings 1-3 as checkpoint decision input rather than auto-fixing under deviation Rule 1/2. Rules 1-3 authorize fixing defects in *implemented* code; these are defects in *proposed constants* that the checkpoint exists specifically to have the user ratify. Patching them silently would defeat the gate.
+**Client (TDD, RED→GREEN):** added the two accessibility fields to `SubmitInput` as **required** (so they cannot be silently dropped again), updated `submitLocation.test.ts` first, confirmed 5 failures for the right reason (`p_changing_table`/`p_wheelchair` absent from the payload), then implemented `types.ts` → `submitLocation.ts` → `submit.tsx`'s `buildInput`. The Phase 4 comment claiming the toggles are "NOT yet forwarded" is now corrected.
 
 ## Deviations from Plan
 
-None. Execution halted at the plan's first task exactly as that task specifies. No plan text was modified.
+**1. [Rule 1 — Bug] Reader bodies had to come from `20260730000000`, not the plan's cited `20260704010002`.**
+The plan's `read_first` points at the original Phase 3 search RPCs. That file (and `20260710010000`) carries the `column reference "id" is ambiguous` defect fixed on 2026-07-30 after a 26-day production outage. Copying from either would have silently reverted the fix — exactly how the defect propagated three times already. Bodies were taken from the latest file and the `if auth.uid() is not null` guard, `chill_spot is not false`, and alias-qualified lookup were preserved verbatim. *(Self-caught: I initially dropped the auth guard while transcribing and restored it before verification.)*
 
-## Issues Encountered
+**2. [Rule 2 — Missing critical functionality] Staging-key → tag-vocabulary mapping.**
+The plan says "copy submission_tags to tags". A literal copy writes `(key='changing_table')`, which no Phase 3 filter matches — the tags would exist but be invisible. Added the explicit mapping plus pgTAP asserting the mapped vocabulary rather than a row count.
 
-- **Task numbering mismatch in the dispatch brief (harmless).** The orchestrator brief refers to the decision checkpoint as "Task 2" and the live push as "Task 5". In `05-02-PLAN.md` the decision checkpoint is **Task 1**; Task 5 matches. The brief's *description* of the checkpoint ("drafts the trust delta table, confidence thresholds, and decay constants") matches plan Task 1 unambiguously, so this is a numbering slip, not a different gate. Flagged so the next dispatch is not written against the wrong index.
-- **Dispatch brief success criterion partially unreachable.** The brief lists "All non-blocking-checkpoint tasks executed with TDD discipline". Zero non-blocking tasks are reachable before the Task 1 reply, so this criterion is vacuous for this round. The brief's own terminating condition — *"or reach a blocking checkpoint"* — is the one that applies.
+**3. [Rule 3 — Blocking] `for share` literal in a comment would have failed the plan's own verify.**
+The Task 3 automated check includes `! grep -qi "for share"`. My explanatory comment used the phrase. Reworded to "weaker shared row-lock modes" — same class as 05-01's `gps_lat`-in-a-comment fix.
 
-## User Setup Required
+**4. [Rule 3 — Blocking] `node_modules` absent in the worktree.**
+Jest could not resolve `jest-expo`. Created a junction to the main checkout's `node_modules`, ran the suites, then **removed the junction** and verified the main copy intact (730 entries) — a `rm -rf` of the worktree would otherwise have recursed through the junction and deleted the real `node_modules`. No packages were installed.
 
-None. The next action is a decision reply, not an environment change.
+**5. [Deviation — documented] Temporary type intersection in `submitLocation.ts`.**
+`database.types.ts` still describes the 12-arg signature and can only be regenerated post-push (Task 4). Rather than hand-editing the generated file (forbidden), the Args type is intersected with the two new params and commented for removal at Task 4. `tsc --noEmit` is clean.
+
+## Known Gaps
+
+**BLOCKING — two-session concurrency coverage is not written.** The plan requires four races (creator-shadowban-vs-publish, historical-verifier-shadowban with the committed `submission_publish_threshold=3` fixture, current-caller-shadowban, and the reciprocal-user lock-order deadlock case). `phase5_verify_publish.test.sql` covers the single-session branch outcomes thoroughly but **cannot** prove the step-5b lock actually blocks a concurrent shadowban UPDATE.
+
+They are absent rather than stubbed because the only mechanism available here — the dblink two-connection harness in `phase5_discovery_cooldown_race.test.sql` — **does not currently pass** (two real networking defects across two fix attempts; tracked as a deferred infrastructure gap). Four more suites on an unproven harness would produce failures indistinguishable from harness defects. The plan explicitly states concurrency/atomicity coverage may not be waived, so this is a genuine blocker for Task 5, not a soft omission.
+
+**No pgTAP has executed.** Docker is unavailable in this environment, so both new suites are structurally authored and reviewed against the live schema but unrun. RED was therefore *structural* for the SQL suites; only the client TDD cycle had a genuine observed RED→GREEN transition.
+
+## Task Commits
+
+**None of the 10 files are committed**, per the project's mandatory dual-reviewer gate (`.claude/hooks/check-review-artifacts.js` blocks `app/`, `supabase/`, `docs/`, and specified `.claude/` paths without archived Antigravity + Codex APPROVE verdicts). This executor did not generate review packets, invoke either reviewer, or attempt any bypass — `REVIEW_GATE_ALLOW_UNREVIEWED` is rejected for protected paths regardless and hook bypasses are a human-only decision.
+
+The files are deliberately left **unstaged**, not staged: the hook inspects the *staged* set, so staging them would have blocked even this `.planning`-only commit.
+
+**Uncommitted — created:**
+- `supabase/migrations/20260731000000_phase5_app_config_seeds.sql`
+- `supabase/migrations/20260731000100_phase5_confidence_numeric.sql`
+- `supabase/migrations/20260731000200_phase5_notification_outbox.sql`
+- `supabase/migrations/20260731000300_phase5_verify_and_publish.sql`
+- `supabase/tests/phase5_confidence.test.sql`
+- `supabase/tests/phase5_verify_publish.test.sql`
+
+**Uncommitted — modified:**
+- `app/src/app/(tabs)/submit.tsx`
+- `app/src/features/submit/types.ts`
+- `app/src/features/submit/submitLocation.ts`
+- `app/src/features/submit/__tests__/submitLocation.test.ts`
+
+All 10 need adding to `.claude/review-queue.txt` by the orchestrator (not touched here — the review loop is orchestrator-owned per the 05-01 precedent).
+
+## Verification Performed
+
+- Task 2 and Task 3 automated `grep`/`ls` checks from the plan: **pass** (including `! grep -qi "for share"`).
+- `cd app && npx tsc --noEmit`: **clean**.
+- `cd app && npx jest`: **46/46 suites, 393/393 tests**. Three cold-start timeout failures on the first run (`sign-up`, `nearby`, `submit`) all passed on re-run and are unrelated to these changes.
+- pgTAP: **not executed** (no Docker) — blocking, see Known Gaps.
 
 ## Next Phase Readiness
 
-1. **User replies to the Task 1 checkpoint** (see the returned checkpoint message for the full draft and the Finding 1 options).
-2. A continuation executor writes Tasks 2 and 3 using the locked values — three migrations, the `verify_location` + `submit_location` rewrite, and two pgTAP suites (RED first, per the plan's own RED/GREEN structure).
-3. Those `supabase/**` files are left uncommitted for the orchestrator's Antigravity + Codex review loop, per the 05-01 precedent.
-4. `phase5_verify_publish.test.sql` **must** run via `node supabase/scripts/run-isolated-db-suite.js`, never plain `supabase test db` — it commits a real global `submission_publish_threshold` mutation that is unsafe against a shared stack.
-5. Task 5 (live push) and Task 4 (`gen types`, which depends on the push) follow behind a separate fresh authorization.
+1. **Write the four two-session race tests** — requires first repairing or replacing the dblink harness. Blocking for Task 5.
+2. Route all 10 files through the Antigravity + Codex review loop.
+3. Execute the full inherited + Phase 5 pgTAP suite on a Docker-capable environment. `phase5_verify_publish.test.sql` **must** run via `node supabase/scripts/run-isolated-db-suite.js` — it will commit a real global `app_config` mutation once the race fixture lands, which is unsafe against a shared stack.
+4. Obtain fresh authorization, then `supabase db push` (Task 5).
+5. Run Task 4 (`supabase gen types`) and delete the temporary type intersection in `submitLocation.ts`.
 
 ## Self-Check: PASSED
 
-- `.planning/phases/05-trust-engine-verification/05-02-SUMMARY.md` — created, verified present.
-- No other files claimed as created; `git status` confirms no `supabase/**`, `app/**`, or `docs/**` changes in this worktree.
-- No commit hashes claimed for implementation work, because none exists.
+- All 6 created files verified present on disk; all 4 modified files appear in `git status`.
+- No commit hashes claimed for implementation work — none is committed by design.
+- `.planning/` is the only path in this commit.
+- `STATE.md` / `ROADMAP.md` deliberately untouched (orchestrator-owned).
 
 ---
 *Phase: 05-trust-engine-verification*
 *Plan: 02*
-*Status: HALTED at Task 1 (blocking decision checkpoint) — awaiting user reply on trust deltas, confidence scale/thresholds, and decay constants*
+*Status: Tasks 1-3 complete (uncommitted, unreviewed, unexecuted); Task 4 blocked on Task 5; halted at Task 5 blocking live-push checkpoint*
