@@ -108,11 +108,19 @@ false approvals. Save a JSON evidence artifact containing:
   matches the bytes at that path, and a `verdictArchive`.
 
 Each `verdictArchive` must be a distinct, content-addressed Antigravity verdict under
-`.claude/reviews/<scope>/antigravity/`, containing a parseable `VERDICT:` line and naming the `caseId` it
-certifies. Rows may not share an archive, and `independentRuns` must equal the number of distinct run
-identities the verified receipts actually contain — the count is derived, not trusted. These constraints
-exist because a shape-only check was demonstrably satisfiable by pointing every row at one unrelated file
-(2026-07-30), which would have restored approval authority with no qualifying run.
+`.claude/reviews/<scope>/antigravity/`, containing exactly one parseable `VERDICT:` line and naming the
+`caseId` it certifies. Rows may not share an archive, and `independentRuns` must equal the number of
+distinct run identities the verified receipts actually contain — the count is derived, not trusted. These
+constraints exist because a shape-only check was demonstrably satisfiable by pointing every row at one
+unrelated file (2026-07-30), which would have restored approval authority with no qualifying run.
+
+The contract must also declare `passingVerdicts`: an array of the verdict tokens that count as passing
+(e.g. `["ADVISORY"]` — the only clean token during probation). A row's archived `VERDICT:` value must
+resolve to exactly one entry in that list, or the receipt is rejected regardless of everything else being
+correct. A contract that omits `passingVerdicts` fails closed rather than accepting any parseable token.
+This exists because a presence-only `VERDICT:` check was demonstrably satisfiable by an archive reading
+`VERDICT: BLOCK` while its row still claimed `passed: true` (2026-07-30) — a parseable verdict is not the
+same as a passing one.
 
 Set the policy's `calibrationEvidence` to that artifact only after independently
 checking the receipts. The pre-commit hook refuses active mode without valid evidence.
