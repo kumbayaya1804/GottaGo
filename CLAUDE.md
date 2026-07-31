@@ -30,10 +30,15 @@ Claude writes packets. The user runs reviewers.
 
 - `/antigravity-review` writes `.claude/antigravity-prompt-latest.md`.
 - The packet includes `### Required Skills`: the shared Artifact QA Gate, Antigravity overlay, Superpowers bootstrap, completion verification, and task-relevant domain/process skills.
-- The user runs `agy` or `antigravity` with Gemini 3.6 Flash (High), points it at that file, and saves the verdict to `.claude/antigravity-review-latest.md`.
+- The user runs `agy` or `antigravity` with the strongest high-reasoning model available, points it at that file, and saves the policy-allowed verdict to `.claude/antigravity-review-latest.md`. Flash-class output is advisory only.
 - `/codex-prompt` writes `.claude/codex-prompt-latest.md`.
 - The packet includes `### Required Skills`: the shared Artifact QA Gate, Codex overlay, and task-relevant skills available in the Codex harness.
 - The user runs `codex exec` with a short prompt pointing at that file and saves the verdict to `.claude/codex-review-latest.md`.
+
+Generate both initial packets before either reviewer runs. Do not expose one reviewer
+verdict to the other until both exact verdicts have been archived with
+`.claude/hooks/archive-review-artifact.js`. During Antigravity probation, its clean
+verdict is `ADVISORY`; Codex remains the approval-bearing independent reviewer.
 
 Do not invoke Antigravity or Codex directly from Claude unless the user explicitly overrides this rule. Do not inline full packet contents into a command line.
 

@@ -5,7 +5,7 @@ Generate `.claude/antigravity-prompt-latest.md` for the files in `.claude/review
 ## Steps
 
 1. Read `.claude/review-queue.txt`. If missing or empty, report that there is nothing to review and stop.
-2. Read `docs/context-router.md`, `.claude/skills/artifact_qa_gate.md`, `.claude/skills/review_packet_generator.md`, and `ANTIGRAVITY.md`. Carry the shared artifact-QA core, Antigravity overlay, adversarial-review discipline, and approval gates into the packet; do not copy only the verdict headings.
+2. Read `docs/context-router.md`, `.claude/antigravity-review-policy.json`, `.claude/skills/artifact_qa_gate.md`, `.claude/skills/review_packet_generator.md`, and `ANTIGRAVITY.md`. Carry the shared artifact-QA core, Antigravity overlay, adversarial-review discipline, and current policy into the packet; do not copy only the verdict headings.
 3. Collect Tier 0 context:
    - stage the exact queue, including deletions, and inspect `git diff --cached`
    - run `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`
@@ -14,7 +14,8 @@ Generate `.claude/antigravity-prompt-latest.md` for the files in `.claude/review
    - `git diff HEAD -- <queue files>`
    - full queued files or explicit diffs
    - verification evidence and blockers
-   - Runtime Boundary And Mock Audit
+   - a neutral claim table separating the implementation claim, authority source, required disproof, and evidence needed; do not state the desired reviewer conclusion
+   - Runtime Boundary And Mock Audit across caller/client, resolver/driver, transport, kernel/container/proxy, server, auth rule, and resulting state
    - shared Artifact QA Gate contract plus the Antigravity overlay
    - `### Required Skills` containing:
      - `.claude/skills/artifact_qa_gate.md` shared core and `Antigravity Overlay`
@@ -34,6 +35,10 @@ Generate `.claude/antigravity-prompt-latest.md` for the files in `.claude/review
 reviewer: antigravity
 generated_at: <ISO timestamp>
 scope_hash: <staged scope hash>
+review_id: <opaque id shared by both blind packets>
+risk_level: low|medium|high
+runtime_required: true|false
+blind_review: true
 queue:
   - <path>
 diff_base: HEAD
@@ -41,10 +46,12 @@ context_tier: 0|1|2
 -->
 ```
 
-8. Tell the user to run Antigravity, for example:
+8. Do not read or include `.claude/codex-review-latest.md` or a named Codex verdict. The
+   initial review is blind.
+9. Tell the user to run Antigravity, for example:
 
 ```powershell
-agy --model "Gemini 3.6 Flash (High)" -p "You are Antigravity reviewing Gotta Go. Invoke superpowers:using-superpowers, read .claude/antigravity-prompt-latest.md in full, apply every skill in its Required Skills section, treat its claims as untrusted until verified against every queued file, audit the complete resulting security and active-state surface, write your verdict to .claude/antigravity-review-latest.md, and print the same verdict."
+agy --effort high -p "You are Antigravity reviewing Gotta Go. Use the strongest high-reasoning model selected for this CLI profile. Read .claude/antigravity-prompt-latest.md and .claude/antigravity-review-policy.json in full. Review independently without reading any Codex verdict. Apply the packet's required skills and evidence contract. Write the policy-allowed verdict to .claude/antigravity-review-latest.md, then run node .claude/hooks/archive-review-artifact.js antigravity, and print the same verdict."
 ```
 
 If `agy` is unavailable but `antigravity` is available, use the same short prompt with `antigravity -p`.
@@ -64,12 +71,17 @@ After writing the packet, report:
 - reminder that Antigravity must apply `.claude/skills/artifact_qa_gate.md` shared core plus its Antigravity overlay
 - reminder that Antigravity must invoke the packet's Superpowers and project skills, including `superpowers:verification-before-completion`
 - reminder that the verdict must include `### Skills Applied`
-- reminder that Antigravity must include `Claim And State Audit` and apply every pre-APPROVE gate from `ANTIGRAVITY.md`
+- reminder that Antigravity must include `Claim And State Audit` and apply every pre-positive-verdict gate from `ANTIGRAVITY.md`
 - reminder that Antigravity must list every inspected queue file under `### Reviewed Queue`
+- reminder that probation permits `ADVISORY`, `REQUEST CHANGES`, or `BLOCK`, not `APPROVE`
+- reminder that `runtime_required: true` requires `runtime_evidence: executed` for a positive verdict
+- append-only archive path printed by `.claude/hooks/archive-review-artifact.js`
 
 ## Rules
 
 - Never inline the packet into the CLI command. Windows command-line limits can truncate it.
 - Do not include secrets, tokens, `.env` values, service-role keys, or precise user location data.
 - Do not treat an old Antigravity verdict as current unless its scope matches the current queue and diff.
+- Do not expose the other reviewer verdict before the initial Antigravity verdict is saved and archived.
+- Do not overwrite or delete an archived verdict. A revision is a new attempt.
 - Do not clear `.claude/review-queue.txt`; it is cleared only after commit.

@@ -14,7 +14,7 @@ Generate lean, evidence-rich Antigravity and Codex packets. Packets must let rev
 - `git diff HEAD -- <queued files>`
 - queued file contents or exact diffs
 - local verification evidence
-- latest reviewer verdicts only when their scope matches the current queue/diff
+- `.claude/antigravity-review-policy.json`
 
 ## Context Tiers
 
@@ -26,6 +26,7 @@ Include:
 - git status and queued-file diff
 - verification commands and outcomes
 - required verdict format
+- neutral claim table: implementation claim, authority source, disproof attempt required, and evidence needed
 - shared Artifact QA Gate contract and the target reviewer's overlay
 - `### Required Skills` with the shared gate, target overlay, and only the process/domain skills whose triggers match the queue
 - Runtime Boundary And Mock Audit
@@ -55,6 +56,10 @@ Each packet starts with:
 reviewer: antigravity|codex
 generated_at: <ISO timestamp>
 scope_hash: <output of node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash>
+review_id: <opaque id shared by both packets>
+risk_level: low|medium|high
+runtime_required: true|false
+blind_review: true
 queue:
   - <path>
 diff_base: HEAD
@@ -62,7 +67,11 @@ context_tier: 0|1|2
 -->
 ```
 
-Each reviewer verdict must include a `### Reviewed Queue` section listing every queued file inspected. The pre-commit gate checks that staged files in `.claude/review-queue.txt` appear in both prompt packets and both saved verdicts.
+Each reviewer verdict must repeat `review_id`, `risk_level`, `runtime_required`, and
+`blind_review`; declare `prior_reviewer_outputs_read: false`, `evidence_level`, and
+`runtime_evidence`; and include `### Reviewed Queue`, `### Evidence Receipts`,
+`### Adversarial Disproof`, and `### Unverified Boundaries`. The pre-commit gate checks
+these fields, sections, queue coverage, policy-allowed verdict, and archived copy.
 
 Before either packet is generated, stage the exact queue (including deletions), inspect
 `git diff --cached`, and compute the deterministic staged fingerprint:
@@ -89,6 +98,12 @@ Every non-trivial packet includes:
 
 Auth, routing, GPS, Supabase writes, RLS-sensitive reads, trust/shadowban logic, and async UI flows require event-ordering and failure-path review.
 
+Set `runtime_required: true` for novel runtime workarounds, authentication routes,
+concurrency claims, cleanup guarantees, platform-specific process boundaries, or any
+claim whose correctness depends on the actual OS/container/service configuration. A
+positive verdict then requires reproducible `runtime_evidence: executed`; static
+inspection, source quotation, and mocks are insufficient.
+
 ## Required Skills Contract
 
 Every Antigravity packet requires:
@@ -107,6 +122,9 @@ verification gap, not an implied invocation.
 ## Rules
 
 - Route every Antigravity and Codex packet through `.claude/skills/artifact_qa_gate.md`; include only the shared core and target reviewer overlay, never the other reviewer's conclusions.
+- Generate both initial packets before either review runs. Do not read, quote, link, or summarize the other reviewer's verdict until both initial verdicts are saved and archived.
+- Archive each exact verdict with `node .claude/hooks/archive-review-artifact.js antigravity|codex`. A revised verdict is a new immutable attempt, never an overwrite of the only prior copy.
+- Named or focused verdict files are historical/supplemental artifacts only; they cannot substitute for the canonical `*-latest.md` artifacts covering the complete queued staged scope.
 - Prefer excerpts, diffs, and dependency chains over full-doc dumps.
 - Do not include secrets, tokens, private `.env` values, service-role keys, or precise user location data.
 - Do not reuse a verdict if its packet manifest, queue, or diff is stale.

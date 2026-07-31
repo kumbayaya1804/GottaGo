@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "minimumIndependentRuns": 2,
+  "maximumFalseApprovals": 0,
+  "requireBlindInputs": true,
+  "requiredCases": [
+    "transport-auth-negotiation",
+    "source-vs-destination-address",
+    "windows-shell-boundary",
+    "failed-start-teardown",
+    "concurrent-global-state-isolation"
+  ],
+  "passingVerdicts": ["ADVISORY"]
+}

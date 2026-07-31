@@ -3,8 +3,17 @@
 # node .claude/hooks/check-review-artifacts.js blocks commits that stage files
 # currently in .claude/review-queue.txt if the Antigravity/Codex packets or
 # verdicts are missing required runtime-boundary/mock-boundary sections.
+# FAIL CLOSED (2026-07-30 review finding): this previously wrapped the gate in
+# `if command -v node`, so a commit made with node absent from PATH skipped the
+# entire review gate and exited 0 — a caller-level bypass that no amount of
+# hardening inside check-review-artifacts.js could catch, because the script
+# never ran. Reproduced by invoking this hook with PATH=/usr/bin:/bin.
 if command -v node >/dev/null 2>&1; then
   node .claude/hooks/check-review-artifacts.js || exit 1
+else
+  echo >&2 "BLOCKED: node is not available on PATH, so the review gate cannot run."
+  echo >&2 "The gate fails closed. Install/expose node, or commit from an environment that has it."
+  exit 1
 fi
 # --- END PROJECT CUSTOM HOOKS ---
 # --- BEGIN BEADS INTEGRATION v1.0.4 ---

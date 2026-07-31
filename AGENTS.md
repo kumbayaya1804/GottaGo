@@ -16,11 +16,11 @@ Do not start by loading `SPEC.md`, `docs/schema-contract.md`, `AGENTS_ROSTER.md`
 ## Roles
 
 - Claude is the default implementer and GSD orchestrator.
-- Antigravity is the architecture, PostGIS, RLS, trust, and data-integrity reviewer.
+- Antigravity supplies architecture, PostGIS, RLS, trust, and data-integrity findings under `.claude/antigravity-review-policy.json`; it is advisory during probation.
 - Codex is the implementation-quality, security, privacy, TypeScript, test-quality, and user-failure-state reviewer.
 - GSD owns phase lifecycle, planning, execution, verification, and state.
 
-Claude does not self-approve. Non-trivial code, workflow, schema, security, privacy, or review-gate changes require both Antigravity and Codex approval before commit.
+Claude does not self-approve. Non-trivial code, workflow, schema, security, privacy, or review-gate changes require a separate Codex approval. While Antigravity is enabled, they also require its policy-valid review and resolution of every finding; probationary `ADVISORY` is not an approval.
 
 ## Current Review Workflow
 
@@ -30,7 +30,7 @@ Both reviewers apply the shared `.claude/skills/artifact_qa_gate.md` core to the
 same staged bytes. Codex applies the Codex overlay; Antigravity applies the Antigravity
 overlay. Antigravity also invokes `superpowers:using-superpowers`, the task-relevant
 Superpowers skills, and `superpowers:verification-before-completion` before its verdict.
-Their runs, evidence, artifacts, and verdicts remain independent.
+Their initial runs, evidence, artifacts, and verdicts remain blind and independent. Generate both packets before either run, then archive each exact verdict before revealing the other reviewer's output.
 
 1. Claude verifies the task locally and ensures `.claude/review-queue.txt` lists the changed files for the current task.
 2. Claude runs `/antigravity-review` to write `.claude/antigravity-prompt-latest.md`.
@@ -38,7 +38,7 @@ Their runs, evidence, artifacts, and verdicts remain independent.
 4. Claude runs `/codex-prompt` to write `.claude/codex-prompt-latest.md`.
 5. The user runs `codex exec` with a short prompt pointing at that packet. The verdict is saved to `.claude/codex-review-latest.md`.
 6. Claude fixes all BLOCK and REQUEST CHANGES findings and regenerates affected packets.
-7. Commit only after both saved reviewer verdicts are APPROVE and the relevant verification is reported.
+7. Commit only after Codex is APPROVE, Antigravity has the verdict permitted by its current policy (`ADVISORY` during probation), all findings are resolved, both verdicts are archived, and the relevant verification is reported.
 
 The packet files are inputs, not proof. Reviewers must inspect the actual files from disk and cite exact `file:line` evidence.
 

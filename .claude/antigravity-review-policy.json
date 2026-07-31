@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "mode": "probation",
+  "approvalAuthority": false,
+  "calibrationStatus": "not_run",
+  "calibrationContract": ".claude/antigravity-calibration-contract.json",
+  "calibrationEvidence": null,
+  "enforceEvidenceContract": true,
+  "minimumHighRiskEvidenceLevel": 3,
+  "requireBlindReview": true,
+  "requireAppendOnlyVerdicts": true
+}

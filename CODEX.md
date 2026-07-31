@@ -135,6 +135,13 @@ Use this format and save/print it:
 **VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
 
 scope_hash: sha256:<exact packet fingerprint>
+review_id: <same opaque id as both blind packets>
+risk_level: low|medium|high
+runtime_required: true|false
+blind_review: true
+prior_reviewer_outputs_read: false
+evidence_level: 0|1|2|3|4
+runtime_evidence: executed|not_applicable|unavailable
 
 ### Reviewed Queue
 - List every queued file inspected for this verdict.
@@ -151,6 +158,15 @@ scope_hash: sha256:<exact packet fingerprint>
 ### Verification
 - Commands run and results, or why verification was not run.
 
+### Evidence Receipts
+- Exact source or command, target/version, observed result, and inference.
+
+### Adversarial Disproof
+- Counterexamples attempted and premises disproved or retained.
+
+### Unverified Boundaries
+- Runtime, permission, environment, or authority boundaries not directly verified.
+
 ### Runtime Boundary Check
 - Call-path and mock-boundary assessment, including any production behavior not covered by tests.
 
@@ -166,3 +182,7 @@ Verdict rules:
 
 The verdict must repeat the exact `scope_hash` from the packet. A missing or different
 fingerprint is not approval for the staged bytes.
+
+Do not read an Antigravity verdict before the initial Codex verdict is saved and
+archived. High-risk approval requires Level 3 evidence. If `runtime_required: true`,
+APPROVE requires `runtime_evidence: executed`.

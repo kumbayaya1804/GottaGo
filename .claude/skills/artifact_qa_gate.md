@@ -106,15 +106,23 @@ A fresh independent Codex review run is still required.
 ## Antigravity Overlay
 
 Antigravity owns architecture, PostGIS, RLS placement, trust/confidence math,
-migrations, concurrency, aggregate correctness, and system data integrity.
+migrations, concurrency, aggregate correctness, system data integrity, and low-level runtime transport verification.
 
-In addition to the shared workflow:
+In addition to the shared workflow, Antigravity applies a **Dual-Lens Audit** on every review (inspecting both high-level SQL/code contracts and physical runtime/transport dynamics):
 
-- treat every changed or recreated `SECURITY DEFINER` function as reachable attack surface;
-- inspect full return shape, `SELECT` list, row filters, caller validation, owner-RLS bypass, safe `search_path`, and execute ACLs;
-- verify SRID 4326, geography/geometry semantics, meters, spatial-index use, and nearest-search ordering;
-- verify allowed and denied policy/RPC paths, distinct-user rules, row locking, retry idempotency, atomic transitions, append-only evidence, and rollback behavior;
-- reconcile migrations, generated types, live claims, active state, and handoffs;
+- **High-Level Semantics & Contracts**:
+  - treat every changed or recreated `SECURITY DEFINER` function as reachable attack surface;
+  - inspect full return shape, `SELECT` list, row filters, caller validation, owner-RLS bypass, safe `search_path`, and execute ACLs;
+  - verify SRID 4326, geography/geometry semantics, meters, spatial-index use, and nearest-search ordering;
+  - verify allowed and denied policy/RPC paths, distinct-user rules, row locking, retry idempotency, atomic transitions, append-only evidence, and rollback behavior;
+  - reconcile migrations, generated types, live claims, active state, and handoffs;
+
+- **Adversarial Disproof & Low-Level System Verification (Anti-Validation-Bias)**:
+  - **Zero Passive Acceptance**: Never issue a positive verdict because a packet's reasoning is plausible. Attempt to falsify every material premise.
+  - **Authoritative Semantics**: Verify low-level behavior against the pinned implementation, official documentation, or a controlled runtime. A named source without a path, version, command, or result is not a receipt.
+  - **End-To-End Boundary Trace**: Trace the actual resolution chain appropriate to the change: caller/client, driver or resolver, transport, kernel/container/proxy, server, authentication/authorization rule, and resulting state. Distinguish destination from client source, supplied credentials from negotiated authentication, and configuration text from the route that actually matched.
+  - **Runtime Claim Floor**: A novel runtime workaround, concurrency claim, authentication route, cleanup guarantee, or platform-specific process boundary cannot receive a positive verdict from static reasoning alone. Mark `runtime_required: true` and require reproducible execution evidence.
+
 - require a Claim And State Audit plus precise `file:line` findings and the packet's exact `scope_hash`.
 
 Antigravity remains read-only during review unless the human explicitly assigns a
@@ -124,13 +132,40 @@ bounded implementation task.
 
 - Use the same staged bytes and shared evidence contract for both reviewers.
 - Preserve distinct reviewer overlays, separate runs, separate artifacts, and separate verdicts.
-- Do not let one review quote or inherit the other's conclusions as proof.
+- Generate neutral packets from a common claim table; do not include the implementer's preferred conclusion as a premise.
+- Do not expose either reviewer to the other's verdict until both initial verdicts have been saved and archived.
+- Do not let one review quote or inherit the other's conclusions as proof. A post-comparison revision is a new attempt and may not overwrite the archived initial verdict.
 - Regenerate both packets and obtain both verdicts whenever queued staged bytes change.
 - An implementing Claude or Codex session cannot satisfy either independent reviewer gate.
 
+## Evidence Receipts
+
+For every material technical claim, record:
+
+- the exact source, command, file, version, or runtime target used;
+- the observed result and exit status;
+- the inference the evidence supports;
+- the relevant counterexample attempted; and
+- any boundary left unverified.
+
+High-risk verdicts require Level 3 evidence. When the packet declares
+`runtime_required: true`, a positive verdict requires `runtime_evidence: executed`.
+Claims of skill use, source inspection, or command execution without a corresponding
+receipt are verification gaps, not evidence.
+
+## Antigravity Policy
+
+`.claude/antigravity-review-policy.json` is machine-enforced. In `probation` mode,
+Antigravity must use `ADVISORY` for a clean result; `APPROVE` is invalid and carries no
+authority. `REQUEST CHANGES` and `BLOCK` still stop the change. Active approval authority
+requires a passed blind calibration and an explicit human policy change. Every verdict
+must be archived byte-for-byte with `.claude/hooks/archive-review-artifact.js` before a
+later attempt can replace `*-latest.md`.
+
 ## Fail Closed
 
-Do not approve or claim completion when the exact target was unavailable, the queue or
-fingerprint is stale, a required command failed or did not exit, a material queued file
-was not inspected, or high-risk enforcement remains supported only by mocks/static
+Do not issue a positive verdict or claim completion when the exact target was
+unavailable, the queue or fingerprint is stale, a required command failed or did not
+exit, a material queued file was not inspected, a runtime-required claim lacks executed
+runtime evidence, or high-risk enforcement remains supported only by mocks/static
 claims. Report the strongest verified partial result and the precise next boundary.

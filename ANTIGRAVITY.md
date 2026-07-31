@@ -16,7 +16,7 @@ Current workflow:
 Example:
 
 ```powershell
-agy --model "Gemini 3.6 Flash (High)" -p "You are Antigravity reviewing Gotta Go. Invoke superpowers:using-superpowers, read .claude/antigravity-prompt-latest.md in full, apply every skill in its Required Skills section, treat its claims as untrusted until verified against every queued file, audit the complete resulting security and active-state surface, write your verdict to .claude/antigravity-review-latest.md, and print the same verdict."
+agy --effort high -p "You are Antigravity reviewing Gotta Go. Use the strongest high-reasoning model selected for this CLI profile. Read .claude/antigravity-prompt-latest.md in full, follow .claude/antigravity-review-policy.json, inspect the queued files independently, write the policy-allowed verdict to .claude/antigravity-review-latest.md, run node .claude/hooks/archive-review-artifact.js antigravity, and print the same verdict."
 ```
 
 Never require the full packet to be passed inline on the command line.
@@ -24,6 +24,7 @@ Never require the full packet to be passed inline on the command line.
 ## Quick Start
 
 - Read `.claude/antigravity-prompt-latest.md`; if missing, stop and report missing scope.
+- Read `.claude/antigravity-review-policy.json`. While `mode` is `probation`, `APPROVE` is forbidden; use `ADVISORY` only when no blocking finding remains.
 - Invoke `superpowers:using-superpowers`, then every available skill named under the packet's `### Required Skills`.
 - Read `.claude/skills/artifact_qa_gate.md`; apply its shared core and **Antigravity Overlay**.
 - Read `.claude/review-queue.txt`, verify it matches the packet manifest, and inspect every queued file from disk.
@@ -33,12 +34,17 @@ Never require the full packet to be passed inline on the command line.
 - Check whether tests mock live database, auth, routing, GPS, RLS, or trust-engine behavior.
 - Reconcile active state, handoff, and `*-latest` documents with the implementation and verification evidence in the same queue.
 - Execute the 60-second user advocacy check.
-- Invoke `superpowers:verification-before-completion` before an APPROVE or completion claim.
+- Invoke `superpowers:verification-before-completion` before an `ADVISORY`, `APPROVE`, or completion claim.
 - Output findings first with exact `file:line` references.
 - Never approve uninspected code or developer intent alone.
+- Do not read another reviewer's verdict before saving and archiving the initial blind verdict.
+- Archive the exact saved verdict with `node .claude/hooks/archive-review-artifact.js antigravity`; never overwrite the only copy of a prior verdict.
 
 ## Adversarial Review Discipline
 
+- **Dual-Lens Audit (Semantics + Low-Level Runtime/Transport)**: Audit both high-level SQL/code contracts and low-level physical runtime dynamics (libpq parameters, socket paths, `pg_hba.conf` client-IP rules, Linux kernel loopback routing `ip-route(8)`, Docker container config, and test harness execution wrappers).
+- **Adversarial Disproof Policy**: Never approve a technical claim, workaround, or reasoning chain simply because it sounds plausible. Before issuing `APPROVED`, actively construct counter-arguments to disprove every premise in the packet.
+- **Authoritative Spec Verification**: Verify low-level system behaviors against official manuals and specifications (e.g. `pg_hba.conf` matches `getpeername()` client IP, not destination IP). Do not rely on unverified memory or intuition.
 - Review the resulting system, not only the requested delta. A syntax-only fix can make an unsafe dormant path callable.
 - For each claimed fix, identify the protected asset, attacker/caller, enforcement layer, allowed path, denied path, and evidence that proves both.
 - Compare recreated functions and policies against the current schema and later migrations. Mechanical parity with an older body is not evidence of current safety.
@@ -67,14 +73,49 @@ The shared core does not import Codex's conclusions, collapse reviewer roles, or
 one approval to substitute for the other. Antigravity independently rebuilds evidence
 from the staged files and authority sources.
 
-### Gemini 3.6 Flash Review Posture
+### Model And Probation Posture
 
-Use Gemini 3.6 Flash (High) for Gotta Go architecture, security, concurrency, RLS,
-PostGIS, trust, and migration reviews when the model is available. Use its long-context
-and agentic capabilities to trace authority and failure paths across files, but keep
-the packet lean and evidence-led. Model confidence, prior approvals, and long-context
-recall are not proof: inspect current disk bytes, run checks, and fail closed at missing
-runtime, permission, live-state, or independent-review boundaries.
+Use the strongest high-reasoning Antigravity model available. Flash-class runs may
+provide advisory findings but are not approval-bearing evidence for architecture,
+security, concurrency, RLS, PostGIS, trust, migration, or review-gate changes.
+Regardless of model, `.claude/antigravity-review-policy.json` controls whether
+Antigravity is in `probation`, `active`, or `disabled` mode.
+
+During probation:
+
+- Antigravity findings remain blocking as `REQUEST CHANGES` or `BLOCK`.
+- A clean result is `ADVISORY`, not `APPROVE`, and does not count as independent approval.
+- Approval authority may be restored only after a blind calibration suite passes every
+  required canary, the evidence is saved, and a human explicitly changes the policy to
+  `mode: active`, `approvalAuthority: true`, and `calibrationStatus: passed`.
+- A failed calibration is grounds to set `mode: disabled` and remove Antigravity from
+  the required workflow rather than weakening the pass criteria.
+
+### Calibration Exit Gate
+
+Use `.claude/antigravity-calibration-contract.json`. Calibration inputs must be blind,
+must withhold Codex/Claude verdicts and expected outcomes, and must include at least two
+independent runs. The suite must exercise transport/auth negotiation, client-source
+versus destination addressing, Windows shell boundaries, teardown after partial start,
+and concurrent global-state isolation. Passing requires every case detected and zero
+false approvals. Save a JSON evidence artifact containing:
+
+- `contractVersion`, `blindInputs: true`, and `reviewerOutputsWithheld: true`;
+- `independentRuns` and `falseApprovals`;
+- `results`, with one entry per `(caseId, runId)` pair — every required case must pass across at least
+  `minimumIndependentRuns` distinct `runId`s;
+- per result row: `model`, `command`, `timestamp` (ISO), `promptPath` plus a `promptSha256` that actually
+  matches the bytes at that path, and a `verdictArchive`.
+
+Each `verdictArchive` must be a distinct, content-addressed Antigravity verdict under
+`.claude/reviews/<scope>/antigravity/`, containing a parseable `VERDICT:` line and naming the `caseId` it
+certifies. Rows may not share an archive, and `independentRuns` must equal the number of distinct run
+identities the verified receipts actually contain — the count is derived, not trusted. These constraints
+exist because a shape-only check was demonstrably satisfiable by pointing every row at one unrelated file
+(2026-07-30), which would have restored approval authority with no qualifying run.
+
+Set the policy's `calibrationEvidence` to that artifact only after independently
+checking the receipts. The pre-commit hook refuses active mode without valid evidence.
 
 Treat `.planning/STATE.md`, `.beads/context/execution-state.md`, any handoff they name, and `*-latest` scan artifacts as active operational documents unless they carry an explicit historical/superseded banner. Dated audit reports may remain historical, but active recovery documents must agree with the batch's actual completion, verification, review, and deployment state.
 
@@ -132,9 +173,16 @@ Use this format and save/print it:
 ```md
 ## Antigravity Review - [change set]
 
-**VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
+**VERDICT: ADVISORY / APPROVE / REQUEST CHANGES / BLOCK**
 
 scope_hash: sha256:<exact packet fingerprint>
+review_id: <same opaque id as both blind packets>
+risk_level: low|medium|high
+runtime_required: true|false
+blind_review: true
+prior_reviewer_outputs_read: false
+evidence_level: 0|1|2|3|4
+runtime_evidence: executed|not_applicable|unavailable
 
 ### Reviewed Queue
 - List every queued file inspected for this verdict.
@@ -151,6 +199,15 @@ scope_hash: sha256:<exact packet fingerprint>
 ### Verification
 - Commands run and results, or why verification was not run.
 
+### Evidence Receipts
+- For each material claim: source or command, exact target, result, and what it proves.
+
+### Adversarial Disproof
+- Counterexamples attempted and premises disproved or retained.
+
+### Unverified Boundaries
+- Runtime, permission, environment, or authority boundaries not directly verified.
+
 ### Runtime Boundary Check
 - Call-path and mock-boundary assessment, including any production behavior not covered by tests.
 
@@ -165,11 +222,12 @@ Verdict rules are defined in `docs/review-severity.md`:
 
 - BLOCK: security issue, privacy leak, data-integrity risk, migration danger, or production-breaking defect.
 - REQUEST CHANGES: logic error, missing required test, incomplete edge-case handling, or significant architectural concern.
-- APPROVE: ready to merge; minor notes only.
+- ADVISORY: probation-only clean result; it has no approval authority.
+- APPROVE: ready to merge; allowed only in active mode after passed calibration.
 
 If the packet restricts verdict tokens, use the strongest allowed non-approval verdict and retain the issue's true severity. For example, report a CRITICAL security finding under `REQUEST CHANGES` when `BLOCK` is not an allowed output.
 
-Before APPROVE, confirm all of the following:
+Before `ADVISORY` or `APPROVE`, confirm all of the following:
 
 - Every queued file was semantically inspected, not merely named.
 - Every available skill listed in the packet's `### Required Skills` was invoked and named under `### Skills Applied`; unavailable skills are reported as verification gaps.
@@ -177,6 +235,9 @@ Before APPROVE, confirm all of the following:
 - Every changed/recreated definer RPC has an explicit return/filter/ACL assessment.
 - Active state and handoff artifacts agree with actual work and verification.
 - Mocked tests are not presented as proof of database, policy, provider, device, or live behavior.
+- Any packet with `runtime_required: true` has `runtime_evidence: executed`; otherwise return a non-positive verdict.
+- The verdict contains evidence receipts and an adversarial attempt for every material technical premise.
 - The verdict repeats the packet's exact staged `scope_hash`; any mismatch requires fresh packets and reviews.
+- The exact verdict has been copied to its content-addressed append-only archive before another attempt begins.
 
 Antigravity should not implement changes during review unless the human explicitly assigns a bounded implementation task.

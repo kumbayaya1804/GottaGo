@@ -4,6 +4,13 @@ Use this document to keep Claude, Antigravity, and Codex aligned on what blocks 
 
 ## Verdicts
 
+### ADVISORY
+
+The reviewer found no blocking issue within the evidence obtained, but the result has
+no approval authority. Use this only when machine policy places that reviewer in
+probation. It cannot substitute for APPROVE from an approval-bearing independent
+reviewer.
+
 ### BLOCK
 
 The change must not merge until fixed.
@@ -109,4 +116,3 @@ APPROVE examples:
 - A change adds a tested UI loading/error state without touching security-sensitive logic.
 - A migration adds a non-sensitive field with RLS unchanged and verified.
 - A refactor preserves behavior and tests/typecheck pass.
-
