@@ -366,6 +366,38 @@ export type Database = {
           },
         ]
       }
+      submission_tags: {
+        Row: {
+          created_at: string | null
+          id: string
+          key: string
+          submission_id: string
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          key: string
+          submission_id: string
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          key?: string
+          submission_id?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_tags_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       submissions: {
         Row: {
           access_code_confirmed_at: string | null
@@ -564,31 +596,43 @@ export type Database = {
       }
       verification_events: {
         Row: {
+          captured_at: string | null
           distance_from_location_meters: number
           event_type: string
+          gps_accuracy_m: number | null
           gps_location: unknown
           id: string
-          location_id: string
+          location_id: string | null
+          raw_gps_purge_after: string | null
+          submission_id: string | null
           timestamp: string | null
           user_id: string | null
           weight: number
         }
         Insert: {
+          captured_at?: string | null
           distance_from_location_meters: number
           event_type: string
+          gps_accuracy_m?: number | null
           gps_location?: unknown
           id?: string
-          location_id: string
+          location_id?: string | null
+          raw_gps_purge_after?: string | null
+          submission_id?: string | null
           timestamp?: string | null
           user_id?: string | null
           weight: number
         }
         Update: {
+          captured_at?: string | null
           distance_from_location_meters?: number
           event_type?: string
+          gps_accuracy_m?: number | null
           gps_location?: unknown
           id?: string
-          location_id?: string
+          location_id?: string | null
+          raw_gps_purge_after?: string | null
+          submission_id?: string | null
           timestamp?: string | null
           user_id?: string | null
           weight?: number
@@ -599,6 +643,13 @@ export type Database = {
             columns: ["location_id"]
             isOneToOne: false
             referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_events_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "submissions"
             referencedColumns: ["id"]
           },
           {
@@ -790,6 +841,17 @@ export type Database = {
           name: string
           policy_tag: string
           verification_count: number
+        }[]
+      }
+      search_pending_submissions_nearby: {
+        Args: { result_limit?: number; user_lat: number; user_lng: number }
+        Returns: {
+          distance_m: number
+          id: string
+          lat: number
+          lng: number
+          name: string
+          policy_tag: string
         }[]
       }
       set_gps_consent: { Args: never; Returns: undefined }
