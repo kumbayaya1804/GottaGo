@@ -10,6 +10,19 @@ files:
   - .planning/phases/04-gps-service-submission/04-VERIFICATION.md (accepted override)
 ---
 
+## Resolved (2026-08-01)
+
+Docker became available in this environment. Ran the full inherited Phase 3/4 + all
+Phase 5 pgTAP suite via `node supabase/scripts/run-isolated-db-suite.js` (the
+disposable-instance isolated runner, required for suites that commit a real
+concurrency-sensitive `app_config` mutation) — `phase3_read_rpcs.test.sql`,
+`phase4_submit.test.sql`, and `phase4_access_code.test.sql` all ran for real and
+passed cleanly as part of a 246/246 (later 253/253) full-suite result, run
+repeatedly to confirm stability. This first-ever real execution also surfaced and
+fixed 5 previously-undiscovered defects elsewhere in the Phase 5 suites (see
+`.planning/STATE.md`'s 2026-08-01 entries for full detail) — none in the Phase 3/4
+suites this todo specifically tracked, which passed with no fixes needed.
+
 ## Problem
 
 `supabase/tests/phase3_read_rpcs.test.sql` (24 assertions across 10 correctness properties: four-clause moderation, family_mode exclusion, access-code omission, nearest-N ordering, config-driven pin cap, D-08 null-include incl. the CR-02 chill_spot fix, detail distance source, antimeridian handling, update_profile coalesce, base-table SELECT denial) has never executed against a real Postgres/PostGIS instance in any session across Phase 3's lifecycle — this dev environment has no Docker CLI, and `supabase test db --local` requires `supabase start`/`db reset`.

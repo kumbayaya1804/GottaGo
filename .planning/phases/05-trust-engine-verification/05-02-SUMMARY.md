@@ -42,11 +42,17 @@ key-files:
     - supabase/migrations/20260731000300_phase5_verify_and_publish.sql
     - supabase/tests/phase5_confidence.test.sql
     - supabase/tests/phase5_verify_publish.test.sql
+    - supabase/scripts/verify-confidence-backfill-binding.test.js
   modified:
     - app/src/app/(tabs)/submit.tsx
     - app/src/features/submit/types.ts
     - app/src/features/submit/submitLocation.ts
     - app/src/features/submit/__tests__/submitLocation.test.ts
+    - supabase/tests/phase5_discovery_cooldown_race.test.sql
+    - supabase/tests/phase5_event_model.test.sql
+    - .github/workflows/phase5-db-verify.yml
+    - supabase/scripts/run-isolated-db-suite.js
+    - supabase/scripts/run-isolated-db-suite.test.js
 
 key-decisions:
   - "Task 1 checkpoint resolved 'adopt defaults' WITH the recommended Finding 1 fix: accuracy_floor_m=50 (hard reject) + new accuracy_decay_span_m=100 (decay span), max_accuracy_m untouched."
@@ -54,27 +60,29 @@ key-decisions:
   - "Finding 3 resolved: the confidence backfill maps NULL→NULL to preserve Phase 3's D-08 null-include behavior under filter_high_conf."
   - "The three public readers were rewritten from 20260730000000 (the ambiguity-fixed bodies), NOT from 20260704010002 — starting from the older file would have reintroduced a fixed 26-day production outage."
   - "The step-5b user-row lock uses an explicit per-row loop rather than a single ORDER BY ... FOR NO KEY UPDATE statement, because PostgreSQL may lock during the scan before the sort and a non-deterministic order defeats the whole lock-order design."
+  - "(2026-08-01) dblink two-session harness fix: dial the session's own real interface address via host(inet_server_addr()), discovered dynamically — not any loopback address, which the kernel rewrites to a fixed source address regardless of destination, defeating pg_hba.conf's intended scram-sha-256 routing."
+  - "(2026-08-01) withdraw_submission's D-58 event check narrowed to event_type='verification' (excluding the new creator_claim row), fixed via a NEW Section 3b in this migration — the already-live 20260717120000 migration was never edited."
 
-requirements-completed: []   # R-VERIFY/R-WEIGHT/R-PUBLISH/R-CONFIDENCE are IMPLEMENTED but NOT verified — no pgTAP has executed (no Docker) and no live push has happened. Do not mark complete until Task 5's gate passes.
+requirements-completed: []   # R-VERIFY/R-WEIGHT/R-PUBLISH/R-CONFIDENCE are IMPLEMENTED and pgTAP-VERIFIED (253/253, isolated runner) as of 2026-08-01, but NOT yet live-pushed and round-3 review is not yet complete. Do not mark complete until Task 5's live push actually happens.
 
 # Metrics
-duration: partial (Tasks 1-3 complete; Task 4 blocked on Task 5; halted at Task 5 blocking checkpoint)
-completed: 2026-07-31
+duration: partial (Tasks 1-3 complete; Task 4 blocked on Task 5; Task 5 review loop in progress, round 3 pending on Docker Desktop health)
+completed: 2026-07-31 (Tasks 1-3); Task 3's plan-required concurrency coverage completed 2026-08-01
 ---
 
 # Phase 5 Plan 02: Trust Engine Core Summary
 
-**verify_location with server-computed weight, a single-pass ascending-users.id `FOR NO KEY UPDATE` lock covering creator + caller + historical verifiers, the atomic two-verification publish with dual trust appends and real `trust_score` sync, the 0-100 numeric confidence authority, and the submit_location rewrite that finally forwards the accessibility selections — all written and statically verified, none pushed, and two-session concurrency coverage still outstanding.**
+**verify_location with server-computed weight, a single-pass ascending-users.id `FOR NO KEY UPDATE` lock covering creator + caller + historical verifiers, the atomic two-verification publish with dual trust appends and real `trust_score` sync, the 0-100 numeric confidence authority, and the submit_location rewrite that finally forwards the accessibility selections — all written, and as of 2026-08-01 fully pgTAP-verified (253/253, including all 4 required two-session races) via the isolated runner. Two rounds into the Antigravity+Codex review loop; a live-push authorization request will follow once round 3 lands clean.**
 
-## Status: CHECKPOINT — stopped at Task 5 (BLOCKING live-push gate)
+## Status: Task 5 review loop in progress (round 3 pending) — NOT yet pushed
 
-Task 1's decision checkpoint was answered ("adopt defaults" + the recommended Finding 1 fix) and execution continued through Tasks 2 and 3. **Task 4 (`supabase gen types`) cannot run** — it regenerates against the LIVE schema, which requires Task 5's push first. **Task 5 is a blocking human-verify checkpoint and no `supabase db push` was attempted.**
+Task 1's decision checkpoint was answered ("adopt defaults" + the recommended Finding 1 fix) and execution continued through Tasks 2 and 3. **Task 3's plan-required two-session concurrency coverage (4 races) was completed 2026-08-01**, closing the gap this summary previously tracked as blocking (see Historical below). **Task 4 (`supabase gen types`) still cannot run** — it regenerates against the LIVE schema, which requires Task 5's push first. **Task 5 remains a blocking human-verify checkpoint; no `supabase db push` has been attempted.** Currently mid-review: round 1 and round 2 both landed Antigravity ADVISORY / Codex REQUEST CHANGES (5 total findings across both rounds, all fixed); round 3 packets are not yet generated because a fresh isolated-suite run for genuine evidence hit an unresponsive Docker Desktop daemon — user is troubleshooting. See `.beads/context/execution-state.md` "Current Position" for the exact resume checklist.
 
 ## Performance
 
-- **Tasks:** 3 of 5 complete (1 decision, 2, 3). Task 4 blocked by dependency; Task 5 halted per checkpoint protocol.
-- **Files:** 6 created, 4 modified — **all 10 uncommitted** (see Task Commits).
-- **App suite:** 46/46 suites, 393/393 tests passing. `tsc --noEmit` clean.
+- **Tasks:** 3 of 5 complete (1 decision, 2, 3 — Task 3 now includes the full concurrency-race suite). Task 4 blocked by dependency; Task 5 (review loop, round 3 pending) is the active step.
+- **Files:** 16 in the review queue (7 created, 9 modified — see Task Commits) — **none committed yet**, per the project's mandatory dual-reviewer gate.
+- **App suite:** 46/46 suites, 393/393 tests passing. `tsc --noEmit` clean. **Database suite (new 2026-08-01): 253/253 pgTAP assertions passing via the isolated disposable-instance runner** — the first time this project's full inherited Phase 3/4 + Phase 5 suite has ever executed end-to-end.
 
 ## Accomplishments
 
@@ -127,59 +135,71 @@ Jest could not resolve `jest-expo`. Created a junction to the main checkout's `n
 **5. [Deviation — documented] Temporary type intersection in `submitLocation.ts`.**
 `database.types.ts` still describes the 12-arg signature and can only be regenerated post-push (Task 4). Rather than hand-editing the generated file (forbidden), the Args type is intersected with the two new params and commented for removal at Task 4. `tsc --noEmit` is clean.
 
-## Known Gaps
+## Historical — Known Gaps as of 2026-07-31 (superseded 2026-08-01, kept for provenance)
 
-**BLOCKING — two-session concurrency coverage is not written.** The plan requires four races (creator-shadowban-vs-publish, historical-verifier-shadowban with the committed `submission_publish_threshold=3` fixture, current-caller-shadowban, and the reciprocal-user lock-order deadlock case). `phase5_verify_publish.test.sql` covers the single-session branch outcomes thoroughly but **cannot** prove the step-5b lock actually blocks a concurrent shadowban UPDATE.
+**BLOCKING — two-session concurrency coverage is not written.** The plan requires four races (creator-shadowban-vs-publish, historical-verifier-shadowban with the committed `submission_publish_threshold=3` fixture, current-caller-shadowban, and the reciprocal-user lock-order deadlock case). `phase5_verify_publish.test.sql` covers the single-session branch outcomes thoroughly but **cannot** prove the step-5b lock actually blocks a concurrent shadowban UPDATE. They are absent rather than stubbed because the only mechanism available here — the dblink two-connection harness in `phase5_discovery_cooldown_race.test.sql` — **does not currently pass** (two real networking defects across two fix attempts; tracked as a deferred infrastructure gap). **No pgTAP has executed.** Docker is unavailable in this environment.
 
-They are absent rather than stubbed because the only mechanism available here — the dblink two-connection harness in `phase5_discovery_cooldown_race.test.sql` — **does not currently pass** (two real networking defects across two fix attempts; tracked as a deferred infrastructure gap). Four more suites on an unproven harness would produce failures indistinguishable from harness defects. The plan explicitly states concurrency/atomicity coverage may not be waived, so this is a genuine blocker for Task 5, not a soft omission.
+**Resolved 2026-08-01:** Docker became available. The dblink harness was root-caused and fixed for real (see key-decisions above); all 4 races are written and passing; the full pgTAP suite executed for the first time ever (253/253). See `.planning/STATE.md`'s 2026-08-01 entries for full detail.
 
-**No pgTAP has executed.** Docker is unavailable in this environment, so both new suites are structurally authored and reviewed against the live schema but unrun. RED was therefore *structural* for the SQL suites; only the client TDD cycle had a genuine observed RED→GREEN transition.
+## Known Gaps (current, 2026-08-01)
+
+**None blocking Task 3 anymore.** The plan-required concurrency coverage is complete and passing. Remaining gaps are entirely at the Task 5 review-loop / live-push stage, not implementation gaps:
+
+- **Round 3 of the Antigravity+Codex review loop is not yet started.** Round 2's 2 findings (confidence-backfill test had no automated binding to the migration; `run-isolated-db-suite.js` had no timeout on its `spawnSync` calls) are both fixed and locally verified, but not yet re-reviewed.
+- **Blocked on Docker Desktop itself being responsive.** A fresh isolated-suite run for genuine round-3 runtime evidence hit a genuinely unresponsive Docker daemon (`docker version`/`docker ps` both hang) — this validated the new timeout fix working correctly in the wild (self-recovered after 900s instead of hanging forever) but the daemon itself needs a restart, which is the user's action, not a code fix.
+- **No live push has occurred and none should until round 3 lands clean** and the user gives fresh, explicit authorization (standing project rule — no push runs on general phase-execution authorization alone).
 
 ## Task Commits
 
-**None of the 10 files are committed**, per the project's mandatory dual-reviewer gate (`.claude/hooks/check-review-artifacts.js` blocks `app/`, `supabase/`, `docs/`, and specified `.claude/` paths without archived Antigravity + Codex APPROVE verdicts). This executor did not generate review packets, invoke either reviewer, or attempt any bypass — `REVIEW_GATE_ALLOW_UNREVIEWED` is rejected for protected paths regardless and hook bypasses are a human-only decision.
+**None of the 16 queued files are committed**, per the project's mandatory dual-reviewer gate (`.claude/hooks/check-review-artifacts.js` blocks `app/`, `supabase/`, `docs/`, and specified `.claude/` paths without archived Antigravity + Codex APPROVE-equivalent verdicts). Two review rounds have run against this batch (see `.planning/STATE.md`'s 2026-08-01 entries for the full finding-by-finding history); round 3 is pending on Docker Desktop's daemon responding again.
 
-The files are deliberately left **unstaged**, not staged: the hook inspects the *staged* set, so staging them would have blocked even this `.planning`-only commit.
-
-**Uncommitted — created:**
+**Uncommitted — created (7):**
 - `supabase/migrations/20260731000000_phase5_app_config_seeds.sql`
 - `supabase/migrations/20260731000100_phase5_confidence_numeric.sql`
 - `supabase/migrations/20260731000200_phase5_notification_outbox.sql`
-- `supabase/migrations/20260731000300_phase5_verify_and_publish.sql`
-- `supabase/tests/phase5_confidence.test.sql`
-- `supabase/tests/phase5_verify_publish.test.sql`
+- `supabase/migrations/20260731000300_phase5_verify_and_publish.sql` (now includes Section 3b, the `withdraw_submission` D-58/creator_claim fix)
+- `supabase/tests/phase5_confidence.test.sql` (now includes 7 real backfill-mapping assertions + marker comments for the binding check)
+- `supabase/tests/phase5_verify_publish.test.sql` (now includes the 4 required two-session races, 86 assertions in that section alone)
+- `supabase/scripts/verify-confidence-backfill-binding.test.js` (new, round-2 fix)
 
-**Uncommitted — modified:**
+**Uncommitted — modified (9):**
 - `app/src/app/(tabs)/submit.tsx`
 - `app/src/features/submit/types.ts`
 - `app/src/features/submit/submitLocation.ts`
 - `app/src/features/submit/__tests__/submitLocation.test.ts`
+- `supabase/tests/phase5_discovery_cooldown_race.test.sql` (dblink connection fix)
+- `supabase/tests/phase5_event_model.test.sql` (stale `event_type='confirm'` fixture fix)
+- `.github/workflows/phase5-db-verify.yml` (wired in the 2 new pgTAP suites + the 2 Node-level test files, round-1/round-2 fixes)
+- `supabase/scripts/run-isolated-db-suite.js` (PATH-scan CLI-discovery fallback + per-phase timeout/tree-kill, round-1/round-2 fixes)
+- `supabase/scripts/run-isolated-db-suite.test.js` (regression tests for both fixes above)
 
-All 10 need adding to `.claude/review-queue.txt` by the orchestrator (not touched here — the review loop is orchestrator-owned per the 05-01 precedent).
+All 16 are listed in `.claude/review-queue.txt`. Round-2 verdicts are archived at `.claude/reviews/aceab3c8.../{antigravity,codex}/` but are now STALE relative to the working tree (2 files gained marker comments since; do not treat `.claude/{antigravity,codex}-review-latest.md` as current until round 3 regenerates them).
 
 ## Verification Performed
 
 - Task 2 and Task 3 automated `grep`/`ls` checks from the plan: **pass** (including `! grep -qi "for share"`).
 - `cd app && npx tsc --noEmit`: **clean**.
-- `cd app && npx jest`: **46/46 suites, 393/393 tests**. Three cold-start timeout failures on the first run (`sign-up`, `nearby`, `submit`) all passed on re-run and are unrelated to these changes.
-- pgTAP: **not executed** (no Docker) — blocking, see Known Gaps.
+- `cd app && npx jest`: **46/46 suites, 393/393 tests**.
+- **pgTAP (2026-08-01, previously blocking, now resolved): executed for real via `node supabase/scripts/run-isolated-db-suite.js`, the full inherited Phase 3/4 + all Phase 5 suite. 253/253 assertions pass, including all 4 required two-session races** (each independently proven via a real `pg_stat_activity.wait_event_type='Lock'` observation, not a timing heuristic). Re-run multiple times to confirm stability/idempotency of the manual cleanup sections.
+- `node --test supabase/scripts/run-isolated-db-suite.test.js`: 33/33 (24 original + 2 CLI-discovery-fallback + 7 timeout/tree-kill).
+- `node --test supabase/scripts/verify-confidence-backfill-binding.test.js`: 3/3, mutation-tested (corrupted the migration, confirmed the check fails, restored, confirmed it passes again).
 
 ## Next Phase Readiness
 
-1. **Write the four two-session race tests** — requires first repairing or replacing the dblink harness. Blocking for Task 5.
-2. Route all 10 files through the Antigravity + Codex review loop.
-3. Execute the full inherited + Phase 5 pgTAP suite on a Docker-capable environment. `phase5_verify_publish.test.sql` **must** run via `node supabase/scripts/run-isolated-db-suite.js` — it will commit a real global `app_config` mutation once the race fixture lands, which is unsafe against a shared stack.
-4. Obtain fresh authorization, then `supabase db push` (Task 5).
-5. Run Task 4 (`supabase gen types`) and delete the temporary type intersection in `submitLocation.ts`.
+1. ~~Write the four two-session race tests~~ — **DONE 2026-08-01.**
+2. ~~Route all files through the Antigravity + Codex review loop~~ — **IN PROGRESS**, round 2 of N complete, round 3 pending on Docker Desktop.
+3. ~~Execute the full inherited + Phase 5 pgTAP suite on a Docker-capable environment~~ — **DONE 2026-08-01**, 253/253 via the isolated runner.
+4. Obtain fresh authorization, then `supabase db push` (Task 5) — **blocked on round 3 landing clean.**
+5. Run Task 4 (`supabase gen types`) and delete the temporary type intersection in `submitLocation.ts` — **blocked on step 4.**
 
-## Self-Check: PASSED
+## Self-Check: PASSED (updated 2026-08-01)
 
-- All 6 created files verified present on disk; all 4 modified files appear in `git status`.
-- No commit hashes claimed for implementation work — none is committed by design.
-- `.planning/` is the only path in this commit.
-- `STATE.md` / `ROADMAP.md` deliberately untouched (orchestrator-owned).
+- All 16 queued files verified present on disk and listed in `.claude/review-queue.txt`.
+- No commit hashes claimed for implementation work — none is committed by design (dual-reviewer gate not yet satisfied).
+- pgTAP execution claim (253/253) is backed by real, repeated command output this session, not asserted from memory.
+- `STATE.md` / `.beads/context/execution-state.md` updated in the same savepoint as this file (see their 2026-08-01 entries) — not left stale alongside this summary's update.
 
 ---
 *Phase: 05-trust-engine-verification*
 *Plan: 02*
-*Status: Tasks 1-3 complete (uncommitted, unreviewed, unexecuted); Task 4 blocked on Task 5; halted at Task 5 blocking live-push checkpoint*
+*Status: Tasks 1-3 complete including full concurrency-race coverage (uncommitted, pgTAP-verified 253/253, 2 review rounds complete); Task 4 blocked on Task 5; Task 5 review loop in progress — round 3 pending on Docker Desktop daemon health, paused for user troubleshooting*
