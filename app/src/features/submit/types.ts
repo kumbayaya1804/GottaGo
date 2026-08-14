@@ -49,6 +49,15 @@ export interface SubmitInput {
   hours?: string | null;
   accessCode?: string | null;
   timingTip?: string | null;
+  /**
+   * The two accessibility selections (D-62/D-63). Through Phase 4 these were
+   * rendered and toggled in SubmitFlow but discarded at `buildInput` — the RPC
+   * exposed no parameters for them. Phase 5 stages them in `submission_tags` and
+   * copies them into the live `tags` vocabulary during the publish transaction.
+   * Required (not optional) so a caller cannot silently drop them again.
+   */
+  changingTable: boolean;
+  wheelchair: boolean;
 }
 
 // ---------------------------------------------------------------------------

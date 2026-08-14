@@ -22,10 +22,15 @@ jobs:
         with:
           version: 2.107.0
 
+      - name: Run Node-level script tests (runner unit tests + confidence backfill binding check)
+        run: |
+          node --test supabase/scripts/run-isolated-db-suite.test.js
+          node --test supabase/scripts/verify-confidence-backfill-binding.test.js
+
       - name: Start local Supabase stack
         run: supabase start
 
-      - name: Run standard pgTAP suites (Phase 3/4/5, excluding the dblink race suite)
+      - name: Run standard pgTAP suites (Phase 3/4/5, excluding suites requiring the disposable isolated runner)
         run: |
           supabase test db \
             supabase/tests/phase3_read_rpcs.test.sql \
@@ -34,7 +39,8 @@ jobs:
             supabase/tests/phase5prep_legacy_radius_rpcs_dropped.test.sql \
             supabase/tests/phase5prep_verification_events_lockdown.test.sql \
             supabase/tests/phase5_event_model.test.sql \
-            supabase/tests/phase5_discovery.test.sql
+            supabase/tests/phase5_discovery.test.sql \
+            supabase/tests/phase5_confidence.test.sql
 
       - name: Stop local Supabase stack
         if: always()
@@ -42,3 +48,6 @@ jobs:
 
       - name: Run isolated dblink cooldown-race suite
         run: node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_discovery_cooldown_race.test.sql
+
+      - name: Run isolated verify/publish suite (commits and restores global app_config)
+        run: node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql

@@ -65,8 +65,19 @@ const ERR_08 = "Couldn't submit your location. Check your connection and try aga
 const MAX_ACCURACY_M = 50;
 const MAX_FIX_AGE_MS = 60_000;
 
-/** Flatten the wizard form + GPS sample into the `submitLocation` payload (D-05/D-17). */
-function buildInput(values: SubmitSchema, sample: GpsSample): SubmitInput {
+/**
+ * Flatten the wizard form + GPS sample + accessibility selections into the
+ * `submitLocation` payload (D-05/D-17/D-62).
+ *
+ * `accessibility` is the Step-2 toggle state, keyed by ACCESSIBILITY_OPTIONS.key.
+ * Those UI keys ('changing'/'wheelchair') are NOT the wire names, so they are mapped
+ * explicitly here rather than spread through.
+ */
+function buildInput(
+  values: SubmitSchema,
+  sample: GpsSample,
+  accessibility: Record<string, boolean>
+): SubmitInput {
   return {
     name: values.name,
     lat: sample.coord.lat,
@@ -80,6 +91,8 @@ function buildInput(values: SubmitSchema, sample: GpsSample): SubmitInput {
     hours: values.hours ?? null,
     accessCode: values.accessCode || null,
     timingTip: values.timingTip || null,
+    changingTable: !!accessibility.changing,
+    wheelchair: !!accessibility.wheelchair,
   };
 }
 
@@ -93,9 +106,11 @@ const POLICY_OPTIONS: readonly { value: PolicyTag; label: string }[] = [
 ];
 
 /**
- * Accessibility toggles are captured in the UI to honor the Step-1 surface inventory,
- * but are NOT yet forwarded on submit: the 04-03 `submit_location` RPC / `SubmitInput`
- * expose no accessibility parameters this phase. Tracked as a deferred item (SUMMARY).
+ * Accessibility toggles. As of Phase 5 (D-62/D-63) these ARE forwarded on submit:
+ * `buildInput` maps them onto `SubmitInput.changingTable` / `.wheelchair`, the
+ * `submit_location` RPC stages them in `submission_tags`, and the publish
+ * transaction copies them into the live `tags` vocabulary. (Through Phase 4 they
+ * were rendered and toggled but then discarded — that gap is now closed.)
  */
 const ACCESSIBILITY_OPTIONS = [
   { key: 'changing', label: 'Changing table' },
@@ -209,7 +224,7 @@ export default function SubmitScreen() {
     setConfirmVisible(false);
     if (gpsSample === null || submittingRef.current) return;
     submittingRef.current = true;
-    mutation.mutate(buildInput(getValues(), gpsSample));
+    mutation.mutate(buildInput(getValues(), gpsSample, accessibility));
   }
 
   // On the 56pt CTA: fire the D-15 confirm dialog first if sensitivity is ON (T-04-19),
