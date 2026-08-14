@@ -8,5 +8,6 @@
   "enforceEvidenceContract": true,
   "minimumHighRiskEvidenceLevel": 3,
   "requireBlindReview": true,
+  "blindReviewScope": "first-round",
   "requireAppendOnlyVerdicts": true
 }

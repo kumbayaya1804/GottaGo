@@ -182,12 +182,12 @@ function writeApprovalArtifacts(root, queuedFile, options = {}) {
     : '\n';
   const claimHeading = includeClaimAudit ? '\n### Claim And State Audit\nconfirmed\n' : '\n';
   const contractFields = options.evidenceContract
-    ? `review_id: review-fixture-1\nrisk_level: ${options.riskLevel || 'high'}\nruntime_required: ${
+    ? `review_id: ${options.reviewId || 'review-fixture-1'}\nrisk_level: ${options.riskLevel || 'high'}\nruntime_required: ${
         options.runtimeRequired === false ? 'false' : 'true'
-      }\nblind_review: true\n`
+      }\nblind_review: ${options.blindReview === false ? 'false' : 'true'}\n`
     : '';
   const verdictFields = options.evidenceContract
-    ? `prior_reviewer_outputs_read: false\nevidence_level: ${options.evidenceLevel || 3}\nruntime_evidence: ${
+    ? `prior_reviewer_outputs_read: ${options.priorReviewerOutputsRead === true ? 'true' : 'false'}\nevidence_level: ${options.evidenceLevel || 3}\nruntime_evidence: ${
         options.runtimeEvidence || 'executed'
       }\n`
     : '';
@@ -502,6 +502,69 @@ test('blocks a blind packet that exposes the other reviewer verdict', () => {
   const result = runHook(root);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /exposes the other reviewer verdict before blind review/);
+});
+
+test('blindReviewScope "first-round" still requires blind_review: true on round 1', () => {
+  const root = createRepo();
+  const queuedFile = 'docs/example.md';
+  write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+  stage(root, queuedFile);
+  writePolicy(root, { blindReviewScope: 'first-round' });
+  writeApprovalArtifacts(root, queuedFile, {
+    antigravityVerdict: 'ADVISORY',
+    evidenceContract: true,
+    runtimeRequired: false,
+    reviewId: 'review-fixture-1',
+    blindReview: false,
+  });
+
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /must declare blind_review: true \(round 1 requires a blind review\)/);
+});
+
+test('blindReviewScope "first-round" allows a non-blind iteration round to reference the other reviewer', () => {
+  const root = createRepo();
+  const queuedFile = 'docs/example.md';
+  write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+  stage(root, queuedFile);
+  writePolicy(root, { blindReviewScope: 'first-round' });
+  writeApprovalArtifacts(root, queuedFile, {
+    antigravityVerdict: 'ADVISORY',
+    evidenceContract: true,
+    runtimeRequired: false,
+    reviewId: 'review-fixture-1-r2',
+    blindReview: false,
+    priorReviewerOutputsRead: true,
+  });
+  fs.appendFileSync(
+    path.join(root, '.claude', 'antigravity-prompt-latest.md'),
+    '\nYour round-1 verdict was ADVISORY; see .claude/codex-review-latest.md\n',
+    'utf8'
+  );
+
+  const result = runHook(root);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('blindReviewScope defaults to "always" — iteration rounds still require blind_review: true without the opt-in', () => {
+  const root = createRepo();
+  const queuedFile = 'docs/example.md';
+  write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+  stage(root, queuedFile);
+  writePolicy(root); // no blindReviewScope override — default "always" behavior
+  writeApprovalArtifacts(root, queuedFile, {
+    antigravityVerdict: 'ADVISORY',
+    evidenceContract: true,
+    runtimeRequired: false,
+    reviewId: 'review-fixture-1-r2',
+    blindReview: false,
+    priorReviewerOutputsRead: true,
+  });
+
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /must declare blind_review: true \(round 2 requires a blind review\)/);
 });
 
 test('rejects active Antigravity authority without passed calibration', () => {

@@ -119,6 +119,16 @@ function artifactField(content, field) {
   return match ? match[1].trim() : null;
 }
 
+// This project's own review_id convention appends a trailing `-rN` for the
+// Nth round of a given queue (e.g. `p5-02-race-fk-6f557fe0-r4`); a bare id
+// with no suffix is round 1. Used to scope blind-review enforcement below —
+// see policy.blindReviewScope.
+function reviewRoundFromId(reviewId) {
+  if (typeof reviewId !== 'string') return 1;
+  const match = reviewId.match(/-r(\d+)$/i);
+  return match ? Number(match[1]) : 1;
+}
+
 function readPolicy() {
   const policyPath = path.join('.claude', 'antigravity-review-policy.json');
   if (!fs.existsSync(policyPath)) {
@@ -823,21 +833,57 @@ if (queuedStagedFiles.length > 0) {
         }
       }
 
-      if (policy.requireBlindReview === true && artifactField(content, 'blind_review') !== 'true') {
-        console.error('BLOCKED: ' + req.label + ' (' + req.file + ') must declare blind_review: true.');
-        failed = true;
+      // blindReviewScope controls WHICH rounds of a review_id must be blind.
+      // "always" (or the field absent) preserves the original unconditional
+      // behavior. "first-round" scopes the requirement to round 1 only (a
+      // bare review_id, or one ending in `-r1`) — iteration rounds (`-r2`,
+      // `-r3`, ...) that fix a specific prior finding are legitimately
+      // non-blind: a round can't meaningfully re-verify "fix X" without
+      // saying what X was. This does not weaken the evidence contract itself
+      // (Evidence Receipts / Adversarial Disproof / Unverified Boundaries
+      // headings, the high-risk evidence floor, and runtime_evidence:executed
+      // all still apply every round, blind or not) — it only changes whether
+      // reviewers may see prior-round context while satisfying it.
+      const round = reviewRoundFromId(artifactField(content, 'review_id'));
+      const blindRequiredThisRound =
+        policy.requireBlindReview === true &&
+        (policy.blindReviewScope !== 'first-round' || round === 1);
+
+      if (blindRequiredThisRound) {
+        if (artifactField(content, 'blind_review') !== 'true') {
+          console.error(
+            'BLOCKED: ' + req.label + ' (' + req.file + ') must declare blind_review: true (round ' + round + ' requires a blind review).'
+          );
+          failed = true;
+        }
+      } else if (policy.requireBlindReview === true) {
+        // Iteration round under a round-aware policy: blind_review must be
+        // explicitly false, not merely "not true" — the field stays a real,
+        // machine-checked declaration either way, never a don't-care.
+        if (artifactField(content, 'blind_review') !== 'false') {
+          console.error(
+            'BLOCKED: ' +
+              req.label +
+              ' (' +
+              req.file +
+              ') must declare blind_review: false (round ' +
+              round +
+              ' is an iteration round under blindReviewScope: "first-round" — blind review applies only to round 1).'
+          );
+          failed = true;
+        }
       }
 
       if (!req.verdict) {
         const otherReviewer = req.reviewer === 'antigravity' ? 'codex' : 'antigravity';
-        if (referencesReviewerOutput(content, otherReviewer)) {
+        if (blindRequiredThisRound && referencesReviewerOutput(content, otherReviewer)) {
           console.error(
             'BLOCKED: ' + req.label + ' (' + req.file + ') exposes the other reviewer verdict before blind review.'
           );
           failed = true;
         }
       } else {
-        if (artifactField(content, 'prior_reviewer_outputs_read') !== 'false') {
+        if (blindRequiredThisRound && artifactField(content, 'prior_reviewer_outputs_read') !== 'false') {
           console.error(
             'BLOCKED: ' + req.label + ' (' + req.file + ') must declare prior_reviewer_outputs_read: false.'
           );

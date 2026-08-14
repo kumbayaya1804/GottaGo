@@ -26,7 +26,7 @@ This document defines how Claude, Antigravity, Codex, and GSD coordinate on Gott
    BLOCK stops the line. REQUEST CHANGES requires a fix and re-review. Security, privacy, RLS, GPS integrity, and data-loss conflicts default to the stricter interpretation.
 
 7. Reviewer independence is preserved.
-   The implementing orchestrator cannot self-approve. Both initial packets are generated from the same neutral claim table before either review runs. Neither reviewer sees the other's output until both initial verdicts are saved in append-only archives.
+   The implementing orchestrator cannot self-approve. Both initial packets are generated from the same neutral claim table before either review runs. Neither reviewer sees the other's output until both initial verdicts are saved in append-only archives — this describes round 1 of a `review_id`. Iteration rounds (round 2+) may reference either reviewer's own prior archived verdict for the same `review_id`, since a fix-and-reverify round exists specifically to verify a named prior finding; see `blindReviewScope` under Prompt Packet Requirements.
 
 8. Codex orchestration is an explicit contingency.
     When the human explicitly assigns orchestration to Codex, including during a Claude availability or rate-limit interruption, GPT-5.6 Sol may temporarily own GSD-compatible planning, scoped implementation, verification, packet preparation, and finding resolution. Terra and Luna may receive bounded delegated tasks under `docs/codex-model-routing.md`. This does not let the implementing Sol session self-approve; a separate Codex review run remains required.
@@ -97,7 +97,13 @@ Every packet includes:
 - Task goal and phase.
 - Current `.claude/review-queue.txt` entries.
 - Deterministic `scope_hash` computed from the staged queue bytes.
-- Shared `review_id`, `risk_level`, `runtime_required`, and `blind_review: true`.
+- Shared `review_id`, `risk_level`, `runtime_required`, and `blind_review`
+  (`true` for round 1 of a `review_id`; iteration rounds — `review_id`
+  suffixed `-r2`, `-r3`, ... — declare `blind_review: false` and may
+  reference the prior round's own findings, since they exist specifically to
+  verify a fix to something already found. Scope is controlled by
+  `.claude/antigravity-review-policy.json`'s `blindReviewScope`; `"always"`
+  or the field absent preserves the original every-round-blind behavior).
 - A neutral claim table naming the claim, authority source, required disproof, and evidence needed without supplying a preferred verdict.
 - Git status and diff for queued files.
 - Full queued file contents or an explicit diff.
