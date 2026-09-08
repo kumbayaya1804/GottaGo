@@ -142,11 +142,11 @@ None yet — Task 5 (the live push) has not run. Once authorized, the live push 
 2. ~~Route the 4 uncommitted files through review.~~ — Presumed done (files are live), mechanism not reconstructed.
 3. ~~Commit the reviewed files.~~ — Presumed done (files are live and in the local migration history), mechanism not reconstructed.
 4. ~~Obtain explicit human authorization for the live push.~~ — Done; push has happened (ledger + object checks confirmed 2026-07-30).
-5. **Run Task 4 (`supabase gen types typescript`) against the live schema.** — **STILL NOT DONE as of 2026-07-30.** This is the actual next action for this plan.
+5. ~~Run Task 4 (`supabase gen types typescript`) against the live schema.~~ — **Done, committed `0245cae` (2026-07-31).** Regenerated via the Supabase MCP `generate_typescript_types` tool, reviewed twice (an initial round used a packet format that predated this session's canonical structure and couldn't satisfy the commit gate; resubmitted unchanged — scope_hash `sha256:ed639ed6...` reproduced identically both times — in the canonical format). Final verdicts: Antigravity ADVISORY (zero findings, independently re-verified typecheck and the self-caught `CompositeTypes<>` fix); Codex APPROVE (zero findings, independently regenerated the file live against the project and confirmed byte-for-byte identity rather than trusting the transcription). `search_pending_submissions_nearby` and `submission_tags` both confirmed present in the generated types.
 
-Once Task 4 completes, `search_pending_submissions_nearby` and `private.verification_rate_limits` are confirmed as the foundation 05-02's `verify_location` + atomic-publish RPC can build on directly — they already exist live; only the generated TypeScript surface is missing.
+**Plan 05-01 is now fully complete** — all 5 tasks done, reviewed, and committed.
 
 ---
 *Phase: 05-trust-engine-verification*
 *Plan: 01*
-*Status: Tasks 1-3 and 5 complete (live push confirmed 2026-07-30); Task 4 (regenerate database.types.ts) outstanding — see "Update (2026-07-30)" above*
+*Status: COMPLETE — all 5 tasks done (Tasks 1-3 and 5 live-pushed 2026-07-17/07-30; Task 4 committed `0245cae` 2026-07-31)*
