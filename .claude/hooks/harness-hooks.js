@@ -120,13 +120,17 @@ function resolveProjectRoot(env, cwd) {
 /**
  * realpath of `target`, tolerating a target that does not exist yet (a Write creating
  * a new file): resolve the deepest existing ancestor and re-attach the remainder.
+ * Uses the OS resolver (`.native`), which returns the canonical spelling: it expands
+ * Windows 8.3 short names (RUNNER~1 -> runneradmin) and restores on-disk letter case.
+ * The JS resolver only follows symlinks, so a root spelled by git and a file spelled
+ * by the model could fail to match and the edit would go unqueued (windows-latest CI).
  */
 function realpathOfExisting(target) {
   const remainder = [];
   let current = path.resolve(target);
   for (;;) {
     try {
-      return path.join(fs.realpathSync(current), ...remainder);
+      return path.join(fs.realpathSync.native(current), ...remainder);
     } catch {
       const parent = path.dirname(current);
       if (parent === current) return path.resolve(target);

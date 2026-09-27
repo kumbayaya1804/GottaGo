@@ -66,7 +66,8 @@ test('resolveProjectRoot: inside a git repo, anchors on the repo top-level even 
   fs.writeFileSync(path.join(nested, '.claude', 'settings.json'), '{}\n');
   const deeper = path.join(nested, 'src');
   fs.mkdirSync(deeper, { recursive: true });
-  assert.equal(fs.realpathSync(hooks.resolveProjectRoot({}, deeper)), fs.realpathSync(root));
+  // .native on both sides: git reports the long path, os.tmpdir() may be a Windows 8.3 short name.
+  assert.equal(fs.realpathSync.native(hooks.resolveProjectRoot({}, deeper)), fs.realpathSync.native(root));
 });
 
 test('queue-edit: from app/ (which has its own .claude/) with no CLAUDE_PROJECT_DIR, writes the ROOT queue, never app/.claude/review-queue.txt', () => {
@@ -187,6 +188,21 @@ test(
     fs.mkdirSync(path.join(root, 'real'));
     fs.symlinkSync('real', path.join(root, 'inner'));
     assert.equal(hooks.toRepoRelative(path.join(root, 'inner', 'y.txt'), root), 'inner/y.txt');
+  },
+);
+
+// The OS can spell one directory two ways: Windows 8.3 short names (RUNNER~1 vs
+// runneradmin, seen on the windows-latest CI runner) or, on case-insensitive volumes,
+// a different letter case. Containment must resolve both sides to the OS's canonical
+// spelling, not just follow symlinks, or the edit is silently not queued.
+test(
+  'toRepoRelative: a non-canonical spelling of the root (8.3 short name, or different case) still resolves inside it',
+  { skip: !hooks.isCaseInsensitiveFs(os.tmpdir()) && 'needs a case-insensitive volume to create a second spelling' },
+  () => {
+    const root = fs.realpathSync.native(makeRoot());
+    fs.mkdirSync(path.join(root, 'docs'));
+    const respelled = path.join(path.dirname(root), path.basename(root).toUpperCase(), 'docs', 'a.md');
+    assert.equal(hooks.toRepoRelative(respelled, root, { caseInsensitive: false }), 'docs/a.md');
   },
 );
 
@@ -529,7 +545,10 @@ test('stage-queue: queued names are passed to git as literal paths, never interp
   fs.writeFileSync(path.join(root, '.claude', 'review-queue.txt'), `${tricky}\n`);
   const result = run('stage-queue', { cwd: root, env: { CLAUDE_PROJECT_DIR: root } });
   assert.equal(result.status, 0, result.stderr);
-  assert.doesNotMatch(result.stdout + result.stderr, /PWNED/);
+  // An executed `echo PWNED $(whoami)` would print a line STARTING with PWNED. The name
+  // itself may appear quoted inside a git message (Windows prints an LF-to-CRLF warning
+  // naming the file), which is harmless and must not fail the test.
+  assert.doesNotMatch(result.stdout + result.stderr, /^\s*PWNED\b/m);
   assert.deepEqual(git('diff', '--cached', '--name-only', '-z').stdout.split('\0').filter(Boolean), [tricky]);
 });
 
