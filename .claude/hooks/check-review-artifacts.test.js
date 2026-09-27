@@ -504,6 +504,82 @@ test('blocks a blind packet that exposes the other reviewer verdict', () => {
   assert.match(result.stderr, /exposes the other reviewer verdict before blind review/);
 });
 
+test('blocks a blind packet that tells the reviewer to run the full cross-review gate', () => {
+  for (const invocation of [
+    'node .claude/hooks/check-review-artifacts.js',
+    'node .claude\\hooks\\check-review-artifacts.js',
+    'node .claude%2fhooks%2fcheck-review-artifacts.js',
+    'node.exe .claude/hooks/check-review-artifacts.js',
+    'node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash && node .claude/hooks/check-review-artifacts.js',
+    // Quoted forms are ordinary shell and markdown; quoting must not evade detection.
+    'node ".claude/hooks/check-review-artifacts.js"',
+    "node '.claude/hooks/check-review-artifacts.js'",
+    '"node" .claude/hooks/check-review-artifacts.js',
+    'node ".claude/hooks/check-review-artifacts.js" --print-staged-scope-hash-extra',
+    // Indirection and punctuation (round-8 findings): a variable, a cd into the hooks
+    // directory, a split-line assignment, and a sentence-final period.
+    'SCRIPT=.claude/hooks/check-review-artifacts.js; node "$SCRIPT"',
+    'cd .claude/hooks && node check-review-artifacts.js',
+    'export GATE=.claude/hooks/check-review-artifacts.js',
+    'Run node .claude/hooks/check-review-artifacts.js.',
+    'bash -c "node .claude/hooks/check-review-artifacts.js"',
+    'node --no-warnings .claude/hooks/check-review-artifacts.js',
+    './.claude/hooks/check-review-artifacts.js',
+    // Round-9 findings: options with values, and a shell positional wrapper.
+    'node -r fs .claude/hooks/check-review-artifacts.js',
+    'node --inspect=0 .claude/hooks/check-review-artifacts.js',
+    "sh -c 'node \"$0\"' .claude/hooks/check-review-artifacts.js",
+    // Round-10 findings: a pipeline into xargs, and find -exec with the name first.
+    "printf '%s\\n' .claude/hooks/check-review-artifacts.js | xargs node",
+    'find .claude/hooks -name check-review-artifacts.js -exec node {} +',
+    // Round-11 findings: redirections touching the script name.
+    'node .claude/hooks/check-review-artifacts.js>/dev/null',
+    'node .claude/hooks/check-review-artifacts.js</dev/null',
+  ]) {
+    const root = createRepo();
+    const queuedFile = 'docs/example.md';
+    write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+    stage(root, queuedFile);
+    writePolicy(root);
+    writeApprovalArtifacts(root, queuedFile, {
+      antigravityVerdict: 'ADVISORY',
+      evidenceContract: true,
+      runtimeRequired: false,
+    });
+    fs.appendFileSync(
+      path.join(root, '.claude', 'codex-prompt-latest.md'),
+      `\nBefore writing the verdict, run \`${invocation}\`.\n`,
+      'utf8'
+    );
+
+    const result = runHook(root);
+    assert.equal(result.status, 1, invocation);
+    assert.match(result.stderr, /full cross-review gate before both initial verdicts are archived/);
+  }
+});
+
+test('allows a blind packet to run only the staged scope fingerprint preflight', () => {
+  const root = createRepo();
+  const queuedFile = 'docs/example.md';
+  write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+  stage(root, queuedFile);
+  writePolicy(root);
+  writeApprovalArtifacts(root, queuedFile, {
+    antigravityVerdict: 'ADVISORY',
+    evidenceContract: true,
+    runtimeRequired: false,
+  });
+  fs.appendFileSync(
+    path.join(root, '.claude', 'codex-prompt-latest.md'),
+    '\nConfirm the fingerprint with `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`.\n' +
+      'Quoted is fine too: `node ".claude/hooks/check-review-artifacts.js" --print-staged-scope-hash`.\n',
+    'utf8'
+  );
+
+  const result = runHook(root);
+  assert.equal(result.status, 0, result.stderr);
+});
+
 test('rejects active Antigravity authority without passed calibration', () => {
   const root = createRepo();
   write(root, '.claude/review-queue.txt', 'docs/example.md\n');
@@ -1358,4 +1434,193 @@ test('fails closed when the staged index cannot be inspected', () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /fails closed/);
+});
+
+// A queued name that git would read as a pathspec (glob or `:(magic)`) must be hashed
+// as that exact file. Without literal pathspecs, `:(exclude)*.txt` matched no index
+// entry, so its staged bytes could change after approval while the scope_hash stayed
+// the same, and a glob name could pull other files' bytes into the hash.
+test(
+  'scope_hash binds to the exact queued file even when its name is pathspec magic or a glob',
+  { skip: process.platform === 'win32' && 'Windows cannot create names containing : or *' },
+  () => {
+    const root = createRepo();
+    const stageLiteral = (name, content) => {
+      write(root, name, content);
+      execFileSync('git', ['--literal-pathspecs', 'add', '--', name], { cwd: root });
+    };
+
+    for (const name of [':(exclude)*.txt', ':(top)x.md', 'a*.txt', 'b?.txt']) {
+      write(root, '.claude/review-queue.txt', `${name}\n`);
+      stageLiteral(name, 'v1\n');
+      const before = getStagedScopeHash(root);
+      stageLiteral(name, 'v2\n');
+      assert.notEqual(getStagedScopeHash(root), before, `${name}: changed staged bytes must change the scope_hash`);
+    }
+
+    // A glob-named queue entry must not absorb other files' bytes into its hash.
+    write(root, '.claude/review-queue.txt', 'a*.txt\n');
+    stageLiteral('ab.txt', 'one\n');
+    const withAb = getStagedScopeHash(root);
+    stageLiteral('ab.txt', 'two\n');
+    assert.equal(getStagedScopeHash(root), withAb, 'an unqueued ab.txt must not affect the hash of queued a*.txt');
+  },
+);
+
+// With git's default core.quotePath, `git diff --cached --name-only` prints a name with
+// non-ASCII bytes, a tab, or a newline as a C-quoted string ("docs/caf\303\251.md"). That
+// string matches no protected prefix and no queue entry, so an unqueued protected file
+// slipped past Check B entirely. The gate must read raw NUL-separated names.
+test('Check B blocks an unqueued protected file whose name git would quote (non-ASCII)', () => {
+  const root = createRepo();
+  stage(root, 'docs/café.md', 'x\n');
+  const result = runHook(root);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /missing from \.claude\/review-queue\.txt: docs\/café\.md/);
+});
+
+test(
+  'Check B blocks an unqueued protected file whose name contains a tab',
+  { skip: process.platform === 'win32' && 'Windows cannot create names containing a tab' },
+  () => {
+    const root = createRepo();
+    stage(root, 'docs/a\tb.md', 'x\n');
+    const result = runHook(root);
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /missing from \.claude\/review-queue\.txt: docs\/a\tb\.md/);
+  },
+);
+
+test('Check B recognizes a QUEUED non-ASCII protected file as queued (raw name matches the queue entry)', () => {
+  const root = createRepo();
+  write(root, '.claude/review-queue.txt', 'docs/café.md\n');
+  stage(root, 'docs/café.md', 'x\n');
+  const result = runHook(root);
+  assert.doesNotMatch(result.stderr, /missing from \.claude\/review-queue\.txt/);
+  // Not vacuous: the file must be treated as queued, so Check A demands reviewer artifacts.
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /prompt packet|review verdict/i);
+});
+
+// A mistyped flag must not silently run the full cross-review gate: in a blind review
+// that full run prints the other reviewer's verdict metadata (2026-09-26 finding: a
+// reviewer typed --fingerprint and was exposed).
+test('an unknown command-line argument exits 2 with usage and never runs the gate', () => {
+  const root = createRepo();
+  const queuedFile = 'docs/example.md';
+  write(root, '.claude/review-queue.txt', `${queuedFile}\n`);
+  stage(root, queuedFile);
+  for (const args of [['--fingerprint'], ['--print-staged-scope-hash', '--extra'], ['print-staged-scope-hash']]) {
+    const result = spawnSync(process.execPath, [hookPath, ...args], { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 2, args.join(' '));
+    assert.match(result.stderr, /usage/i);
+    assert.doesNotMatch(result.stderr, /BLOCKED/);
+    assert.equal(result.stdout, '');
+  }
+});
+
+// Importing the gate (tests, tooling, a reviewer's evaluator) must not run it: a run
+// reads both canonical verdicts and prints diagnostics about them.
+test('requiring the gate module has no side effects and exposes its helpers', () => {
+  const root = createRepo();
+  stage(root, 'docs/unqueued.md', 'x\n');
+  const probe =
+    `const gate = require(${JSON.stringify(hookPath)});` +
+    `console.log(JSON.stringify(Object.keys(gate).sort()));`;
+  const result = spawnSync(process.execPath, ['-e', probe], { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  const exported = JSON.parse(result.stdout.trim());
+  for (const name of ['referencesUnsafeFullGateInvocation', 'referencesReviewerOutput', 'stagedScopeHash', 'stagedIndexRecords']) {
+    assert.ok(exported.includes(name), `${name} is exported`);
+  }
+});
+
+// The full-gate detector is fail-closed per line, but plain references to the gate file
+// must stay legal: the gate itself requires every packet to mention each staged queued
+// file, and packets cite the gate's tests and line numbers as evidence.
+test('the full-gate detector allows non-executing references to the gate file and its tests', () => {
+  const { referencesUnsafeFullGateInvocation } = require(hookPath);
+  for (const line of [
+    '- .claude/hooks/check-review-artifacts.js',
+    '| `node --test .claude/hooks/check-review-artifacts.test.js` | 59/59 pass |',
+    'The hash is computed at `check-review-artifacts.js:553` (`stagedScopeHash`).',
+    'Recompute with `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`.',
+    // Real packet prose that an earlier any-marker-on-the-line rule falsely blocked:
+    'Hooks expand `$CLAUDE_PROJECT_DIR`; read `.claude/hooks/check-review-artifacts.js` for the scope_hash.',
+  ]) {
+    assert.equal(referencesUnsafeFullGateInvocation(line), false, line);
+  }
+});
+
+// Blind-review search rule: an active stale-scan template that runs a repository-wide
+// search over .claude must exclude reviewer outputs, or a blind reviewer copying it
+// would read the other reviewer's verdict (round-8 finding).
+test('active stale-scan templates exclude reviewer outputs from repository-wide searches of .claude', () => {
+  const repoRoot = path.resolve(__dirname, '..', '..');
+  for (const file of ['.claude/commands/stale-info-scan.md', 'docs/stale-info-scan.md']) {
+    const lines = fs.readFileSync(path.join(repoRoot, file), 'utf8').split(/\r?\n/);
+    const searches = lines.filter((line) => /^\s*(rg|grep -r|git grep)\b/.test(line) && /(\s|^)\.claude(\s|\/|$)/.test(line));
+    assert.ok(searches.length > 0, `${file} still has its .claude searches`);
+    for (const line of searches) {
+      assert.ok(line.includes("--glob '!.claude/reviews/**'"), `${file}: ${line}`);
+      assert.ok(line.includes("--glob '!.claude/*-review-latest.md'"), `${file}: ${line}`);
+    }
+  }
+});
+
+// Helper-level contract for the full-gate scanner, so a parser regression names the
+// exact form instead of costing a full fixture run. A segment is a stretch of a line
+// between `;`, `&&`, `||`, `|`, or a period followed by whitespace. It is unsafe when
+// a runtime or shell word appears before a token naming the gate script.
+test('referencesUnsafeFullGateInvocation: blocked and allowed forms', () => {
+  const { referencesUnsafeFullGateInvocation: unsafe } = require(hookPath);
+  const blocked = [
+    'node .claude/hooks/check-review-artifacts.js',
+    'node .claude/hooks/check-review-artifacts',
+    'node -r fs .claude/hooks/check-review-artifacts.js',
+    'node --inspect=0 .claude/hooks/check-review-artifacts.js',
+    'node --require ./x.js --no-warnings .claude/hooks/check-review-artifacts.js',
+    `sh -c 'node "$0"' .claude/hooks/check-review-artifacts.js`,
+    'env NODE_OPTIONS=--no-warnings node .claude/hooks/check-review-artifacts.js',
+    'cd .claude/hooks && node check-review-artifacts.js',
+    'bash -c "cd .claude/hooks && node check-review-artifacts.js"',
+    'Run node .claude/hooks/check-review-artifacts.js.',
+    'GATE=.claude/hooks/check-review-artifacts.js',
+    './.claude/hooks/check-review-artifacts.js',
+    'node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash-extra',
+    'node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash --extra',
+    "printf '%s\\n' .claude/hooks/check-review-artifacts.js | xargs node",
+    'find .claude/hooks -name check-review-artifacts.js -exec node {} +',
+    'find .claude/hooks -name check-review-artifacts.js -exec {} ;',
+  ];
+  // Conservative by design (line-level rule): prose that names a runtime word and the
+  // gate file on one line is blocked too; the packet author rewords it.
+  const conservativelyBlocked = [
+    'See `check-review-artifacts.js:553`; run node --test for the suite.',
+    'Blocked forms include node and bash. The scanner lives in check-review-artifacts.js.',
+    'The PowerShell original used `$files`; `.beads/hooks/pre-commit` calls `check-review-artifacts.js`.',
+  ];
+  const allowed = [
+    'node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash',
+    'node ".claude/hooks/check-review-artifacts.js" --print-staged-scope-hash',
+    '- .claude/hooks/check-review-artifacts.js',
+    'node --test .claude/hooks/check-review-artifacts.test.js',
+    'node scripts/check-review-artifacts-helper.js',
+    'See `check-review-artifacts.js:553` for the hash.',
+    'Uses `$CLAUDE_PROJECT_DIR`; the gate is `.claude/hooks/check-review-artifacts.js`.',
+  ];
+  for (const line of blocked) assert.equal(unsafe(line), true, `should block: ${line}`);
+  for (const line of allowed) assert.equal(unsafe(line), false, `should allow: ${line}`);
+  for (const line of conservativelyBlocked) assert.equal(unsafe(line), true, `conservatively blocks: ${line}`);
+  // The name ends at ANY character that cannot continue a filename, so every shell
+  // metacharacter directly after the script token still counts as naming the gate.
+  for (const ch of ['>', '<', ';', '|', '&', ')', '(', '{', '}', '`', '*', '?', '$', '!', '#', '[', ']', '=', '^', '~', '\\']) {
+    const line = `node .claude/hooks/check-review-artifacts.js${ch}x`;
+    assert.equal(unsafe(line), true, `should block metacharacter ${JSON.stringify(ch)}: ${line}`);
+  }
+  // ...while names that merely extend it stay other files.
+  for (const other of ['check-review-artifacts.test.js', 'check-review-artifacts.jsx', 'check-review-artifacts_v2.js', 'check-review-artifacts.js.bak']) {
+    assert.equal(unsafe(`node .claude/hooks/${other}`), false, `other file: ${other}`);
+  }
 });

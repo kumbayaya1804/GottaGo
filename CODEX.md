@@ -17,7 +17,7 @@ Current workflow:
 
 Example:
 
-```powershell
+```bash
 codex exec --sandbox workspace-write "You are Codex reviewing Gotta Go. Read .claude/codex-prompt-latest.md in full, inspect every file it names from disk, run practical read-only verification where useful, write your verdict to .claude/codex-review-latest.md, and print the same verdict."
 ```
 

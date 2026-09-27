@@ -27,11 +27,7 @@ The v1.0 MVP target is a global proof of concept for crowdsourced bathroom acces
 
 ## Status
 
-- Phase 1: Foundation & Scaffold - complete
-- Phase 1.5: UX Foundation & Design System - plans complete
-- Phase 2: Auth & Profiles - not started
-
-See [.planning/ROADMAP.md](.planning/ROADMAP.md) for the current phase plan.
+Current progress lives in [.planning/STATE.md](.planning/STATE.md) (completed phases, active plan, next action) and is not duplicated here, so this README cannot go stale. See [.planning/ROADMAP.md](.planning/ROADMAP.md) for the phase plan.
 
 ## Tech Stack
 
@@ -55,11 +51,22 @@ docs/       Architecture, schema, review, and verification docs
 
 ## Local Development
 
-Install app dependencies:
+Commands below work in any POSIX shell (macOS, Linux) and in Windows PowerShell. On Windows PowerShell, if execution policy blocks the `npm` shim, use `npm.cmd` instead.
 
-```powershell
+Prerequisites: Node.js (CI uses Node 22), git, and, for database work, the Supabase CLI plus a Docker-compatible runtime (for example OrbStack or Docker Desktop). Building for iOS needs full Xcode on macOS; Android needs Android Studio.
+
+Install dependencies (root holds repo tooling such as Probity; `app/` holds the Expo app):
+
+```bash
+npm install
 cd app
-npm.cmd install
+npm install
+```
+
+Enable the repo's tracked git hooks (the pre-commit review gate) once per clone:
+
+```bash
+git config core.hooksPath .beads/hooks
 ```
 
 Create `app/.env.local` with local development values:
@@ -67,27 +74,28 @@ Create `app/.env.local` with local development values:
 ```text
 EXPO_PUBLIC_SUPABASE_URL=your-supabase-url
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN=your-mapbox-public-access-token
 MAPBOX_DOWNLOAD_TOKEN=your-mapbox-download-token
 ```
 
 Do not commit `.env.local`, service-role keys, access tokens, or private credentials.
 
-Start the Expo app:
+Start the Expo app. Mapbox is a native module, so use a development build (`npm run ios` / `npm run android`), not Expo Go:
 
-```powershell
+```bash
 cd app
-npm.cmd run start
+npm run start
 ```
 
 ## Verification
 
 Run the standard local checks from the app workspace:
 
-```powershell
+```bash
 cd app
-npm.cmd run typecheck
-npm.cmd test -- --runInBand
-npm.cmd run lint
+npm run typecheck
+npm test -- --runInBand
+npm run lint
 ```
 
 ## Project Rules

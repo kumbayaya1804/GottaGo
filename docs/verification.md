@@ -11,19 +11,30 @@ Every non-trivial change should have a clear verification signal before commit. 
 For the Expo/TypeScript app, expected commands include:
 
 ```bash
-cd app && npm.cmd test -- --runInBand
-cd app && npm.cmd run typecheck
-cd app && npm.cmd run lint
-cd app && npm.cmd run test:coverage -- --runInBand
+cd app && npm test -- --runInBand
+cd app && npm run typecheck
+cd app && npm run lint
+cd app && npm run test:coverage -- --runInBand
 ```
 
-On this Windows host, use `npm.cmd` rather than `npm` from PowerShell. The `.ps1` shims can be blocked by execution policy.
+These commands are OS-agnostic (macOS, Linux, Windows). On Windows PowerShell only, if execution policy blocks the `npm.ps1` shim, substitute `npm.cmd` for `npm`.
 
 For focused Jest runs against Expo Router paths containing literal parentheses, use `--runTestsByPath` so Jest does not treat `(auth)` as a regular-expression group:
 
 ```bash
-cd app && npm.cmd test -- --runInBand --runTestsByPath "src/app/__tests__/(auth)/sign-in.test.tsx"
+cd app && npm test -- --runInBand --runTestsByPath "src/app/__tests__/(auth)/sign-in.test.tsx"
 ```
+
+Repo harness and tooling tests (Node's built-in runner, run from the repo root):
+
+```bash
+node --test .claude/hooks/harness-hooks.test.js .claude/hooks/check-review-artifacts.test.js
+node --test supabase/scripts/run-isolated-db-suite.test.js
+node --test probity.config.test.js
+node --test scripts/os-portability.test.js
+```
+
+Dated entries in `.planning/`, `.beads/`, and `.claude/reviews/` may cite the original Windows development host (`C:\...` paths, `npm.cmd`, PowerShell). Those are historical records and stay as written; the commands in this file are the current ones.
 
 ## Supabase And Database Verification
 

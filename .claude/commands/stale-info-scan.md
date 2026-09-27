@@ -27,12 +27,12 @@ Do not load every active project document up front. Use `rg` first, then expand 
 
 ## Minimum Local Searches
 
-```powershell
+```bash
 git status --short
 git diff --name-only
-rg -n "Gemini|gemini-review|GEMINI\.md|file:///|TODO|TBD|deprecated|outdated|stale|drift|Last reviewed" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md SPEC.md docs .planning .claude
+rg -n --glob '!.claude/reviews/**' --glob '!.claude/*-review-latest.md' "Gemini|gemini-review|GEMINI\.md|file:///|TODO|TBD|deprecated|outdated|stale|drift|Last reviewed" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md SPEC.md docs .planning .claude
 rg -n "service_role|EXPO_PUBLIC|NEXT_PUBLIC|eyJ|sk\.|lat|lng|gps_lat|gps_lon" app supabase docs
-rg -n "stale-info-scan|agent-harness|codex-prompt-latest|antigravity-prompt-latest|antigravity-review-latest|codex-review-latest|review-queue" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md docs .claude
+rg -n --glob '!.claude/reviews/**' --glob '!.claude/*-review-latest.md' "stale-info-scan|agent-harness|codex-prompt-latest|antigravity-prompt-latest|antigravity-review-latest|codex-review-latest|review-queue" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md docs .claude
 ```
 
 ## Output Rules

@@ -78,7 +78,7 @@ Artifacts do not replace inspecting actual files from disk.
 9. The exact Antigravity verdict is archived with `node .claude/hooks/archive-review-artifact.js antigravity`.
 10. User runs a separate Codex review without access to the Antigravity verdict.
 11. The exact Codex verdict is archived with `node .claude/hooks/archive-review-artifact.js codex`.
-12. Only after both archives exist may the outputs be compared. Claude resolves all BLOCK and REQUEST CHANGES findings.
+12. Only after both archives exist may the outputs be compared and the full `node .claude/hooks/check-review-artifacts.js` gate be run. A blind reviewer may run only the `--print-staged-scope-hash` form; the full gate reads both verdicts and belongs to the orchestrator after archival. Claude resolves all BLOCK and REQUEST CHANGES findings.
 13. Affected files re-enter the queue; changed bytes are re-staged, re-fingerprinted, and reviewers re-review as new archived attempts.
 14. During Antigravity probation, commit requires Codex `APPROVE`, Antigravity `ADVISORY`, and no unresolved finding. Active two-approval mode is allowed only after passed blind calibration and an explicit human policy change.
 
@@ -214,6 +214,26 @@ requires an architectural change (index-based reads for all trust inputs; a trus
 oracle for calibration) considered out of scope for the session that authored the surrounding hardening,
 and deliberately left to whichever session takes it on next. Full round-by-round history is in
 `.planning/STATE.md`'s 2026-07-30/31 entries.
+
+**Also disclosed (2026-09-26, not yet accepted or rejected by the user): the blind-review packet
+scanner is a heuristic.** `referencesUnsafeFullGateInvocation()` in `check-review-artifacts.js` allows
+only the exact `--print-staged-scope-hash` invocation when it ends its command. After removing that form,
+it blocks any packet line that names the gate script (`check-review-artifacts` or
+`check-review-artifacts.js`; not its tests or other files sharing the prefix) and also contains, anywhere
+and in any order, a runtime or shell word (`node`, `npx`, `bash`, `sh`, `env`, `exec`, `xargs`, and
+similar), a direct `./` run of the gate, or an assignment of its path. The name counts as ended at any character
+that cannot continue a filename (anything but a word character, `-`, or `.` followed by a word
+character), so redirections and other shell operators touching it still count, while
+`check-review-artifacts.test.js` and similar names stay other files. Because order and pipes do not
+matter, every one-line command that spells the gate's name is blocked, including option values, `sh -c`
+wrappers, pipelines into `xargs`, `find -exec`, and `>`/`<` redirections. Earlier grammar-based versions each missed a new shape
+in review. The cost is conservative: prose that mentions a runtime word and the gate file on the same
+line is blocked too, and the packet author rewords it. Out of its model: commands assembled across lines,
+and executions that never spell the gate's name (globs, computed strings). It cannot prove that no text
+could lead a reviewer to run the full gate, and it does not sandbox the reviewer. Two things narrow the consequence: the gate
+refuses unknown arguments (exit 2) before reading anything, and blindness is backed by the workflow rules
+in `.claude/skills/review_packet_generator.md`. A verdict whose reviewer saw the other reviewer's output
+must still declare `prior_reviewer_outputs_read: true`, and the gate rejects that for approval.
 
 ## Superpowers And TDD
 

@@ -48,9 +48,12 @@ context_tier: 0|1|2
 
 8. Do not read or include `.claude/codex-review-latest.md` or a named Codex verdict. The
    initial review is blind.
+   Do not tell Antigravity to run the full `check-review-artifacts.js` gate during
+   the blind run. Antigravity may use only `--print-staged-scope-hash`; the orchestrator
+   runs the full cross-review gate after both initial verdicts are archived.
 9. Tell the user to run Antigravity, for example:
 
-```powershell
+```bash
 agy --effort high -p "You are Antigravity reviewing Gotta Go. Use the strongest high-reasoning model selected for this CLI profile. Read .claude/antigravity-prompt-latest.md and .claude/antigravity-review-policy.json in full. Review independently without reading any Codex verdict. Apply the packet's required skills and evidence contract. Write the policy-allowed verdict to .claude/antigravity-review-latest.md, then run node .claude/hooks/archive-review-artifact.js antigravity, and print the same verdict."
 ```
 
@@ -79,9 +82,10 @@ After writing the packet, report:
 
 ## Rules
 
-- Never inline the packet into the CLI command. Windows command-line limits can truncate it.
+- Never inline the packet into the CLI command. Command-line length limits (strictest on Windows, but present on every OS) can truncate it, and shell quoting can mangle it.
 - Do not include secrets, tokens, `.env` values, service-role keys, or precise user location data.
 - Do not treat an old Antigravity verdict as current unless its scope matches the current queue and diff.
 - Do not expose the other reviewer verdict before the initial Antigravity verdict is saved and archived.
+- Do not include a full cross-review gate invocation in the packet. The fingerprint-only command is the sole pre-verdict gate form allowed.
 - Do not overwrite or delete an archived verdict. A revision is a new attempt.
 - Do not clear `.claude/review-queue.txt`; it is cleared only after commit.

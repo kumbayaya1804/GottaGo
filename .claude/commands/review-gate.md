@@ -27,6 +27,7 @@ Prepare the full review gate for the current task. This command coordinates GSD 
 6. Ask the user to run Codex with the short command shown by `/codex-prompt`; do not provide the Antigravity verdict and require its append-only archive.
 7. After both initial verdict archives exist, compare findings and resolve conflicts.
 8. After Codex is APPROVE and Antigravity has its policy-allowed verdict, verify freshness:
+   - run `node .claude/hooks/check-review-artifacts.js`; this is the first point at which the full cross-review gate may run
    - queue matches changed files
    - prompt manifests match current queue
    - both verdicts reference current scope
@@ -47,6 +48,7 @@ Prepare the full review gate for the current task. This command coordinates GSD 
 ## Non-Negotiables
 
 - Do not run reviewers on stale packets.
+- Do not run the full cross-review artifact gate from either blind reviewer process; use its fingerprint-only form until both initial verdicts are archived.
 - Do not approve from summaries.
 - Do not treat probationary Antigravity `ADVISORY` as approval.
 - Do not skip Codex for implementation, security, privacy, TypeScript, tests, or user-visible failure states.

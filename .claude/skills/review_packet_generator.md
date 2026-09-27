@@ -76,11 +76,12 @@ these fields, sections, queue coverage, policy-allowed verdict, and archived cop
 Before either packet is generated, stage the exact queue (including deletions), inspect
 `git diff --cached`, and compute the deterministic staged fingerprint:
 
-```powershell
-$files = Get-Content .claude/review-queue.txt
-git add -A -- $files
+```bash
+node .claude/hooks/harness-hooks.js stage-queue
 node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash
 ```
+
+`stage-queue` runs `git add -A` on exactly the queued paths, including deletions, as literal pathspecs (glob characters and `:(magic)` in a name never match other files). It works the same on macOS, Linux, and Windows, and fails loudly on an empty queue or a path git rejects.
 
 Put that exact `scope_hash` in both packet manifests. Each reviewer must copy the same
 line into its verdict after confirming the staged scope. The pre-commit hook recomputes
@@ -123,6 +124,10 @@ verification gap, not an implied invocation.
 
 - Route every Antigravity and Codex packet through `.claude/skills/artifact_qa_gate.md`; include only the shared core and target reviewer overlay, never the other reviewer's conclusions.
 - Generate both initial packets before either review runs. Do not read, quote, link, or summarize the other reviewer's verdict until both initial verdicts are saved and archived.
+- A packet must never contain the other reviewer's output path: its `<reviewer>-review-latest.md` filename or a `.claude/reviews/<scope>/<reviewer>/` archive path. That includes "do not read X" instructions. The pre-commit gate treats any such mention as exposure and blocks the commit. Refer to it generically ("the other reviewer's verdict"). When a queued file's diff contains those filenames (for example the reviewer role guides or commands), do not embed that diff; tell the reviewer to read it from disk with `git diff --cached -- <path>`.
+- Every packet tells the reviewer to exclude `.claude/reviews/**` and `.claude/*-review-latest.md` from repository-wide searches, so an unscoped search cannot break blindness.
+- During a blind review, a packet may tell the reviewer to run only the fingerprint form: `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`. It must never tell the reviewer to run the full `check-review-artifacts.js` gate before saving and archiving the verdict. The full gate reads both canonical verdicts and its diagnostics can expose the other reviewer's metadata or conclusion. When a queued diff contains the full invocation as an orchestrator-only instruction, do not embed that hunk in either packet; direct the reviewer to inspect the queued file on disk.
+- The orchestrator runs the full `node .claude/hooks/check-review-artifacts.js` gate only after both initial verdicts have been saved and archived. If either reviewer requests changes or blocks, preserve both attempts, apply fixes, and start a new blind attempt with fresh packets and a new `review_id`.
 - Archive each exact verdict with `node .claude/hooks/archive-review-artifact.js antigravity|codex`. A revised verdict is a new immutable attempt, never an overwrite of the only prior copy.
 - Named or focused verdict files are historical/supplemental artifacts only; they cannot substitute for the canonical `*-latest.md` artifacts covering the complete queued staged scope.
 - Prefer excerpts, diffs, and dependency chains over full-doc dumps.

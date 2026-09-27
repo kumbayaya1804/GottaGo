@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   ci:
@@ -30,3 +30,27 @@ jobs:
 
       - name: Test with coverage
         run: cd app && npm run test:coverage
+
+  # The repo is developed on macOS and has been on Windows; harness hooks and
+  # tooling must work on every OS. These suites need no npm install.
+  harness-portability:
+    name: Harness & portability (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Harness, runner, and portability tests
+        run: >-
+          node --test
+          .claude/hooks/harness-hooks.test.js
+          .claude/hooks/check-review-artifacts.test.js
+          supabase/scripts/run-isolated-db-suite.test.js
+          scripts/os-portability.test.js

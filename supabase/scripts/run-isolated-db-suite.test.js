@@ -143,7 +143,10 @@ test('resolveCliJsEntry + direct spawn: full round-trip against the REAL install
     return;
   }
   const payload = '%SUPABASE_ROUNDTRIP_PAYLOAD%';
-  const r = spawnSync(process.execPath, [entry, payload], {
+  // Mirror makeRunSupabase(): an npm install resolves to a .js entry run under node;
+  // a native install (e.g. Homebrew on macOS/Linux) resolves to an executable run directly.
+  const isJsEntry = entry.toLowerCase().endsWith('.js');
+  const r = spawnSync(isJsEntry ? process.execPath : entry, isJsEntry ? [entry, payload] : [payload], {
     encoding: 'utf8',
     shell: false,
     env: { ...process.env, SUPABASE_ROUNDTRIP_PAYLOAD: 'CLOSE" & echo INJECTED & rem "' },

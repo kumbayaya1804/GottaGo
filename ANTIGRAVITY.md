@@ -15,7 +15,7 @@ Current workflow:
 
 Example:
 
-```powershell
+```bash
 agy --effort high -p "You are Antigravity reviewing Gotta Go. Use the strongest high-reasoning model selected for this CLI profile. Read .claude/antigravity-prompt-latest.md in full, follow .claude/antigravity-review-policy.json, inspect the queued files independently, write the policy-allowed verdict to .claude/antigravity-review-latest.md, run node .claude/hooks/archive-review-artifact.js antigravity, and print the same verdict."
 ```
 

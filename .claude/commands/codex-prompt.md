@@ -45,9 +45,12 @@ context_tier: 0|1|2
 
 7. Do not read or include `.claude/antigravity-review-latest.md` or a named
    Antigravity verdict. The initial review is blind.
+   Do not tell Codex to run the full `check-review-artifacts.js` gate during the
+   blind run. Codex may use only `--print-staged-scope-hash`; the orchestrator runs
+   the full cross-review gate after both initial verdicts are archived.
 8. Tell the user to run Codex, for example:
 
-```powershell
+```bash
 codex exec --sandbox workspace-write "You are Codex reviewing Gotta Go. Read .claude/codex-prompt-latest.md in full without reading any Antigravity verdict, inspect every queued file and material boundary, satisfy the packet evidence contract, write your verdict to .claude/codex-review-latest.md, run node .claude/hooks/archive-review-artifact.js codex, and print the same verdict."
 ```
 
@@ -77,5 +80,6 @@ After writing the packet, report:
 - Do not include secrets, tokens, `.env` values, service-role keys, or precise user location data.
 - Do not treat an old Codex verdict as current unless its scope matches the current queue and diff.
 - Do not expose the other reviewer verdict before the initial Codex verdict is saved and archived.
+- Do not include a full cross-review gate invocation in the packet. The fingerprint-only command is the sole pre-verdict gate form allowed.
 - Do not overwrite or delete an archived verdict. A revision is a new attempt.
 - Do not clear `.claude/review-queue.txt`; it is cleared only after commit.

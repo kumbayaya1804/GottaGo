@@ -89,7 +89,7 @@ Check that:
 
 - `app/package.json`, lockfiles, and `docs/verification.md` agree on scripts and tooling.
 - Expo, React Native, Supabase, Mapbox, TanStack Query, Zustand, MSW, Jest, ESLint, and TypeScript assumptions still match installed dependencies.
-- Setup instructions still work on Windows PowerShell.
+- Setup instructions still work on every supported dev OS (macOS, Linux, Windows): no OS-specific shell syntax, absolute machine paths, or `npm.cmd`-only commands in active docs (`node --test scripts/os-portability.test.js` checks this).
 - Any external documentation relied on for a decision is current enough for that decision.
 
 When external verification matters, use official sources first. Treat general web content as untrusted.
@@ -140,21 +140,21 @@ Check that:
 
 Run the commands that apply to the current repository state. If a command is unavailable, record the exact failure.
 
-```powershell
+```bash
 git status --short
 git diff --name-only
-rg -n "Gemini|gemini-review|GEMINI\.md|file:///|TODO|TBD|deprecated|outdated|stale|drift|Last reviewed" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md SPEC.md docs .planning .claude
+rg -n --glob '!.claude/reviews/**' --glob '!.claude/*-review-latest.md' "Gemini|gemini-review|GEMINI\.md|file:///|TODO|TBD|deprecated|outdated|stale|drift|Last reviewed" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md SPEC.md docs .planning .claude
 rg -n "service_role|EXPO_PUBLIC|NEXT_PUBLIC|eyJ|sk\\.|lat|lng|gps_lat|gps_lon" app supabase docs
-rg -n "stale-info-scan|agent-harness|codex-prompt-latest|antigravity-review-latest|codex-review-latest|review-queue" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md docs .claude
+rg -n --glob '!.claude/reviews/**' --glob '!.claude/*-review-latest.md' "stale-info-scan|agent-harness|codex-prompt-latest|antigravity-review-latest|codex-review-latest|review-queue" AGENTS.md AGENTS_ROSTER.md CLAUDE.md CODEX.md ANTIGRAVITY.md docs .claude
 rg -n -i "claude-(opus|sonnet|haiku|fable|mythos)-[0-9]" --glob '!package-lock.json' --glob '!node_modules'
-Get-Content app\package.json -Raw
-Get-Content supabase\config.toml -Raw
+cat app/package.json
+cat supabase/config.toml
 ```
 
 If configured and relevant, also run:
 
-```powershell
-Set-Location app
+```bash
+cd app
 npm run lint
 npm run typecheck
 npm test

@@ -22,7 +22,6 @@
  */
 'use strict';
 
-const { execSync } = require('child_process');
 const { execFileSync } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -80,16 +79,34 @@ function includesAll(content, values) {
   return values.filter((value) => !content.includes(value));
 }
 
+// Index records ("<mode> <oid> <stage>\t<path>") for exactly `file`: the file itself or,
+// for a directory entry, the files under it. --literal-pathspecs makes git read the name
+// literally, so a queued name such as `:(exclude)*.txt` or `a*.txt` cannot match other
+// index entries, or none (2026-09-26 review finding: a magic name matched nothing, so its
+// staged bytes could change after approval without changing the scope_hash). -z keeps
+// paths unquoted, and any record naming a different path throws rather than hashing it.
+function stagedIndexRecords(file) {
+  const output = execFileSync('git', ['--literal-pathspecs', 'ls-files', '--stage', '-z', '--', file], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const records = output.split('\0').filter(Boolean);
+  for (const record of records) {
+    const recordPath = record.slice(record.indexOf('\t') + 1);
+    if (recordPath !== file && !recordPath.startsWith(file.replace(/\/+$/, '') + '/')) {
+      throw new Error('index entry ' + JSON.stringify(recordPath) + ' does not belong to ' + JSON.stringify(file));
+    }
+  }
+  return records;
+}
+
 function stagedScopeHash(files) {
   const hash = crypto.createHash('sha256');
   for (const file of [...files].sort()) {
     let descriptor;
     try {
-      const entry = execFileSync('git', ['ls-files', '--stage', '--', file], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }).trim();
-      descriptor = entry || 'DELETED';
+      const records = stagedIndexRecords(file);
+      descriptor = records.length > 0 ? records.join('\n') : 'DELETED';
     } catch (error) {
       throw new Error('could not inspect staged scope entry ' + file + ' (' + error.message + ')');
     }
@@ -513,16 +530,55 @@ function referencesReviewerOutput(content, reviewer) {
   return new RegExp('\\.claude/reviews/[a-f0-9]{64}/' + reviewer + '/').test(haystack);
 }
 
+// A blind reviewer may recompute the staged fingerprint, but must not run the
+// full cross-review gate before both initial verdicts have been saved and
+// archived. The full gate reads both canonical verdicts and its diagnostics can
+// expose the other reviewer's scope, review id, or verdict.
+//
+// Line-level and fail-closed: canonicalize (slash, encoding, character-reference
+// variants), turn quote characters into spaces, and remove the one allowed form,
+// the exact fingerprint invocation ending its command. The line is then unsafe if
+// it still names the gate script (`check-review-artifacts` or
+// `check-review-artifacts.js`, not its `.test.js` or other files sharing the prefix)
+// AND anywhere on the same line, in any order, contains a runtime or shell word
+// (node, npx, bash, sh, env, exec, xargs, ...), a direct `./` run of the gate, or an
+// assignment of its path. Grammar-based matching was tried first and every round of
+// review found another shape it missed: quoting, variables, cd, option values,
+// positional wrappers, pipelines into xargs, find -exec with the name first
+// (2026-09-26/27 findings). Order- and segment-independence closes every one-line
+// command that spells the gate's name.
+//
+// Cost, by design: prose that mentions a runtime word and the gate file on the same
+// line is blocked too, and the packet author rewords it. Plain mentions of the path
+// stay legal, because packets must name every staged queued file. Out of model:
+// commands assembled across lines, and executions that never spell the gate's name
+// (globs, computed strings). This is a guard over packet text, not a sandbox;
+// reviewer independence ultimately rests on the workflow rules.
+function referencesUnsafeFullGateInvocation(content) {
+  const safeInvocation =
+    /(^|[^\w])node(?:\.exe)?\s+(?:\.\/)?\.claude\/hooks\/check-review-artifacts\.js\s+--print-staged-scope-hash(?=\s*($|[;|&),.:]))/gi;
+  // The name ends at any character that cannot continue a filename (a word character,
+  // `-`, or `.` followed by a word character, as in `.test.js`). Listing the allowed
+  // terminators instead missed shell operators such as `>` and `<` (round-11 finding).
+  const gateToken = String.raw`check-review-artifacts(?:\.js)?(?![\w-]|\.\w)`;
+  const namesGate = new RegExp(gateToken, 'i');
+  const runtimeWord =
+    /(^|[^\w])(node|nodejs|npx|bunx?|deno|bash|sh|zsh|fish|pwsh|powershell|cmd|exec|source|env|xargs)(\.exe)?([^\w]|$)/i;
+  const directOrAssigned = new RegExp(String.raw`(^|\s)\.\/\S*` + gateToken + String.raw`|=\s*\S*` + gateToken, 'i');
+
+  return canonicalizePathText(content)
+    .split(/\r?\n/)
+    .map((line) => line.replace(/["'`]/g, ' ').replace(safeInvocation, '$1'))
+    .some((line) => namesGate.test(line) && (runtimeWord.test(line) || directOrAssigned.test(line)));
+}
+
 // Returns the blob OID recorded for the file in the Git index, or null when the
 // path is not staged/tracked. Used to prove an artifact actually enters the
 // commit rather than merely existing in the working tree.
 function stagedBlobOid(file) {
   try {
-    const entry = execFileSync('git', ['ls-files', '--stage', '--', file.split(path.sep).join('/')], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
-    return entry ? entry.split(/\s+/)[1] : null;
+    const records = stagedIndexRecords(file.split(path.sep).join('/'));
+    return records.length === 1 ? records[0].split(/\s+/)[1] : null;
   } catch (error) {
     return null;
   }
@@ -544,357 +600,404 @@ function workingTreeBlobOid(file) {
   }
 }
 
-const queueFile = path.join('.claude', 'review-queue.txt');
-const queueEntries = readLines(queueFile);
-const queue = new Set(queueEntries);
-
-if (process.argv.includes('--print-staged-scope-hash')) {
-  try {
-    console.log(stagedScopeHash(queueEntries));
-    process.exit(0);
-  } catch (error) {
-    console.error('BLOCKED: ' + error.message);
-    process.exit(1);
+// The CLI. It runs only when this file is executed directly, never on require(): a run
+// reads both canonical verdicts, and its diagnostics would expose them to whoever
+// imported the module (2026-09-26 review finding). Arguments are validated before
+// anything is read, so a mistyped flag cannot silently fall through to a full gate run.
+function main(argv) {
+  const args = argv.slice(2);
+  const fingerprintOnly = args.length === 1 && args[0] === '--print-staged-scope-hash';
+  if (args.length > 0 && !fingerprintOnly) {
+    console.error('usage: node .claude/hooks/check-review-artifacts.js [--print-staged-scope-hash]');
+    console.error('Unknown arguments: ' + args.join(' ') + '. Nothing was checked.');
+    process.exit(2);
   }
-}
 
-let staged;
-try {
-  staged = execSync('git diff --cached --name-only', { encoding: 'utf8' })
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-} catch (error) {
-  console.error('BLOCKED: check-review-artifacts could not read staged files (' + error.message + ').');
-  console.error('The review gate fails closed when the staged index cannot be inspected.');
-  process.exit(1);
-}
+  const queueFile = path.join('.claude', 'review-queue.txt');
+  const queueEntries = readLines(queueFile);
+  const queue = new Set(queueEntries);
 
-let failed = false;
-
-// ─── Check C: policy/calibration state may not be deleted out from under the gate ──
-let stagedDeletions;
-try {
-  stagedDeletions = execSync('git diff --cached --name-only --diff-filter=D', { encoding: 'utf8' })
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-} catch (error) {
-  console.error('BLOCKED: check-review-artifacts could not read staged deletions (' + error.message + ').');
-  console.error('The review gate fails closed when the staged index cannot be inspected.');
-  process.exit(1);
-}
-
-const deletedPolicyState = stagedDeletions.filter((file) => POLICY_STATE_PATHS.includes(file));
-if (deletedPolicyState.length > 0) {
-  console.error(
-    'BLOCKED: staged deletion of review policy state: ' + deletedPolicyState.join(', ') + '.'
-  );
-  console.error(
-    'Removing policy or calibration state would weaken the gate on the next commit. ' +
-      'Commit an explicit policy with mode: disabled instead of deleting it.'
-  );
-  failed = true;
-}
-
-// ─── Check B: staged review-required files must be queued ────────────────────
-// Runs BEFORE the policy is loaded: "is this file even queued" is the more
-// fundamental question, and an invalid/absent policy should not mask it.
-const unqueuedReviewable = staged.filter((file) => requiresReview(file) && !queue.has(file));
-if (unqueuedReviewable.length > 0) {
-  console.error(
-    'BLOCKED: staged file(s) match review-required paths but are missing from .claude/review-queue.txt: ' +
-      unqueuedReviewable.join(', ')
-  );
-  if (process.env.REVIEW_GATE_ALLOW_UNREVIEWED === '1') {
-    console.error('REVIEW_GATE_ALLOW_UNREVIEWED is no longer accepted for protected paths.');
+  if (fingerprintOnly) {
+    try {
+      console.log(stagedScopeHash(queueEntries));
+      process.exit(0);
+    } catch (error) {
+      console.error('BLOCKED: ' + error.message);
+      process.exit(1);
+    }
   }
-  console.error('Add them to the queue and regenerate the canonical reviewer packets.');
-  failed = true;
-}
 
-// ─── Check A: queued staged files must be covered by fresh artifacts ─────────
-const queuedStagedFiles = staged.filter((file) => queue.has(file));
+  // Staged path names exactly as recorded in the index. -z disables core.quotePath
+  // C-quoting ("docs/caf\303\251.md"), which otherwise matched no protected prefix and no
+  // queue entry, so an unqueued protected file with a non-ASCII, tab, or newline name
+  // passed Check B (2026-09-26 review finding). Names are not trimmed or unquoted.
+  function stagedNames(extraArgs) {
+    return execFileSync('git', ['diff', '--cached', '--name-only', '-z', ...extraArgs], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+      .split('\0')
+      .filter((name) => name !== '');
+  }
 
-if (queuedStagedFiles.length > 0) {
-  let policy;
+  let staged;
   try {
-    policy = readPolicy();
+    staged = stagedNames([]);
   } catch (error) {
-    console.error('BLOCKED: ' + error.message + '.');
+    console.error('BLOCKED: check-review-artifacts could not read staged files (' + error.message + ').');
+    console.error('The review gate fails closed when the staged index cannot be inspected.');
     process.exit(1);
   }
 
-  let expectedScopeHash;
+  let failed = false;
+
+  // ─── Check C: policy/calibration state may not be deleted out from under the gate ──
+  let stagedDeletions;
   try {
-    expectedScopeHash = stagedScopeHash(queueEntries);
+    stagedDeletions = stagedNames(['--diff-filter=D']);
   } catch (error) {
-    console.error('BLOCKED: review scope fingerprint failed (' + error.message + ').');
+    console.error('BLOCKED: check-review-artifacts could not read staged deletions (' + error.message + ').');
+    console.error('The review gate fails closed when the staged index cannot be inspected.');
+    process.exit(1);
+  }
+
+  const deletedPolicyState = stagedDeletions.filter((file) => POLICY_STATE_PATHS.includes(file));
+  if (deletedPolicyState.length > 0) {
+    console.error(
+      'BLOCKED: staged deletion of review policy state: ' + deletedPolicyState.join(', ') + '.'
+    );
+    console.error(
+      'Removing policy or calibration state would weaken the gate on the next commit. ' +
+        'Commit an explicit policy with mode: disabled instead of deleting it.'
+    );
     failed = true;
   }
 
-  const REQUIRED = [
-    {
-      file: path.join('.claude', 'antigravity-prompt-latest.md'),
-      label: 'Antigravity prompt packet',
-      headings: ['Required Skills', 'Runtime Boundary And Mock Audit', 'Claim And State Audit'],
-      requiredText: [
-        'review-manifest',
-        'reviewer: antigravity',
-        '.claude/skills/artifact_qa_gate.md',
-        'Antigravity Overlay',
-        'superpowers:using-superpowers',
-        'superpowers:verification-before-completion',
-      ],
-      verdict: false,
-      reviewer: 'antigravity',
-    },
-    {
-      file: path.join('.claude', 'codex-prompt-latest.md'),
-      label: 'Codex prompt packet',
-      headings: ['Required Skills', 'Runtime Boundary And Mock Audit'],
-      requiredText: [
-        'review-manifest',
-        'reviewer: codex',
-        '.claude/skills/artifact_qa_gate.md',
-        'Codex Overlay',
-      ],
-      verdict: false,
-      reviewer: 'codex',
-    },
-    {
-      file: path.join('.claude', 'antigravity-review-latest.md'),
-      label: 'Antigravity review verdict',
-      headings: ['Skills Applied', 'Runtime Boundary Check', 'Claim And State Audit'],
-      requiredText: [
-        '.claude/skills/artifact_qa_gate.md',
-        'Antigravity Overlay',
-        'superpowers:using-superpowers',
-        'superpowers:verification-before-completion',
-      ],
-      verdict: true,
-      reviewer: 'antigravity',
-    },
-    {
-      file: path.join('.claude', 'codex-review-latest.md'),
-      label: 'Codex review verdict',
-      headings: ['Skills Applied', 'Runtime Boundary Check'],
-      requiredText: ['.claude/skills/artifact_qa_gate.md', 'Codex Overlay'],
-      verdict: true,
-      reviewer: 'codex',
-    },
-  ];
-  const contractValues = new Map();
+  // ─── Check B: staged review-required files must be queued ────────────────────
+  // Runs BEFORE the policy is loaded: "is this file even queued" is the more
+  // fundamental question, and an invalid/absent policy should not mask it.
+  const unqueuedReviewable = staged.filter((file) => requiresReview(file) && !queue.has(file));
+  if (unqueuedReviewable.length > 0) {
+    console.error(
+      'BLOCKED: staged file(s) match review-required paths but are missing from .claude/review-queue.txt: ' +
+        unqueuedReviewable.join(', ')
+    );
+    if (process.env.REVIEW_GATE_ALLOW_UNREVIEWED === '1') {
+      console.error('REVIEW_GATE_ALLOW_UNREVIEWED is no longer accepted for protected paths.');
+    }
+    console.error('Add them to the queue and regenerate the canonical reviewer packets.');
+    failed = true;
+  }
 
-  for (const req of REQUIRED) {
-    if (policy.mode === 'disabled' && req.reviewer === 'antigravity') {
-      continue;
+  // ─── Check A: queued staged files must be covered by fresh artifacts ─────────
+  const queuedStagedFiles = staged.filter((file) => queue.has(file));
+
+  if (queuedStagedFiles.length > 0) {
+    let policy;
+    try {
+      policy = readPolicy();
+    } catch (error) {
+      console.error('BLOCKED: ' + error.message + '.');
+      process.exit(1);
     }
 
-    const content = readFileSafe(req.file);
-    if (content === null) {
-      console.error(
-        'BLOCKED: ' + req.label + ' is missing (' + req.file + ') but staged files are in the active review queue.'
-      );
-      failed = true;
-      continue;
-    }
-
-    const declaredScopeHash = artifactScopeHash(content);
-    if (declaredScopeHash === null) {
-      console.error(
-        'BLOCKED: ' + req.label + ' (' + req.file + ') is missing a valid scope_hash fingerprint.'
-      );
-      failed = true;
-    } else if (expectedScopeHash && declaredScopeHash !== expectedScopeHash) {
-      console.error(
-        'BLOCKED: ' +
-          req.label +
-          ' (' +
-          req.file +
-          ') scope_hash does not match the current staged queue bytes. Expected ' +
-          expectedScopeHash +
-          ', found ' +
-          declaredScopeHash +
-          '.'
-      );
+    let expectedScopeHash;
+    try {
+      expectedScopeHash = stagedScopeHash(queueEntries);
+    } catch (error) {
+      console.error('BLOCKED: review scope fingerprint failed (' + error.message + ').');
       failed = true;
     }
 
-    if (req.verdict) {
-      const verdicts = artifactVerdicts(content);
-      if (verdicts.length === 0) {
-        console.error(
-          'BLOCKED: ' + req.label + ' (' + req.file + ') is missing one valid verdict declaration.'
-        );
-        failed = true;
-      } else if (verdicts.length > 1) {
-        console.error(
-          'BLOCKED: ' + req.label + ' (' + req.file + ') contains multiple verdict declarations: ' + verdicts.join(', ') + '.'
-        );
-        failed = true;
-      } else {
-        const expectedVerdict =
-          req.reviewer === 'antigravity' && policy.mode === 'probation' ? 'ADVISORY' : 'APPROVE';
-        if (verdicts[0] !== expectedVerdict) {
-          console.error(
-            'BLOCKED: ' +
-              req.label +
-              ' (' +
-              req.file +
-              ') declares verdict ' +
-              verdicts[0] +
-              ', but policy requires ' +
-              expectedVerdict +
-              '.'
-          );
-          failed = true;
-        }
+    const REQUIRED = [
+      {
+        file: path.join('.claude', 'antigravity-prompt-latest.md'),
+        label: 'Antigravity prompt packet',
+        headings: ['Required Skills', 'Runtime Boundary And Mock Audit', 'Claim And State Audit'],
+        requiredText: [
+          'review-manifest',
+          'reviewer: antigravity',
+          '.claude/skills/artifact_qa_gate.md',
+          'Antigravity Overlay',
+          'superpowers:using-superpowers',
+          'superpowers:verification-before-completion',
+        ],
+        verdict: false,
+        reviewer: 'antigravity',
+      },
+      {
+        file: path.join('.claude', 'codex-prompt-latest.md'),
+        label: 'Codex prompt packet',
+        headings: ['Required Skills', 'Runtime Boundary And Mock Audit'],
+        requiredText: [
+          'review-manifest',
+          'reviewer: codex',
+          '.claude/skills/artifact_qa_gate.md',
+          'Codex Overlay',
+        ],
+        verdict: false,
+        reviewer: 'codex',
+      },
+      {
+        file: path.join('.claude', 'antigravity-review-latest.md'),
+        label: 'Antigravity review verdict',
+        headings: ['Skills Applied', 'Runtime Boundary Check', 'Claim And State Audit'],
+        requiredText: [
+          '.claude/skills/artifact_qa_gate.md',
+          'Antigravity Overlay',
+          'superpowers:using-superpowers',
+          'superpowers:verification-before-completion',
+        ],
+        verdict: true,
+        reviewer: 'antigravity',
+      },
+      {
+        file: path.join('.claude', 'codex-review-latest.md'),
+        label: 'Codex review verdict',
+        headings: ['Skills Applied', 'Runtime Boundary Check'],
+        requiredText: ['.claude/skills/artifact_qa_gate.md', 'Codex Overlay'],
+        verdict: true,
+        reviewer: 'codex',
+      },
+    ];
+    const contractValues = new Map();
+
+    for (const req of REQUIRED) {
+      if (policy.mode === 'disabled' && req.reviewer === 'antigravity') {
+        continue;
       }
 
-      if (
-        policy.requireAppendOnlyVerdicts === true &&
-        !hasArchivedCopy(content, declaredScopeHash, req.reviewer)
-      ) {
+      const content = readFileSafe(req.file);
+      if (content === null) {
+        console.error(
+          'BLOCKED: ' + req.label + ' is missing (' + req.file + ') but staged files are in the active review queue.'
+        );
+        failed = true;
+        continue;
+      }
+
+      const declaredScopeHash = artifactScopeHash(content);
+      if (declaredScopeHash === null) {
+        console.error(
+          'BLOCKED: ' + req.label + ' (' + req.file + ') is missing a valid scope_hash fingerprint.'
+        );
+        failed = true;
+      } else if (expectedScopeHash && declaredScopeHash !== expectedScopeHash) {
         console.error(
           'BLOCKED: ' +
             req.label +
-            ' has no byte-identical append-only archive. Run: node .claude/hooks/archive-review-artifact.js ' +
-            req.reviewer
+            ' (' +
+            req.file +
+            ') scope_hash does not match the current staged queue bytes. Expected ' +
+            expectedScopeHash +
+            ', found ' +
+            declaredScopeHash +
+            '.'
         );
         failed = true;
       }
-    }
 
-    for (const heading of req.headings) {
-      if (!content.includes(heading)) {
-        console.error(
-          'BLOCKED: ' + req.label + ' (' + req.file + ') is missing the required "' + heading + '" section.'
-        );
-        failed = true;
-      }
-    }
-
-    for (const required of req.requiredText) {
-      if (!content.includes(required)) {
-        console.error(
-          'BLOCKED: ' + req.label + ' (' + req.file + ') is missing required freshness text: ' + required
-        );
-        failed = true;
-      }
-    }
-
-    const missingFiles = includesAll(content, queuedStagedFiles);
-    if (missingFiles.length > 0) {
-      console.error(
-        'BLOCKED: ' +
-          req.label +
-          ' (' +
-          req.file +
-          ') does not mention staged queued file(s): ' +
-          missingFiles.join(', ')
-      );
-      failed = true;
-    }
-
-    if (policy.enforceEvidenceContract === true) {
-      for (const field of ['review_id', 'risk_level', 'runtime_required', 'blind_review']) {
-        const value = artifactField(content, field);
-        if (value === null) {
-          console.error('BLOCKED: ' + req.label + ' (' + req.file + ') is missing required field: ' + field);
-          failed = true;
-        } else if (!contractValues.has(field)) {
-          contractValues.set(field, value);
-        } else if (contractValues.get(field) !== value) {
+      if (req.verdict) {
+        const verdicts = artifactVerdicts(content);
+        if (verdicts.length === 0) {
           console.error(
-            'BLOCKED: ' +
-              req.label +
-              ' (' +
-              req.file +
-              ') declares ' +
-              field +
-              ': ' +
-              value +
-              ', but the active review contract requires ' +
-              contractValues.get(field) +
-              '.'
+            'BLOCKED: ' + req.label + ' (' + req.file + ') is missing one valid verdict declaration.'
           );
           failed = true;
-        }
-      }
-
-      if (policy.requireBlindReview === true && artifactField(content, 'blind_review') !== 'true') {
-        console.error('BLOCKED: ' + req.label + ' (' + req.file + ') must declare blind_review: true.');
-        failed = true;
-      }
-
-      if (!req.verdict) {
-        const otherReviewer = req.reviewer === 'antigravity' ? 'codex' : 'antigravity';
-        if (referencesReviewerOutput(content, otherReviewer)) {
+        } else if (verdicts.length > 1) {
           console.error(
-            'BLOCKED: ' + req.label + ' (' + req.file + ') exposes the other reviewer verdict before blind review.'
+            'BLOCKED: ' + req.label + ' (' + req.file + ') contains multiple verdict declarations: ' + verdicts.join(', ') + '.'
           );
           failed = true;
-        }
-      } else {
-        if (artifactField(content, 'prior_reviewer_outputs_read') !== 'false') {
-          console.error(
-            'BLOCKED: ' + req.label + ' (' + req.file + ') must declare prior_reviewer_outputs_read: false.'
-          );
-          failed = true;
-        }
-
-        const riskLevel = artifactField(content, 'risk_level');
-        const evidenceLevel = Number(artifactField(content, 'evidence_level'));
-        if (
-          riskLevel === 'high' &&
-          (!Number.isInteger(evidenceLevel) || evidenceLevel < Number(policy.minimumHighRiskEvidenceLevel || 3))
-        ) {
-          console.error(
-            'BLOCKED: ' +
-              req.label +
-              ' (' +
-              req.file +
-              ') does not meet the high-risk evidence floor of Level ' +
-              Number(policy.minimumHighRiskEvidenceLevel || 3) +
-              '.'
-          );
-          failed = true;
-        }
-
-        for (const heading of ['Evidence Receipts', 'Adversarial Disproof', 'Unverified Boundaries']) {
-          if (!content.includes(heading)) {
+        } else {
+          const expectedVerdict =
+            req.reviewer === 'antigravity' && policy.mode === 'probation' ? 'ADVISORY' : 'APPROVE';
+          if (verdicts[0] !== expectedVerdict) {
             console.error(
-              'BLOCKED: ' + req.label + ' (' + req.file + ') is missing the required "' + heading + '" section.'
+              'BLOCKED: ' +
+                req.label +
+                ' (' +
+                req.file +
+                ') declares verdict ' +
+                verdicts[0] +
+                ', but policy requires ' +
+                expectedVerdict +
+                '.'
             );
             failed = true;
           }
         }
 
         if (
-          artifactField(content, 'runtime_required') === 'true' &&
-          artifactField(content, 'runtime_evidence') !== 'executed'
+          policy.requireAppendOnlyVerdicts === true &&
+          !hasArchivedCopy(content, declaredScopeHash, req.reviewer)
         ) {
           console.error(
             'BLOCKED: ' +
               req.label +
-              ' (' +
-              req.file +
-              ') covers a runtime-required change without runtime_evidence: executed.'
+              ' has no byte-identical append-only archive. Run: node .claude/hooks/archive-review-artifact.js ' +
+              req.reviewer
           );
           failed = true;
         }
       }
+
+      for (const heading of req.headings) {
+        if (!content.includes(heading)) {
+          console.error(
+            'BLOCKED: ' + req.label + ' (' + req.file + ') is missing the required "' + heading + '" section.'
+          );
+          failed = true;
+        }
+      }
+
+      for (const required of req.requiredText) {
+        if (!content.includes(required)) {
+          console.error(
+            'BLOCKED: ' + req.label + ' (' + req.file + ') is missing required freshness text: ' + required
+          );
+          failed = true;
+        }
+      }
+
+      const missingFiles = includesAll(content, queuedStagedFiles);
+      if (missingFiles.length > 0) {
+        console.error(
+          'BLOCKED: ' +
+            req.label +
+            ' (' +
+            req.file +
+            ') does not mention staged queued file(s): ' +
+            missingFiles.join(', ')
+        );
+        failed = true;
+      }
+
+      if (policy.enforceEvidenceContract === true) {
+        for (const field of ['review_id', 'risk_level', 'runtime_required', 'blind_review']) {
+          const value = artifactField(content, field);
+          if (value === null) {
+            console.error('BLOCKED: ' + req.label + ' (' + req.file + ') is missing required field: ' + field);
+            failed = true;
+          } else if (!contractValues.has(field)) {
+            contractValues.set(field, value);
+          } else if (contractValues.get(field) !== value) {
+            console.error(
+              'BLOCKED: ' +
+                req.label +
+                ' (' +
+                req.file +
+                ') declares ' +
+                field +
+                ': ' +
+                value +
+                ', but the active review contract requires ' +
+                contractValues.get(field) +
+                '.'
+            );
+            failed = true;
+          }
+        }
+
+        if (policy.requireBlindReview === true && artifactField(content, 'blind_review') !== 'true') {
+          console.error('BLOCKED: ' + req.label + ' (' + req.file + ') must declare blind_review: true.');
+          failed = true;
+        }
+
+        if (!req.verdict) {
+          const otherReviewer = req.reviewer === 'antigravity' ? 'codex' : 'antigravity';
+          if (referencesReviewerOutput(content, otherReviewer)) {
+            console.error(
+              'BLOCKED: ' + req.label + ' (' + req.file + ') exposes the other reviewer verdict before blind review.'
+            );
+            failed = true;
+          }
+          if (referencesUnsafeFullGateInvocation(content)) {
+            console.error(
+              'BLOCKED: ' +
+                req.label +
+                ' (' +
+                req.file +
+                ') tells a blind reviewer to run the full cross-review gate before both initial verdicts are archived.'
+            );
+            console.error(
+              'Use only --print-staged-scope-hash during blind review; run the full gate afterward from the orchestrator.'
+            );
+            failed = true;
+          }
+        } else {
+          if (artifactField(content, 'prior_reviewer_outputs_read') !== 'false') {
+            console.error(
+              'BLOCKED: ' + req.label + ' (' + req.file + ') must declare prior_reviewer_outputs_read: false.'
+            );
+            failed = true;
+          }
+
+          const riskLevel = artifactField(content, 'risk_level');
+          const evidenceLevel = Number(artifactField(content, 'evidence_level'));
+          if (
+            riskLevel === 'high' &&
+            (!Number.isInteger(evidenceLevel) || evidenceLevel < Number(policy.minimumHighRiskEvidenceLevel || 3))
+          ) {
+            console.error(
+              'BLOCKED: ' +
+                req.label +
+                ' (' +
+                req.file +
+                ') does not meet the high-risk evidence floor of Level ' +
+                Number(policy.minimumHighRiskEvidenceLevel || 3) +
+                '.'
+            );
+            failed = true;
+          }
+
+          for (const heading of ['Evidence Receipts', 'Adversarial Disproof', 'Unverified Boundaries']) {
+            if (!content.includes(heading)) {
+              console.error(
+                'BLOCKED: ' + req.label + ' (' + req.file + ') is missing the required "' + heading + '" section.'
+              );
+              failed = true;
+            }
+          }
+
+          if (
+            artifactField(content, 'runtime_required') === 'true' &&
+            artifactField(content, 'runtime_evidence') !== 'executed'
+          ) {
+            console.error(
+              'BLOCKED: ' +
+                req.label +
+                ' (' +
+                req.file +
+                ') covers a runtime-required change without runtime_evidence: executed.'
+            );
+            failed = true;
+          }
+        }
+      }
     }
   }
+
+  if (failed) {
+    console.error('');
+    console.error('Regenerate reviewer packets and verdicts for the current .claude/review-queue.txt scope.');
+    console.error('Prompt packets and verdicts must satisfy .claude/antigravity-review-policy.json, repeat the current scope_hash, identify evidence and skills actually used, and mention the staged queued files.');
+    console.error('');
+    process.exit(1);
+  }
+
+  process.exit(0);
 }
 
-if (failed) {
-  console.error('');
-  console.error('Regenerate reviewer packets and verdicts for the current .claude/review-queue.txt scope.');
-  console.error('Prompt packets and verdicts must satisfy .claude/antigravity-review-policy.json, repeat the current scope_hash, identify evidence and skills actually used, and mention the staged queued files.');
-  console.error('');
-  process.exit(1);
-}
+module.exports = {
+  canonicalizePathText,
+  referencesReviewerOutput,
+  referencesUnsafeFullGateInvocation,
+  requiresReview,
+  stagedIndexRecords,
+  stagedScopeHash,
+};
 
-process.exit(0);
+if (require.main === module) {
+  main(process.argv);
+}
