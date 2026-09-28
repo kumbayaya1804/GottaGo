@@ -10,7 +10,6 @@ Keep review quality high while avoiding default full-document dumps. Start from 
 
 - `AGENTS.md`
 - `.planning/STATE.md`
-- `.metaswarm/project-profile.json`
 - `.beads/context/execution-state.md` when recovering, resuming, or checking current phase state
 
 For any artifact creation, change, review, debugging, finalization, or handoff-state

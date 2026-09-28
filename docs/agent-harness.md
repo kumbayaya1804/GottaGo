@@ -84,7 +84,7 @@ Artifacts do not replace inspecting actual files from disk.
 
 ## Scope Rules
 
-- Small docs-only changes may use `/gsd-quick`, but still require reviewer approval if they alter security, schema, workflow, review gates, product scope, launch constraints, or agent instructions.
+- Small docs-only changes may be made directly, but still require reviewer approval if they alter security, schema, workflow, review gates, product scope, launch constraints, or agent instructions.
 - Schema, RLS, GPS verification, trust/confidence, shadowban, privacy, auth, and service-role handling require Codex approval plus Antigravity review while Antigravity remains enabled.
 - Frontend-only changes require Codex review when they affect location permission, map behavior, error states, user identity, privacy, Supabase calls, or emergency-user availability.
 - Reviewer prompts must name exact files and dependency boundaries. Do not ask reviewers to infer scope from chat history.

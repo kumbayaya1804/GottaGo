@@ -26,4 +26,4 @@ The shared Artifact QA Gate remains mandatory for artifact work and review.
 
 Vendored Supabase and Postgres best-practices references may exist under `.claude/skills/` or `.agents/skills/`; load them only for Supabase/Postgres tasks.
 
-Phase lifecycle management is handled by the globally installed GSD plugin (`/gsd-execute-phase`, `/gsd-progress`, etc.). No project-local `gsd_orchestrator.md` is needed.
+Phase lifecycle management is handled by the globally installed GSD plugin in its lean `core` profile (`/gsd-discuss-phase`, `/gsd-plan-phase`, `/gsd-execute-phase`). No project-local `gsd_orchestrator.md` is needed.

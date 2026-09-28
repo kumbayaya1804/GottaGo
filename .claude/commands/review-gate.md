@@ -1,10 +1,10 @@
 # /review-gate
 
-Prepare the full review gate for the current task. This command coordinates GSD review, Antigravity packet generation, Codex packet generation, and final commit readiness. Claude prepares artifacts; the user runs the external reviewer CLIs.
+Prepare the full review gate for the current task. This command coordinates an internal code-review pre-check, Antigravity packet generation, Codex packet generation, and final commit readiness. Claude prepares artifacts; the user runs the external reviewer CLIs.
 
 ## Order
 
-1. GSD code review for the scoped phase or files.
+1. Internal pre-check with Claude Code's built-in `/code-review` on the task's changes. It is not an approval; Antigravity and Codex remain the gate.
 2. Stage the exact queue and compute its deterministic `scope_hash`.
 3. Generate both blind packets with a shared `review_id` before either reviewer runs.
 4. User-run Antigravity verdict saved and archived.
@@ -14,14 +14,16 @@ Prepare the full review gate for the current task. This command coordinates GSD 
 
 ## Inputs
 
-- Optional phase number. Defaults to current active phase from GSD state.
-- Optional `--depth=quick|standard|deep` for GSD code review.
+- Scope is always the files in `.claude/review-queue.txt`.
+- Optional `/code-review` effort level (`low` through `max`). Defaults to the level last used.
+
+`/code-review` here means Claude Code's built-in review command (listed as `code-review`, with no plugin prefix). It is not the `engineering:code-review` plugin skill, which takes a PR URL. Invoke it as `/code-review [low|medium|high|xhigh|max] [path ...]`, passing the queued paths; with no target it reviews the current diff.
 
 ## Steps
 
 1. Confirm `.claude/review-queue.txt` lists only current task files. Remove stale entries only with explicit confirmation that they belong to a closed task.
-2. Stage every queued path (including deletions), inspect `git diff --cached`, and compute `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`.
-3. Run the installed GSD code-review command (`/gsd-code-review` or `/gsd:code-review`, depending on runtime) for the same scope.
+2. Run `/code-review` on the queued paths. Fix what it finds that holds up, with the same TDD and verification rules as any change, before staging. Its findings are Claude's own check, not reviewer evidence. If the built-in command is unavailable in the session, do not substitute another tool and do not stall: note "pre-check unavailable" in both packets' verification table and continue.
+3. Stage every queued path (including deletions), inspect `git diff --cached`, and compute `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`. Any later edit changes this hash, so do all pre-check fixes first.
 4. Run `/antigravity-review` and `/codex-prompt` before opening either existing verdict.
 5. Ask the user to run Antigravity with the short command shown by `/antigravity-review`; require the policy-allowed verdict and append-only archive.
 6. Ask the user to run Codex with the short command shown by `/codex-prompt`; do not provide the Antigravity verdict and require its append-only archive.

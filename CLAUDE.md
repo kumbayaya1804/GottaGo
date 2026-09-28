@@ -15,11 +15,11 @@ After that, load only the context tier selected by `docs/context-router.md`. Do 
 
 ## Workflow Entry Points
 
-Use GSD for project work unless the user explicitly asks to bypass it:
+GSD is installed in its lean `core` profile (frozen at 1.42.3; the upstream package is deprecated). Use it for phase work unless the user explicitly asks to bypass it:
 
-- `/gsd-quick` for small fixes, docs, and ad-hoc maintenance.
-- `/gsd-debug` for bug investigation.
-- `/gsd-plan-phase` and `/gsd-execute-phase` for phase work.
+- `/gsd-discuss-phase`, `/gsd-plan-phase`, and `/gsd-execute-phase` for phase work. Phase 5 plans already exist; executing them does not require re-planning.
+- Small fixes, docs, and ad-hoc maintenance: do them directly, with the same verification and review rules.
+- Bug investigation: `superpowers:systematic-debugging`.
 - `/review-gate` for non-trivial changes that need both reviewers.
 
 For file-changing work, keep `.claude/review-queue.txt` current. For code or behavior changes under `app/src/**`, follow the TDD and verification rules in `docs/agent-harness.md`.
@@ -68,7 +68,6 @@ Use the router instead of embedding these here:
 - Agent/review contract: `docs/agent-harness.md`
 - Codex details: `CODEX.md`
 - Antigravity details: `ANTIGRAVITY.md`
-- Tool profile: `.metaswarm/project-profile.json`
 
 ## Current Recovery Rule
 

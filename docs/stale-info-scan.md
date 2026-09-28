@@ -10,8 +10,8 @@ This document defines how Gotta Go scans for stale, contradictory, or outdated p
 Run a stale-information scan:
 
 - Every 30 calendar days while the project is active.
-- Before any phase transition, including `/gsd-transition`.
-- Before closing a milestone, including `/gsd:complete-milestone`.
+- Before any phase transition (moving from one GSD phase to the next).
+- Before closing a milestone.
 - After dependency, SDK, Supabase, Mapbox, Expo, auth, schema, migration, or harness changes.
 - Before TestFlight, app-store submission, public launch, or a new market launch.
 - Whenever a reviewer reports possible drift between docs, code, migrations, or generated types.

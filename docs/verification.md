@@ -34,6 +34,8 @@ node --test probity.config.test.js
 node --test scripts/os-portability.test.js
 ```
 
+Formatting is not an enforced check yet. Prettier is an app dev dependency, and `cd app && npx prettier --check .` was the former metaswarm profile's `format_check` command, but no CI job, package script, or hook runs it. A manual run on 2026-09-28 reported style issues in 154 files. Do not report it as a passing or failing gate. Making it required needs its own reviewed change that reformats those files and then adds the check to CI.
+
 Dated entries in `.planning/`, `.beads/`, and `.claude/reviews/` may cite the original Windows development host (`C:\...` paths, `npm.cmd`, PowerShell). Those are historical records and stay as written; the commands in this file are the current ones.
 
 ## Supabase And Database Verification

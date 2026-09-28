@@ -66,14 +66,12 @@ Codex reads the packet, inspects actual files from disk, and returns the format 
 
 Role: phase lifecycle and planning engine.
 
-Key commands:
+Key commands (lean `core` profile, frozen at 1.42.3):
 - `/gsd-discuss-phase`
 - `/gsd-plan-phase`
 - `/gsd-execute-phase`
-- `/gsd-verify-work`
-- `/gsd-code-review`
-- `/gsd-quick`
-- `/gsd-debug`
+
+Verification, code review, small fixes, and debugging are not GSD commands here. They use the Superpowers skills (`verification-before-completion`, `systematic-debugging`, `test-driven-development`) and `/review-gate`: Claude Code's built-in `/code-review` as a pre-check before staging, then the Antigravity + Codex review gate.
 
 GSD state files do not replace implementation evidence. Agents still inspect actual files and run verification.
 
@@ -81,13 +79,13 @@ GSD state files do not replace implementation evidence. Agents still inspect act
 
 1. Claude finishes a scoped task and verifies it.
 2. `.claude/review-queue.txt` lists current changed files.
-3. Claude prepares Antigravity packet.
-4. User runs Antigravity and saves verdict.
-5. Claude prepares Codex packet.
-6. User runs Codex and saves verdict.
+3. Claude prepares both blind packets (Antigravity and Codex) before either reviewer runs.
+4. User runs Antigravity; its verdict is saved and archived.
+5. User runs Codex without access to the Antigravity verdict; its verdict is saved and archived.
+6. Only after both archives exist are the verdicts compared.
 7. Claude fixes all BLOCK and REQUEST CHANGES findings.
-8. Affected files re-enter the queue and reviewers re-review.
-9. Commit only after both reviewers APPROVE.
+8. Affected files re-enter the queue and reviewers re-review as a new attempt.
+9. Commit only after Codex APPROVE and the policy-allowed Antigravity verdict (`ADVISORY` during probation), with no unresolved finding.
 
 ## Non-Negotiables
 
