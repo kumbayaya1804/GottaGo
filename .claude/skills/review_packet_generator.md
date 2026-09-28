@@ -73,8 +73,11 @@ Each reviewer verdict must repeat `review_id`, `risk_level`, `runtime_required`,
 `### Adversarial Disproof`, and `### Unverified Boundaries`. The pre-commit gate checks
 these fields, sections, queue coverage, policy-allowed verdict, and archived copy.
 
-Before either packet is generated, stage the exact queue (including deletions), inspect
-`git diff --cached`, and compute the deterministic staged fingerprint:
+Generate packets with `node .claude/hooks/review-packets.js` after writing the task's
+claims to `.claude/review-claims.md` (format in `.claude/commands/codex-prompt.md`). The
+script stages the exact queue (including deletions, even ones already staged with
+`git rm`), computes the deterministic staged fingerprint, and applies the rules below.
+The manual equivalent, for inspection:
 
 ```bash
 node .claude/hooks/harness-hooks.js stage-queue

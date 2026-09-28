@@ -71,16 +71,16 @@ Artifacts do not replace inspecting actual files from disk.
 2. Claude works through GSD unless the user explicitly bypasses it.
 3. Claude verifies locally and records commands, results, and blockers.
 4. Claude ensures `.claude/review-queue.txt` matches current changed files.
-5. Claude stages the exact queue, inspects the staged diff, and computes the staged `scope_hash`.
-6. Claude loads `.claude/skills/artifact_qa_gate.md` and includes its shared contract, target reviewer overlay, and a task-specific `### Required Skills` section in each packet.
-7. Claude generates both blind packets with the same `review_id`, risk level, runtime requirement, neutral claim table, and staged scope before either reviewer runs.
-8. User runs Antigravity with the strongest high-reasoning model available. In probation, a clean result is `ADVISORY`; `APPROVE` is invalid.
-9. The exact Antigravity verdict is archived with `node .claude/hooks/archive-review-artifact.js antigravity`.
-10. User runs a separate Codex review without access to the Antigravity verdict.
+5. Claude writes the task's neutral claims to `.claude/review-claims.md` (goal, claim table, User Advocacy answer, runtime/mock audit, verification).
+6. Claude runs `node .claude/hooks/review-packets.js`. It stages the exact queue, computes the staged `scope_hash`, a shared `review_id`, and the risk tier, adds each reviewer's `.claude/skills/artifact_qa_gate.md` overlay and `### Required Skills`, and checks every packet against the gate's own requirements before writing.
+7. Both blind packets exist before either reviewer runs. For a low-tier batch (policy `lowRiskCodexOnly`; every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and the claims declare `risk_level: low`), only the Codex packet is written.
+8. Full tier: user runs Antigravity. In probation, a clean result is `ADVISORY`; `APPROVE` is invalid.
+9. Full tier: the exact Antigravity verdict is archived with `node .claude/hooks/archive-review-artifact.js antigravity`.
+10. User runs a separate Codex review without access to any Antigravity verdict.
 11. The exact Codex verdict is archived with `node .claude/hooks/archive-review-artifact.js codex`.
-12. Only after both archives exist may the outputs be compared and the full `node .claude/hooks/check-review-artifacts.js` gate be run. A blind reviewer may run only the `--print-staged-scope-hash` form; the full gate reads both verdicts and belongs to the orchestrator after archival. Claude resolves all BLOCK and REQUEST CHANGES findings.
+12. Only after every required archive exists may the outputs be compared and the full `node .claude/hooks/check-review-artifacts.js` gate be run. A blind reviewer may run only the `--print-staged-scope-hash` form; the full gate reads the verdicts and belongs to the orchestrator after archival. Claude resolves all BLOCK and REQUEST CHANGES findings. Findings only in lines the batch did not change are follow-ups recorded in `.planning/todos/pending/`, unless the change depends on them.
 13. Affected files re-enter the queue; changed bytes are re-staged, re-fingerprinted, and reviewers re-review as new archived attempts.
-14. During Antigravity probation, commit requires Codex `APPROVE`, Antigravity `ADVISORY`, and no unresolved finding. Active two-approval mode is allowed only after passed blind calibration and an explicit human policy change.
+14. During Antigravity probation, commit requires Codex `APPROVE`, Antigravity `ADVISORY` (full tier only), and no unresolved finding. In the low tier, an Antigravity objection on the current scope still blocks if one exists. Active two-approval mode is allowed only after passed blind calibration and an explicit human policy change.
 
 ## Scope Rules
 

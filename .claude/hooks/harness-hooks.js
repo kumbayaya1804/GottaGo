@@ -34,6 +34,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const QUEUE_RELATIVE = '.claude/review-queue.txt';
+// Gitignored input to review-packets.js. Queuing it would put an unstageable file into the
+// review scope, so edits to it are never queued.
+const CLAIMS_RELATIVE = '.claude/review-claims.md';
 const SCAN_RELATIVE = '.planning/stale-info-scan-latest.md';
 const EXECUTION_STATE_RELATIVE = '.beads/context/execution-state.md';
 const STALE_SCAN_DAYS = 30;
@@ -288,7 +291,7 @@ function queueEdit(root, stdinText) {
     if (!candidate) continue;
     const relative = toRepoRelative(filePath, candidate);
     if (relative) {
-      appendToQueue(candidate, relative);
+      if (relative !== CLAIMS_RELATIVE) appendToQueue(candidate, relative);
       return;
     }
   }
@@ -345,13 +348,30 @@ function stageQueue(root) {
   const paths = readQueue(root);
   if (paths.length === 0) throw new Error(`review queue is empty or missing (${QUEUE_RELATIVE})`);
   paths.forEach(assertRepresentable);
-  const result = spawnSync('git', ['--literal-pathspecs', 'add', '-A', '--', ...paths], {
+  // A deletion already staged (e.g. by `git rm`) is in neither the working tree nor the
+  // index, so `git add -A` rejects it. It is already in its final staged state, so leave
+  // it out. A path that was never tracked is not in HEAD either and still reaches
+  // `git add`, which rejects it loudly.
+  const toAdd = paths.filter((p) => !isStagedDeletion(root, p));
+  if (toAdd.length === 0) return;
+  const result = spawnSync('git', ['--literal-pathspecs', 'add', '-A', '--', ...toAdd], {
     cwd: root,
     stdio: 'inherit',
     shell: false,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`git add exited with status ${result.status}`);
+}
+
+// True when the path is absent from the working tree and the index but present in HEAD.
+function isStagedDeletion(root, relPath) {
+  if (fs.existsSync(path.join(root, relPath))) return false;
+  const git = (args) =>
+    spawnSync('git', ['--literal-pathspecs', ...args], { cwd: root, encoding: 'utf8', shell: false });
+  const inIndex = git(['ls-files', '--cached', '-z', '--', relPath]);
+  if (inIndex.status !== 0 || inIndex.stdout !== '') return false;
+  const inHead = git(['ls-tree', '-z', '--name-only', 'HEAD', '--', relPath]);
+  return inHead.status === 0 && inHead.stdout !== '';
 }
 
 function emit(message) {
@@ -398,6 +418,7 @@ module.exports = {
   appendToQueue,
   reviewQueueMessage,
   staleScanMessage,
+  stageQueue,
 };
 
 if (require.main === module) {

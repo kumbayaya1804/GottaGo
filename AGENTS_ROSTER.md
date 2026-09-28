@@ -79,13 +79,13 @@ GSD state files do not replace implementation evidence. Agents still inspect act
 
 1. Claude finishes a scoped task and verifies it.
 2. `.claude/review-queue.txt` lists current changed files.
-3. Claude prepares both blind packets (Antigravity and Codex) before either reviewer runs.
-4. User runs Antigravity; its verdict is saved and archived.
-5. User runs Codex without access to the Antigravity verdict; its verdict is saved and archived.
-6. Only after both archives exist are the verdicts compared.
-7. Claude fixes all BLOCK and REQUEST CHANGES findings.
+3. Claude runs `node .claude/hooks/review-packets.js`, which writes every required blind packet before any reviewer runs: both packets in the full tier, only Codex's in the low tier (Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, declared `risk_level: low`; the rule is in `AGENTS.md`).
+4. Full tier: user runs Antigravity; its verdict is saved and archived.
+5. User runs Codex without access to any Antigravity verdict; its verdict is saved and archived.
+6. Only after every required archive exists are the verdicts compared.
+7. Claude fixes all BLOCK and REQUEST CHANGES findings. Findings only in unchanged lines become follow-ups in `.planning/todos/pending/`.
 8. Affected files re-enter the queue and reviewers re-review as a new attempt.
-9. Commit only after Codex APPROVE and the policy-allowed Antigravity verdict (`ADVISORY` during probation), with no unresolved finding.
+9. Commit only after Codex APPROVE and, in the full tier, the policy-allowed Antigravity verdict (`ADVISORY` during probation), with no unresolved finding.
 
 ## Non-Negotiables
 

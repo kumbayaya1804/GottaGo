@@ -8,5 +8,6 @@
   "enforceEvidenceContract": true,
   "minimumHighRiskEvidenceLevel": 3,
   "requireBlindReview": true,
-  "requireAppendOnlyVerdicts": true
+  "requireAppendOnlyVerdicts": true,
+  "lowRiskCodexOnly": true
 }

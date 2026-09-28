@@ -147,10 +147,13 @@ runtime_evidence: executed|not_applicable|unavailable
 - List every queued file inspected for this verdict.
 
 ### Skills Applied
-- List the shared gate, Codex overlay, and task-relevant skills actually used.
+- `.claude/skills/artifact_qa_gate.md` shared core and Codex Overlay (this exact text is required by the gate), plus task-relevant skills actually used.
 
 ### Findings
 - [CRITICAL/MAJOR/MINOR] file:line - Description, impact, and required fix.
+
+### Follow-ups
+- NOTE (follow-up) file:line - Problems only in lines this batch did not change (see "Findings Outside The Change" in `.claude/skills/artifact_qa_gate.md`). These do not block unless the change depends on them.
 
 ### Open Questions
 - Questions only when the answer affects merge safety.

@@ -257,6 +257,14 @@ test('queue-edit: a NotebookEdit payload (tool_input.notebook_path) is queued', 
   assert.deepEqual(queueLines(root), ['notebooks/a.ipynb']);
 });
 
+test('queue-edit: the per-task claims file (.claude/review-claims.md, gitignored packet input) is never queued', () => {
+  const root = makeRoot();
+  const stdin = JSON.stringify({ tool_input: { file_path: path.join(root, '.claude', 'review-claims.md') } });
+  const result = run('queue-edit', { cwd: root, stdin, env: { CLAUDE_PROJECT_DIR: root } });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(queueLines(root), null);
+});
+
 test('queue-edit: a payload with no file_path (e.g. a non-file tool) is a silent no-op', () => {
   const root = makeRoot();
   const result = run('queue-edit', { cwd: root, stdin: JSON.stringify({ tool_input: {} }), env: { CLAUDE_PROJECT_DIR: root } });
@@ -522,6 +530,42 @@ test('queue-edit: a path the queue format cannot represent (leading/trailing whi
     assert.match(result.stderr, /cannot be represented in the review queue/);
     assert.equal(queueLines(root), null);
   }
+});
+
+// A deletion already staged with `git rm` leaves the path in neither the working tree nor
+// the index, so `git add -A -- <path>` rejects it ("pathspec did not match"). Re-running
+// stage-queue in a later review round must accept that state, not fail the whole batch.
+test('stage-queue: a deletion already staged with git rm is accepted, alongside other queued paths', () => {
+  const { root, git } = makeGitRoot();
+  fs.writeFileSync(path.join(root, 'gone.txt'), 'x\n');
+  git('add', 'gone.txt');
+  git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'g');
+  git('rm', '-q', 'gone.txt');
+  fs.writeFileSync(path.join(root, 'a.txt'), 'a\n');
+  fs.writeFileSync(path.join(root, '.claude', 'review-queue.txt'), 'gone.txt\na.txt\n');
+
+  const result = run('stage-queue', { cwd: root, env: { CLAUDE_PROJECT_DIR: root } });
+  assert.equal(result.status, 0, result.stderr);
+  const staged = git('diff', '--cached', '--name-status').stdout.trim().split('\n').sort();
+  assert.deepEqual(staged, ['A\ta.txt', 'D\tgone.txt']);
+});
+
+test('stage-queue: running it twice in a row gives the same staged result, for nested paths too (idempotent across review rounds)', () => {
+  const { root, git } = makeGitRoot();
+  fs.mkdirSync(path.join(root, 'sub', 'dir'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'sub', 'dir', 'gone.md'), 'x\n');
+  git('add', 'sub/dir/gone.md');
+  git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'g');
+  fs.rmSync(path.join(root, 'sub', 'dir', 'gone.md'));
+  fs.writeFileSync(path.join(root, 'a.txt'), 'a\n');
+  fs.writeFileSync(path.join(root, '.claude', 'review-queue.txt'), 'sub/dir/gone.md\na.txt\n');
+
+  const first = run('stage-queue', { cwd: root, env: { CLAUDE_PROJECT_DIR: root } });
+  assert.equal(first.status, 0, first.stderr);
+  const second = run('stage-queue', { cwd: root, env: { CLAUDE_PROJECT_DIR: root } });
+  assert.equal(second.status, 0, second.stderr);
+  const staged = git('diff', '--cached', '--name-status').stdout.trim().split('\n').sort();
+  assert.deepEqual(staged, ['A\ta.txt', 'D\tsub/dir/gone.md']);
 });
 
 test('stage-queue: an empty or missing queue fails loudly instead of staging nothing silently', () => {

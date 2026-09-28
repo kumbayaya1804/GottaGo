@@ -1624,3 +1624,193 @@ test('referencesUnsafeFullGateInvocation: blocked and allowed forms', () => {
     assert.equal(unsafe(`node .claude/hooks/${other}`), false, `other file: ${other}`);
   }
 });
+
+// ---------------------------------------------------------------- risk tiers (lowRiskCodexOnly)
+
+function lowTierRepo(queued, { flag = true } = {}) {
+  const root = createRepo();
+  writePolicy(root, flag ? { lowRiskCodexOnly: true } : {});
+  write(root, '.claude/review-queue.txt', queued.map((f) => `${f}\n`).join(''));
+  for (const f of queued) stage(root, f);
+  return root;
+}
+
+function writeCodexOnly(root, queued, options = {}) {
+  writeApprovalArtifacts(root, queued.join('\n'), {
+    evidenceContract: true,
+    runtimeRequired: false,
+    runtimeEvidence: 'not_applicable',
+    evidenceLevel: 1,
+    antigravityVerdict: 'ADVISORY',
+    ...options,
+  });
+  if (options.keepAntigravity !== true) {
+    fs.rmSync(path.join(root, '.claude', 'antigravity-prompt-latest.md'));
+    fs.rmSync(path.join(root, '.claude', 'antigravity-review-latest.md'));
+  }
+}
+
+test('reviewTier: low only when every queued path is a docs Markdown file or the roster', () => {
+  const { reviewTier } = require(hookPath);
+  assert.equal(reviewTier(['docs/a.md', 'docs/design/flows.md', 'docs/verification.md']), 'low');
+  assert.equal(reviewTier(['AGENTS_ROSTER.md']), 'low');
+  for (const f of [
+    'app/src/x.ts',
+    'supabase/migrations/x.sql',
+    '.claude/hooks/x.js',
+    '.beads/hooks/pre-commit',
+    '.claude/settings.json',
+    'probity.config.ts',
+    '.claude/antigravity-review-policy.json',
+    '.claude/antigravity-calibration-contract.json',
+    '.claude/skills/artifact_qa_gate.md',
+    'SPEC.md',
+    '.metaswarm/profile.json',
+    'README.md',
+  ]) {
+    assert.equal(reviewTier(['docs/a.md', f]), 'full', f);
+  }
+  assert.equal(reviewTier([]), 'full');
+});
+
+test('low tier: a docs-only batch passes with Codex alone when lowRiskCodexOnly is on', () => {
+  const queued = ['docs/example.md', 'docs/design/example.md'];
+  const root = lowTierRepo(queued);
+  writeCodexOnly(root, queued, { riskLevel: 'low' });
+  const result = runHook(root);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('low tier: one app file in the batch makes it full tier, so Antigravity is required again', () => {
+  const queued = ['docs/example.md', 'app/src/example.ts'];
+  const root = lowTierRepo(queued);
+  writeCodexOnly(root, queued, { riskLevel: 'low' });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Antigravity prompt packet is missing/);
+  assert.match(result.stderr, /risk_level: low.*full-tier/);
+});
+
+test('low tier: an Antigravity BLOCK or REQUEST CHANGES for the current scope still blocks', () => {
+  for (const verdict of ['BLOCK', 'REQUEST CHANGES']) {
+    const queued = ['docs/example.md'];
+    const root = lowTierRepo(queued);
+    writeCodexOnly(root, queued, { riskLevel: 'low', antigravityVerdict: verdict, keepAntigravity: true });
+    const result = runHook(root);
+    assert.equal(result.status, 1, verdict);
+    assert.match(result.stderr, new RegExp(`Antigravity review verdict.*${verdict}.*current scope`));
+  }
+});
+
+test('low tier: an Antigravity ADVISORY for the current scope is accepted but not required', () => {
+  const queued = ['docs/example.md'];
+  const root = lowTierRepo(queued);
+  writeCodexOnly(root, queued, { riskLevel: 'low', keepAntigravity: true });
+  const result = runHook(root);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('low tier: a Codex packet declaring a higher risk escalates the batch to full, so Antigravity is required', () => {
+  for (const riskLevel of ['medium', 'high']) {
+    const queued = ['docs/example.md'];
+    const root = lowTierRepo(queued);
+    writeCodexOnly(root, queued, { riskLevel });
+    const result = runHook(root);
+    assert.equal(result.status, 1, riskLevel);
+    assert.match(result.stderr, /Antigravity prompt packet is missing/, riskLevel);
+  }
+});
+
+test('low tier: the gate evidence contract file is never low risk', () => {
+  const queued = ['.claude/skills/artifact_qa_gate.md'];
+  const root = lowTierRepo(queued);
+  writeCodexOnly(root, queued, { riskLevel: 'low' });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Antigravity prompt packet is missing/);
+});
+
+test('low tier: with lowRiskCodexOnly off, a docs-only batch still requires Antigravity (unchanged behavior)', () => {
+  const queued = ['docs/example.md'];
+  const root = lowTierRepo(queued, { flag: false });
+  writeCodexOnly(root, queued, { riskLevel: 'low' });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Antigravity prompt packet is missing/);
+});
+
+test('low tier: a non-boolean lowRiskCodexOnly fails closed', () => {
+  const queued = ['docs/example.md'];
+  const root = createRepo();
+  writePolicy(root, { lowRiskCodexOnly: 'yes' });
+  write(root, '.claude/review-queue.txt', 'docs/example.md\n');
+  stage(root, 'docs/example.md');
+  writeCodexOnly(root, queued, { riskLevel: 'low' });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /lowRiskCodexOnly must be true or false/);
+});
+
+test('reviewTier: files that define the review process or the schema contract are never low risk', () => {
+  const { reviewTier } = require(hookPath);
+  for (const f of [
+    '.claude/commands/review-gate.md',
+    '.claude/commands/codex-prompt.md',
+    '.claude/commands/antigravity-review.md',
+    '.claude/skills/review_packet_generator.md',
+    'docs/agent-harness.md',
+    'docs/schema-contract.md',
+    'AGENTS.md',
+    'CODEX.md',
+    'ANTIGRAVITY.md',
+    'CLAUDE.md',
+    '.claude/skills/rls_security_guard.md',
+    '.claude/skills/trust_engine_validator.md',
+    '.claude/skills/postgis_optimizer.md',
+    '.claude/skills/helper.js',
+    'docs/tool.sh',
+    '.claude/commands/run.json',
+  ]) {
+    assert.equal(reviewTier([f]), 'full', f);
+  }
+  assert.equal(reviewTier(['AGENTS_ROSTER.md', 'docs/verification.md', 'docs/context-router.md']), 'low');
+  // Commands and skills can run shell commands or widen tool permissions when invoked, and
+  // these docs are verdict, legal, or privacy authority: none is ever low.
+  for (const f of [
+    '.claude/commands/stale-info-scan.md',
+    '.claude/skills/SKILL.md',
+    '.claude/skills/supabase/references/rls.md',
+    '.claude/skills/supabase-postgres-best-practices/SKILL.md',
+    'docs/review-severity.md',
+    'docs/legal/privacy-policy.md',
+    'docs/legal/terms-of-service.md',
+  ]) {
+    assert.equal(reviewTier([f]), 'full', f);
+  }
+});
+
+test('low tier: a code file renamed into docs/ is not low risk (renames count as delete + add)', () => {
+  const root = createRepo();
+  writePolicy(root, { lowRiskCodexOnly: true });
+  stage(root, 'app/src/moved.ts', 'export const a = 1;\nexport const b = 2;\nexport const c = 3;\n');
+  execFileSync('git', ['commit', '-q', '-m', 'seed'], { cwd: root });
+  fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
+  execFileSync('git', ['mv', 'app/src/moved.ts', 'docs/moved.ts'], { cwd: root });
+  write(root, '.claude/review-queue.txt', 'app/src/moved.ts\ndocs/moved.ts\n');
+  writeCodexOnly(root, ['app/src/moved.ts', 'docs/moved.ts'], { riskLevel: 'low' });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Antigravity prompt packet is missing/);
+});
+
+test('a rename out of a protected path requires the old path in the queue too', () => {
+  const root = createRepo();
+  stage(root, 'app/src/old.ts', 'export const a = 1;\nexport const b = 2;\nexport const c = 3;\n');
+  execFileSync('git', ['commit', '-q', '-m', 'seed'], { cwd: root });
+  fs.mkdirSync(path.join(root, 'notes'), { recursive: true });
+  execFileSync('git', ['mv', 'app/src/old.ts', 'notes/old.ts'], { cwd: root });
+  write(root, '.claude/review-queue.txt', 'notes/old.ts\n');
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /missing from \.claude\/review-queue\.txt: app\/src\/old\.ts/);
+});

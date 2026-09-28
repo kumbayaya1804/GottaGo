@@ -196,13 +196,16 @@ runtime_evidence: executed|not_applicable|unavailable
 - List every queued file inspected for this verdict.
 
 ### Skills Applied
-- List the shared gate, Antigravity overlay, Superpowers skills, and project skills actually used.
+- `.claude/skills/artifact_qa_gate.md` shared core and Antigravity Overlay, `superpowers:using-superpowers`, and `superpowers:verification-before-completion` (this exact text is required by the gate), plus project skills actually used.
 
 ### Issues
 - [CRITICAL/MAJOR/MINOR] file:line - Description, impact, and required fix.
 
 ### Concerns
 - Architectural or logic concerns that may need follow-up.
+
+### Follow-ups
+- NOTE (follow-up) file:line - Problems only in lines this batch did not change (see "Findings Outside The Change" in `.claude/skills/artifact_qa_gate.md`). These do not block unless the change depends on them.
 
 ### Verification
 - Commands run and results, or why verification was not run.

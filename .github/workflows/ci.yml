@@ -52,5 +52,6 @@ jobs:
           node --test
           .claude/hooks/harness-hooks.test.js
           .claude/hooks/check-review-artifacts.test.js
+          .claude/hooks/review-packets.test.js
           supabase/scripts/run-isolated-db-suite.test.js
           scripts/os-portability.test.js

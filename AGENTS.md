@@ -20,7 +20,7 @@ Do not start by loading `SPEC.md`, `docs/schema-contract.md`, `AGENTS_ROSTER.md`
 - Codex is the implementation-quality, security, privacy, TypeScript, test-quality, and user-failure-state reviewer.
 - GSD owns phase lifecycle, planning, execution, verification, and state.
 
-Claude does not self-approve. Non-trivial code, workflow, schema, security, privacy, or review-gate changes require a separate Codex approval. While Antigravity is enabled, they also require its policy-valid review and resolution of every finding; probationary `ADVISORY` is not an approval.
+Claude does not self-approve. Non-trivial code, workflow, schema, security, privacy, or review-gate changes require a separate Codex approval. While Antigravity is enabled, they also require its policy-valid review and resolution of every finding, except low-tier batches (below) where Codex alone reviews; probationary `ADVISORY` is not an approval.
 
 ## Current Review Workflow
 
@@ -33,12 +33,13 @@ Superpowers skills, and `superpowers:verification-before-completion` before its 
 Their initial runs, evidence, artifacts, and verdicts remain blind and independent. Generate both packets before either run, then archive each exact verdict before revealing the other reviewer's output.
 
 1. Claude verifies the task locally and ensures `.claude/review-queue.txt` lists the changed files for the current task.
-2. Claude runs `/antigravity-review` to write `.claude/antigravity-prompt-latest.md`.
-3. The user runs Antigravity (`agy` or `antigravity`) with a short prompt pointing at that packet. The verdict is saved to `.claude/antigravity-review-latest.md`.
-4. Claude runs `/codex-prompt` to write `.claude/codex-prompt-latest.md`.
-5. The user runs `codex exec` with a short prompt pointing at that packet. The verdict is saved to `.claude/codex-review-latest.md`.
-6. Claude fixes all BLOCK and REQUEST CHANGES findings and regenerates affected packets.
-7. Commit only after Codex is APPROVE, Antigravity has the verdict permitted by its current policy (`ADVISORY` during probation), all findings are resolved, both verdicts are archived, and the relevant verification is reported.
+2. Claude writes `.claude/review-claims.md` and runs `node .claude/hooks/review-packets.js` (see `/codex-prompt`). It stages the queue and writes both blind packets, or only the Codex packet for a low-tier batch.
+3. Full tier: the user runs Antigravity (`agy` or `antigravity`) with a short prompt pointing at its packet. The verdict is saved to `.claude/antigravity-review-latest.md` and archived.
+4. The user runs `codex exec` with a short prompt pointing at its packet. The verdict is saved to `.claude/codex-review-latest.md` and archived.
+5. Claude fixes all BLOCK and REQUEST CHANGES findings and regenerates the packets. Findings in lines the batch did not change become follow-ups in `.planning/todos/pending/`.
+6. Commit only after Codex is APPROVE, Antigravity (full tier) has the verdict permitted by its current policy (`ADVISORY` during probation), all findings are resolved, required verdicts are archived, the relevant verification is reported, and the user agrees.
+
+Low tier: when `lowRiskCodexOnly` is on in `.claude/antigravity-review-policy.json`, every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and the Codex packet declares `risk_level: low`, Codex alone reviews. Everything else keeps both reviewers, including slash commands and skills (they can run shell commands and widen tool permissions when invoked), `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `ANTIGRAVITY.md`, and all app, database, hook, settings, policy, and spec files. The gate computes the tier from the staged queue, counting a rename as its old path plus its new path. Declaring `medium` or `high` for a low-tier batch escalates it to both reviewers; declaring `low` for any other batch blocks.
 
 The packet files are inputs, not proof. Reviewers must inspect the actual files from disk and cite exact `file:line` evidence.
 

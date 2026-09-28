@@ -65,6 +65,16 @@ For a reviewer packet, independently confirm the queue, staged diff, exact
 `scope_hash`, every queued file's material role, verification evidence, and runtime/mock
 boundary. Packet prose and prior verdicts are claims, not proof.
 
+### Findings Outside The Change
+
+A problem found only in lines the batch did not change is reported under `### Follow-ups`
+as `NOTE (follow-up)`, not as REQUEST CHANGES, unless the batch's change depends on it or
+directly contradicts it. A claim the packet makes about the whole project (for example
+"no active file names X") is part of the change: disproving it is a normal finding.
+BLOCK-level safety, privacy, or data-integrity problems block wherever they are. The
+implementer records each follow-up as a file in `.planning/todos/pending/` and cites it in
+the next packet.
+
 ## Superpowers Composition
 
 When the current harness exposes Superpowers, invoke `superpowers:using-superpowers`

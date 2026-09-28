@@ -12,6 +12,7 @@ coverage/
 Thumbs.db
 .claude/settings.local.json
 .claude/review-queue.txt
+.claude/review-claims.md
 
 # Expo / React Native
 .expo/

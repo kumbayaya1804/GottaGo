@@ -1,85 +1,49 @@
 # /codex-prompt
 
-Generate `.claude/codex-prompt-latest.md` for the files in `.claude/review-queue.txt`. Claude prepares the packet; the user runs Codex.
+Generate the blind reviewer packets for the files in `.claude/review-queue.txt`. One script writes both packets, or only the Codex packet for a low-tier batch. Claude prepares the packets; the user runs the reviewers.
 
 ## Steps
 
-1. Read `.claude/review-queue.txt`. If missing or empty, report that there is nothing to review and stop.
-2. Read `docs/context-router.md`, `.claude/skills/artifact_qa_gate.md`, `.claude/skills/review_packet_generator.md`, and `CODEX.md`.
-3. Collect Tier 0 context:
-   - stage the exact queue, including deletions, and inspect `git diff --cached`
-   - run `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`
-   - queue entries
-   - `git status --short`
-   - `git diff HEAD -- <queue files>`
-   - full queued files or explicit diffs
-   - verification evidence and blockers
-   - a neutral claim table separating the implementation claim, authority source, required disproof, and evidence needed
-   - Runtime Boundary And Mock Audit
-   - shared Artifact QA Gate contract plus the Codex overlay
-   - `### Required Skills` naming `.claude/skills/artifact_qa_gate.md`, the `Codex Overlay`, and task-relevant skills available in the Codex harness
-   - Codex verdict format from `CODEX.md`, including `### Reviewed Queue`
-4. Add Tier 1 excerpts only when the queued files require them:
-   - product/user-flow excerpts for emergency UX or product guarantees
-   - schema/RLS/PostGIS/trust excerpts for Supabase or migration changes
-   - harness/stale-info excerpts for workflow, prompt, command, or review-gate changes
-   - nearby callers, providers, route guards, hooks, RPCs, policies, migrations, and tests
-5. Use Tier 2 full-doc context only when the whole document is directly in scope.
-6. Write `.claude/codex-prompt-latest.md` with a visible freshness header:
+1. Read `.claude/review-queue.txt`. If it is missing or empty, report that there is nothing to review and stop.
+2. Read `docs/context-router.md`, `.claude/skills/artifact_qa_gate.md`, and `.claude/skills/review_packet_generator.md` for the evidence contract and context tiers.
+3. Write `.claude/review-claims.md` (gitignored) for this task:
 
-```md
-<!-- review-manifest
-reviewer: codex
-generated_at: <ISO timestamp>
-scope_hash: <staged scope hash>
-review_id: <opaque id shared by both blind packets>
-risk_level: low|medium|high
-runtime_required: true|false
-blind_review: true
-queue:
-  - <path>
-diff_base: HEAD
-context_tier: 0|1|2
--->
-```
+   ```md
+   ---
+   title: <short batch name>
+   attempt: <1, 2, ...>
+   risk_level: medium|high
+   runtime_required: true|false
+   context_tier: 0|1|2
+   ---
 
-7. Do not read or include `.claude/antigravity-review-latest.md` or a named
-   Antigravity verdict. The initial review is blind.
-   Do not tell Codex to run the full `check-review-artifacts.js` gate during the
-   blind run. Codex may use only `--print-staged-scope-hash`; the orchestrator runs
-   the full cross-review gate after both initial verdicts are archived.
-8. Tell the user to run Codex, for example:
+   ## Task Goal
+   ## Neutral Claim Table
+   ## User Advocacy Gate
+   ## Runtime Boundary And Mock Audit
+   ## Verification
+   ```
 
-```bash
-codex exec --sandbox workspace-write "You are Codex reviewing Gotta Go. Read .claude/codex-prompt-latest.md in full without reading any Antigravity verdict, inspect every queued file and material boundary, satisfy the packet evidence contract, write your verdict to .claude/codex-review-latest.md, run node .claude/hooks/archive-review-artifact.js codex, and print the same verdict."
-```
+   - The claim table separates each implementation claim, its authority source, the disproof to attempt, and the evidence needed. Never state the conclusion you want.
+   - On a later attempt, say what changed since the last one, without quoting either reviewer's verdict.
+   - Add Tier 1 excerpts only when the queue touches that boundary. For a changed or recreated `SECURITY DEFINER` RPC, include its full body, return shape, generated types, later migrations, grants, and callers, and ask for an explicit return/filter/ACL assessment. When STATE, execution-state, or a handoff is queued, include the claims those documents must reconcile.
+   - Name no model, and never name either reviewer's verdict file or tell a reviewer to run the full gate. The script refuses to write packets that do.
+4. Run `node .claude/hooks/review-packets.js`. It:
+   - stages the queue, including deletions;
+   - computes the `scope_hash`, a new `review_id`, and the risk tier from the staged paths;
+   - embeds the staged diffs, replacing any that name reviewer output with a read-from-disk pointer;
+   - checks each packet against the gate's own requirements, and writes nothing if one fails.
+5. Report what it printed: scope, review ID, tier, and the exact reviewer commands.
 
-If the user chooses read-only sandboxing, tell them to capture stdout into `.claude/codex-review-latest.md`.
+## Tiers
 
-The verdict must repeat the packet's exact `scope_hash:` line. If any queued path is
-re-staged afterward, regenerate both reviewer packets and obtain both verdicts again.
-
-## Output
-
-After writing the packet, report:
-
-- packet path
-- queued files
-- selected context tier
-- exact command for the user to run
-- reminder that Codex must inspect files from disk and include `Runtime Boundary Check`
-- reminder that Codex must apply `.claude/skills/artifact_qa_gate.md` shared core plus its Codex overlay
-- reminder that the verdict must include `### Skills Applied`
-- reminder that Codex must list every inspected queue file under `### Reviewed Queue`
-- reminder that runtime-required work needs executed runtime evidence for approval
-- append-only archive path printed by `.claude/hooks/archive-review-artifact.js`
+With `lowRiskCodexOnly` on in `.claude/antigravity-review-policy.json`, a batch whose every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and whose claims declare `risk_level: low`, is low tier: Codex only. Declaring `medium` or `high` sends it to both reviewers. Commands, skills, root agent files other than the roster, and all app, database, hook, settings, policy, and spec files keep both reviewers (the rule is in `AGENTS.md`). The gate computes the tier the same way, counting a rename as its old path plus its new path, so a packet cannot lower its own tier.
 
 ## Rules
 
-- Do not paste the whole project into the packet.
+- Never inline a packet into a CLI command; the command only points at the file.
 - Do not include secrets, tokens, `.env` values, service-role keys, or precise user location data.
-- Do not treat an old Codex verdict as current unless its scope matches the current queue and diff.
-- Do not expose the other reviewer verdict before the initial Codex verdict is saved and archived.
-- Do not include a full cross-review gate invocation in the packet. The fingerprint-only command is the sole pre-verdict gate form allowed.
+- Do not show either reviewer the other's verdict until both are saved and archived (`node .claude/hooks/archive-review-artifact.js antigravity|codex`).
+- If any queued byte changes after the packets are written, run the script again; every verdict must carry the new `review_id`.
 - Do not overwrite or delete an archived verdict. A revision is a new attempt.
 - Do not clear `.claude/review-queue.txt`; it is cleared only after commit.

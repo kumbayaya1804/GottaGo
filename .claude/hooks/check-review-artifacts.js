@@ -58,6 +58,90 @@ const POLICY_STATE_PATHS = [
   '.claude/antigravity-calibration-contract.json',
 ];
 
+// What every reviewer packet and verdict must contain. Exported so the packet generator
+// (review-packets.js) checks the exact same list the gate enforces.
+const ARTIFACT_REQUIREMENTS = [
+  {
+    file: path.join('.claude', 'antigravity-prompt-latest.md'),
+    label: 'Antigravity prompt packet',
+    headings: ['Required Skills', 'Runtime Boundary And Mock Audit', 'Claim And State Audit'],
+    requiredText: [
+      'review-manifest',
+      'reviewer: antigravity',
+      '.claude/skills/artifact_qa_gate.md',
+      'Antigravity Overlay',
+      'superpowers:using-superpowers',
+      'superpowers:verification-before-completion',
+    ],
+    verdict: false,
+    reviewer: 'antigravity',
+  },
+  {
+    file: path.join('.claude', 'codex-prompt-latest.md'),
+    label: 'Codex prompt packet',
+    headings: ['Required Skills', 'Runtime Boundary And Mock Audit'],
+    requiredText: [
+      'review-manifest',
+      'reviewer: codex',
+      '.claude/skills/artifact_qa_gate.md',
+      'Codex Overlay',
+    ],
+    verdict: false,
+    reviewer: 'codex',
+  },
+  {
+    file: path.join('.claude', 'antigravity-review-latest.md'),
+    label: 'Antigravity review verdict',
+    headings: ['Skills Applied', 'Runtime Boundary Check', 'Claim And State Audit'],
+    requiredText: [
+      '.claude/skills/artifact_qa_gate.md',
+      'Antigravity Overlay',
+      'superpowers:using-superpowers',
+      'superpowers:verification-before-completion',
+    ],
+    verdict: true,
+    reviewer: 'antigravity',
+  },
+  {
+    file: path.join('.claude', 'codex-review-latest.md'),
+    label: 'Codex review verdict',
+    headings: ['Skills Applied', 'Runtime Boundary Check'],
+    requiredText: ['.claude/skills/artifact_qa_gate.md', 'Codex Overlay'],
+    verdict: true,
+    reviewer: 'codex',
+  },
+];
+
+// Risk tiers (policy flag lowRiskCodexOnly). A batch is "low" only when EVERY queued staged
+// path is descriptive Markdown under docs/ (minus the authority files below) or the roster,
+// and the Codex packet declares risk_level: low. Anything that can change runtime, data,
+// permissions, the gate, review or verdict rules, or legal/privacy text forces "full". The
+// tier is computed from the staged queue; a packet can raise it but never lower it.
+// Slash commands and skills are not here: when invoked they can run shell commands and
+// widen tool permissions, so they are executable configuration, not prose. Root agent files
+// (CLAUDE, AGENTS, CODEX, ANTIGRAVITY) define review and approval rules and are not here
+// either; only the roster, a descriptive summary, is.
+const LOW_RISK_PATTERNS = [
+  /^docs\/.+\.md$/,
+  /^AGENTS_ROSTER\.md$/,
+];
+const FULL_RISK_OVERRIDES = [
+  // Review procedure and verdict rules: a change to them changes the gate itself.
+  /^docs\/agent-harness\.md$/,
+  /^docs\/review-severity\.md$/,
+  // Data-safety, privacy, and legal authority.
+  /^docs\/schema-contract\.md$/,
+  /^docs\/legal\//,
+];
+
+function reviewTier(files) {
+  if (files.length === 0) return 'full';
+  const low = files.every(
+    (f) => LOW_RISK_PATTERNS.some((re) => re.test(f)) && !FULL_RISK_OVERRIDES.some((re) => re.test(f))
+  );
+  return low ? 'low' : 'full';
+}
+
 function requiresReview(file) {
   return REVIEW_REQUIRED_PATTERNS.some((re) => re.test(file));
 }
@@ -166,6 +250,9 @@ function readPolicy() {
   }
   if (policy.mode === 'probation' && policy.approvalAuthority !== false) {
     throw new Error('Antigravity probation mode requires approvalAuthority=false');
+  }
+  if ('lowRiskCodexOnly' in policy && typeof policy.lowRiskCodexOnly !== 'boolean') {
+    throw new Error('Antigravity review policy lowRiskCodexOnly must be true or false');
   }
   if (policy.mode === 'active') {
     validateCalibration(policy);
@@ -631,8 +718,11 @@ function main(argv) {
   // C-quoting ("docs/caf\303\251.md"), which otherwise matched no protected prefix and no
   // queue entry, so an unqueued protected file with a non-ASCII, tab, or newline name
   // passed Check B (2026-09-26 review finding). Names are not trimmed or unquoted.
+  // --no-renames: a rename is reported as its old path (deleted) plus its new path
+  // (added). With rename detection, only the new path appeared, so moving a protected file
+  // out of a protected directory hid the old path from Check B and from the risk tier.
   function stagedNames(extraArgs) {
-    return execFileSync('git', ['diff', '--cached', '--name-only', '-z', ...extraArgs], {
+    return execFileSync('git', ['diff', '--cached', '--no-renames', '--name-only', '-z', ...extraArgs], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -709,62 +799,54 @@ function main(argv) {
       failed = true;
     }
 
-    const REQUIRED = [
-      {
-        file: path.join('.claude', 'antigravity-prompt-latest.md'),
-        label: 'Antigravity prompt packet',
-        headings: ['Required Skills', 'Runtime Boundary And Mock Audit', 'Claim And State Audit'],
-        requiredText: [
-          'review-manifest',
-          'reviewer: antigravity',
-          '.claude/skills/artifact_qa_gate.md',
-          'Antigravity Overlay',
-          'superpowers:using-superpowers',
-          'superpowers:verification-before-completion',
-        ],
-        verdict: false,
-        reviewer: 'antigravity',
-      },
-      {
-        file: path.join('.claude', 'codex-prompt-latest.md'),
-        label: 'Codex prompt packet',
-        headings: ['Required Skills', 'Runtime Boundary And Mock Audit'],
-        requiredText: [
-          'review-manifest',
-          'reviewer: codex',
-          '.claude/skills/artifact_qa_gate.md',
-          'Codex Overlay',
-        ],
-        verdict: false,
-        reviewer: 'codex',
-      },
-      {
-        file: path.join('.claude', 'antigravity-review-latest.md'),
-        label: 'Antigravity review verdict',
-        headings: ['Skills Applied', 'Runtime Boundary Check', 'Claim And State Audit'],
-        requiredText: [
-          '.claude/skills/artifact_qa_gate.md',
-          'Antigravity Overlay',
-          'superpowers:using-superpowers',
-          'superpowers:verification-before-completion',
-        ],
-        verdict: true,
-        reviewer: 'antigravity',
-      },
-      {
-        file: path.join('.claude', 'codex-review-latest.md'),
-        label: 'Codex review verdict',
-        headings: ['Skills Applied', 'Runtime Boundary Check'],
-        requiredText: ['.claude/skills/artifact_qa_gate.md', 'Codex Overlay'],
-        verdict: true,
-        reviewer: 'codex',
-      },
-    ];
+    const REQUIRED = ARTIFACT_REQUIREMENTS;
     const contractValues = new Map();
+    // Low only when the staged paths qualify AND the Codex packet declares risk_level: low.
+    // An author may escalate a low-path batch (declare medium/high: both reviewers), never
+    // de-escalate a full-path batch (declaring low there blocks below).
+    const pathTier = policy.lowRiskCodexOnly === true ? reviewTier(queuedStagedFiles) : 'full';
+    const codexPacketText = readFileSafe(path.join('.claude', 'codex-prompt-latest.md'));
+    const declaredRisk = codexPacketText === null ? null : artifactField(codexPacketText, 'risk_level');
+    const tier = pathTier === 'low' && declaredRisk === 'low' ? 'low' : 'full';
 
     for (const req of REQUIRED) {
       if (policy.mode === 'disabled' && req.reviewer === 'antigravity') {
         continue;
+      }
+
+      // Low tier: Antigravity is optional, but an objection it raised against THIS scope
+      // still blocks. Its artifacts for other scopes are ignored.
+      if (tier === 'low' && req.reviewer === 'antigravity') {
+        const optional = req.verdict ? readFileSafe(req.file) : null;
+        if (optional !== null && artifactScopeHash(optional) === expectedScopeHash) {
+          const objections = artifactVerdicts(optional).filter((v) => v === 'BLOCK' || v === 'REQUEST CHANGES');
+          if (objections.length > 0) {
+            console.error(
+              'BLOCKED: ' +
+                req.label +
+                ' (' +
+                req.file +
+                ') declares ' +
+                objections.join(', ') +
+                ' for the current scope. Antigravity is optional for low-tier batches, but its objections still block.'
+            );
+            failed = true;
+          }
+        }
+        continue;
+      }
+
+      if (req.reviewer === 'codex' && !req.verdict && policy.lowRiskCodexOnly === true) {
+        if (pathTier === 'full' && declaredRisk === 'low') {
+          console.error(
+            'BLOCKED: ' +
+              req.label +
+              ' (' +
+              req.file +
+              ') declares risk_level: low, but the queue includes full-tier paths, so both reviewers are required.'
+          );
+          failed = true;
+        }
       }
 
       const content = readFileSafe(req.file);
@@ -990,10 +1072,12 @@ function main(argv) {
 }
 
 module.exports = {
+  ARTIFACT_REQUIREMENTS,
   canonicalizePathText,
   referencesReviewerOutput,
   referencesUnsafeFullGateInvocation,
   requiresReview,
+  reviewTier,
   stagedIndexRecords,
   stagedScopeHash,
 };

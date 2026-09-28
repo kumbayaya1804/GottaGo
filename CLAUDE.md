@@ -28,14 +28,13 @@ For file-changing work, keep `.claude/review-queue.txt` current. For code or beh
 
 Claude writes packets. The user runs reviewers.
 
-- `/antigravity-review` writes `.claude/antigravity-prompt-latest.md`.
-- The packet includes `### Required Skills`: the shared Artifact QA Gate, Antigravity overlay, Superpowers bootstrap, completion verification, and task-relevant domain/process skills.
-- The user runs `agy` or `antigravity` with the strongest high-reasoning model available, points it at that file, and saves the policy-allowed verdict to `.claude/antigravity-review-latest.md`. Flash-class output is advisory only.
-- `/codex-prompt` writes `.claude/codex-prompt-latest.md`.
-- The packet includes `### Required Skills`: the shared Artifact QA Gate, Codex overlay, and task-relevant skills available in the Codex harness.
-- The user runs `codex exec` with a short prompt pointing at that file and saves the verdict to `.claude/codex-review-latest.md`.
+- `/codex-prompt` (or `/antigravity-review`, the same flow): Claude writes `.claude/review-claims.md` and runs `node .claude/hooks/review-packets.js`, which stages the queue and writes `.claude/codex-prompt-latest.md` and, in the full tier, `.claude/antigravity-prompt-latest.md`. Each packet carries its reviewer's `### Required Skills`.
+- Full tier: the user runs `agy` or `antigravity`, points it at its packet, and saves the policy-allowed verdict to `.claude/antigravity-review-latest.md`.
+- The user runs `codex exec` with a short prompt pointing at its packet and saves the verdict to `.claude/codex-review-latest.md`.
+- Low tier (policy `lowRiskCodexOnly`; every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and the claims declare `risk_level: low`): Codex alone reviews. Commands, skills, and this file are never low tier. The full rule is in `AGENTS.md`.
+- Findings only in lines a batch did not change are follow-ups in `.planning/todos/pending/`, not blockers, unless the change depends on them.
 
-Generate both initial packets before either reviewer runs. Do not expose one reviewer
+Generate every required initial packet before any reviewer runs. Do not expose one reviewer
 verdict to the other until both exact verdicts have been archived with
 `.claude/hooks/archive-review-artifact.js`. During Antigravity probation, its clean
 verdict is `ADVISORY`; Codex remains the approval-bearing independent reviewer.
