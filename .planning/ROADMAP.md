@@ -223,8 +223,8 @@ Plans:
 
 Plans:
 
-- [ ] 05-01: Event model, lifecycle constraints, private cooldown state, lockdown regression, rate-limited pending-candidate discovery, blocking pgTAP, and regenerated types
-- [ ] 05-02: Durable reason-free verification rejection, server-computed trust weight, numeric confidence authority, creator-claim + independent-verifier atomic publish, accessibility staging, unseen-publication fallback RPCs, and blocking concurrency pgTAP
+- [x] 05-01: Event model, lifecycle constraints, private cooldown state, lockdown regression, rate-limited pending-candidate discovery, blocking pgTAP, and regenerated types
+- [ ] 05-02 (IN PROGRESS: implementation only on the Windows machine; only its summary is committed): Durable reason-free verification rejection, server-computed trust weight, numeric confidence authority, creator-claim + independent-verifier atomic publish, accessibility staging, unseen-publication fallback RPCs, and blocking concurrency pgTAP
 - [ ] 05-03: Nearby entry + in-route candidate/verify UI, live GPS capture, generic accepted/rejected/denied/loading states, durable Published fallback, cache invalidation, and device UAT
 - [ ] 05-04: Server-maintained private personal-impact stat, Profile contract/copy, and tests
 - [ ] 05-05: Explicit push opt-in, private device-token lifecycle, idempotent enqueue, concurrency-safe Expo ticket/receipt processing, authenticated cron invocation, and notification UAT
@@ -393,7 +393,7 @@ Plans:
 | 2. Auth & Profiles | 3/3 | Passed | 2026-07-03 |
 | 3. Read Path & Map | 5/5 | Code complete; verification override + device UAT open | 2026-07-07 |
 | 4. GPS Service & Submission | 6/6 | Code/review complete; device UAT open | 2026-07-08 |
-| 5. Trust Engine & Verification | 0/6 | Discussion blocked on readiness decisions + audit remediation | - |
+| 5. Trust Engine & Verification | 1/6 | In progress: 05-01 complete; 05-02 implementation stranded on the Windows machine | - |
 | 6. Decay, Aggregates & Flags | 0/2 | Not started | - |
 | 7. Reports & Moderation Inputs | 0/2 | Not started | - |
 | 7.5. Growth & Seed Operations | 0/2 | Not started | - |
