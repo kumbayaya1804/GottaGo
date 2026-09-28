@@ -1,3 +1,5 @@
+> **RETIRED: this scope (`sha256:4bca170f…`) was approved and committed as `1e1d210` on 2026-09-27. Do not review it again. A new review needs freshly generated packets.**
+
 <!-- review-manifest
 reviewer: antigravity
 generated_at: 2026-09-27T22:37:41Z
