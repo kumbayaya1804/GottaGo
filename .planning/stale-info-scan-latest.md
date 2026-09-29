@@ -1,102 +1,100 @@
-# Stale Information Scan - 2026-07-30
+# Stale Information Scan - 2026-07-31
 
-Trigger: harness change — Antigravity probation, blind review, evidence contract,
-append-only verdict archive, and the removal of the `REVIEW_GATE_ALLOW_UNREVIEWED`
-escape hatch for protected paths. `docs/stale-info-scan.md` requires a scan for
-harness changes, and the prior scan (2026-07-15) predates all of it.
+Trigger: harness change — the review-gate hardening workstream converged and committed
+(`d03bfe7`, 8 rounds) and the TDD Guard → Probity migration landed (queued, Antigravity
+ADVISORY, awaiting Codex). `docs/stale-info-scan.md` requires a scan after harness/dependency
+changes. **Scope note:** this is a harness-triggered scan focused on Agent Harness Drift and
+Codex/Antigravity Prompt Drift per `docs/stale-info-scan.md`'s own categorization — it does not
+re-run the full monthly scope (product/brand drift, Claude-model-ID drift, full security/privacy
+sweep). Those were last covered 2026-07-15 or earlier and are unrelated to this trigger.
 Branch: master
-Commit: 1f76e44
-Next review due: 2026-08-29 (30-day cadence) or the next harness change, whichever comes first.
+Commit: 0245cae (HEAD at scan time; review-gate d03bfe7 and Probity migration both post-date this)
+Next review due: 2026-08-30 (30-day cadence) or the next harness/dependency change, whichever
+comes first.
+
+> **2026-09-07 follow-up:** both UPDATE REQUIRED items below were resolved (`a1b42c2`, `b45db29`)
+> before this scan was committed. The 30-day cadence date above is now past — a fresh full-scope
+> scan is overdue and should be run next.
 
 ## Commands Run
 
-- `node --test .claude/hooks/check-review-artifacts.test.js` - 53/53 pass, 0 fail, 0 skipped on this host
-  after the round-8 fix (30/30 before any of it; 39/39 after round 2; 44/44 after round 3; 48/48 after
-  round 4; 49/49 after round 5; 50/50 after round 6; 52/52 after round 7). Round 4 added: a percent-encoding
-  blind-review bypass test (`%2e`, nested `%252f`, encoded extension), a CRLF-verdict-under-`core.autocrlf=true`
-  archive test, and two calibration `passingVerdicts` tests (contradictory archived verdict; contract omitting
-  the field fails closed). Round 5 added: a CommonMark/HTML5 character-reference blind-review bypass test
-  (decimal `&#46;`, hex `&#x2e;`, named `&period;`/`&sol;`, and a nested `&amp;#46;` case requiring two passes
-  of the same fixed-point loop). Round 6 added: an `&percnt;` composition test and expanded the named-entity
-  table from a hand-picked 5 entries to what was BELIEVED to be the complete WHATWG HTML5 category of names
-  mapping to a single ASCII punctuation/control character — but round 6's own manual transcription still
-  undercounted that category (40 of 41 real entries; a spot-check-style WebFetch is not the same as an exact
-  diff). Round 7 found the miscount via a genuine programmatic comparison against the live spec
-  (`whatwgCount: 41`, `stagedCount: 40`, exactly one name missing: `underbar` -> `_`), added it, and added a
-  completeness test — but round 7's own new test had a real gap of its own, found by Codex with an EXECUTED
-  mutant (changing the table's raw `bsol: '\\'` value to the wrong `'/'` produced zero test failures, since
-  the test only observed values through `canonicalizePathText()`'s downstream `\`->`/` normalization, which
-  masked exactly this one entry's raw-value error). Round 8 fixed the test itself: a new
-  `loadNamedCharacterReferences()` helper extracts and `assert.deepEqual()`s the RAW object directly (not
-  through any pipeline) — genuinely pins the exact 41 key->value pairs, confirmed via a standalone
-  mutation-testing check that this version does catch the exact mutant that got past round 7's version. The
-  end-to-end pipeline check is now a separate, correctly-labeled test rather than conflated with completeness.
-  This category can't silently drift again without a test failing locally.
-  **Reproducibility caveat, corrected 2026-07-30:** the round-2 figure was recorded as "39/39, 0 skipped"
-  without qualification, but the wrapper test resolved `sh` via PATH lookup only. A reviewer on a Windows
-  host where Git's `sh.exe` is installed but not on PATH observed 38 pass / 1 skipped instead — the same
-  suite, a different result, so the recorded evidence was not universally reproducible. The test now also
-  probes the standard Git-for-Windows install locations before skipping.
-- `node --check .claude/hooks/check-review-artifacts.js`, `node --check .claude/hooks/archive-review-artifact.js`,
-  `sh -n .beads/hooks/pre-commit` - all clean.
-- `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash` - reproduces the packet fingerprint.
-- `git check-ignore -v .claude/reviews/...` - no match; archives are tracked, not ignored (see UPDATE REQUIRED, now resolved).
-- `git config --local --get core.hooksPath` - `.beads/hooks`, confirming `.beads/hooks/pre-commit` is the real gate caller.
+- `git status --short`, `git diff --name-only` — baseline.
+- `rg` sweep for `Gemini|gemini-review|GEMINI\.md|TODO|TBD|deprecated|outdated|stale|drift|Last reviewed`
+  across `AGENTS.md CLAUDE.md CODEX.md ANTIGRAVITY.md SPEC.md docs .claude/skills .claude/commands` —
+  no leftover TODO/deprecated/Gemini markers found; all "stale" hits are the tooling's own
+  self-referential vocabulary (skill/doc names, not actual drift markers).
+- Read `docs/agent-harness.md` in full (179 lines) and diffed its claims against the actual current
+  behavior of `.claude/hooks/check-review-artifacts.js` (post round-8, commit `d03bfe7`).
+- Read `ANTIGRAVITY.md`'s `## Review Output` (169-218) and `### Calibration Exit Gate` (94-121)
+  sections; read `CODEX.md`'s `## Review Output` (128-173) section. Compared both against the hook's
+  `REQUIRED` array (headings + `requiredText` per reviewer/artifact type) and `validateCalibration()`.
+- `cat .claude/antigravity-calibration-contract.json` — confirmed the live contract's actual fields.
 
 ## BLOCKING STALE INFO
 
-- **Corrected 2026-07-30 (round 6):** this section previously listed "self-asserted calibration" as simply
-  "fixed," which overstated round 1's actual scope. What round 1 fixed was receipt shape/uniqueness/archive
-  binding; round 4 added a verdict-token value check (`passingVerdicts`). The CORE self-assertion problem —
-  `passed`/`falseApprovals` are still author-supplied, not derived from a trusted, independently-verifiable
-  expected outcome — was never fixed and remains one of 2 disclosed, still-open architectural items, reaffirmed
-  by both reviewers every round since (rounds 3-5). The other five round-1 fixes (missing-policy fail-open,
-  non-content-addressed archive acceptance, blind-review separator/false-positive bugs, the `node`-absent
-  caller bypass) genuinely are complete and regression-tested — only the calibration-truth item was
-  overclaimed.
+- None found in this pass.
 
 ## UPDATE REQUIRED
 
-- None outstanding. Resolved in this pass:
-  - `docs/agent-harness.md` now states the `.claude/reviews/` retention rule (tracked audit history, committed
-    alongside the change they justify) — previously the path was listed as an artifact with no retention policy,
-    which left it ambiguous whether archives were local scratch or durable evidence.
-  - `.beads/hooks/` is now a review-required path in `check-review-artifacts.js`. The gate's own caller was
-    previously unprotected, so it could be edited to skip the gate without triggering review.
+- None outstanding. Both items this scan raised were resolved after it ran:
+  - **`ANTIGRAVITY.md`'s `### Calibration Exit Gate` did not mention the `passingVerdicts` contract
+    field** (hook-required since round 4; live contract declares `"passingVerdicts": ["ADVISORY"]`).
+    A calibration author following only `ANTIGRAVITY.md` would not know the field is required or that
+    an archived `VERDICT: BLOCK` would be rejected. **Resolved in commit `a1b42c2`** —
+    "docs(harness): fix ANTIGRAVITY.md's Calibration Exit Gate to describe passingVerdicts".
+  - **The two disclosed review-gate architectural gaps** (working-tree reads for
+    policy/calibration/packets/verdicts instead of Git-index reads; self-asserted calibration truth —
+    `passed`/`falseApprovals` are author-supplied) **were not disclosed in `docs/agent-harness.md`**,
+    the canonical harness contract doc. **Resolved in commit `b45db29`** —
+    "docs(harness): disclose 2 review-gate architectural gaps in agent-harness.md".
 
 ## WATCH
 
-- `.claude/reviews/` growth: one file per verdict attempt per scope, committed. Small today (a few KB per
-  verdict) but unbounded over time. Revisit if the directory becomes large enough to affect clone size.
-- `.claude/antigravity-review-policy.json` is `mode: probation`, `calibrationStatus: not_run`. Antigravity
-  cannot approve until a blind calibration suite passes and a human explicitly flips the policy. No calibration
-  has been run yet; this is the intended state, not drift, but it should not be left indefinitely unexamined.
-- `docs/codex-model-routing.md` and the Codex contingency-orchestrator guidance were not re-verified in this
-  pass; they were last confirmed 2026-07-09 and are unrelated to this change.
+- `.claude/reviews/` growth: now spans 8 rounds' worth of archives (rounds 1-8) plus the
+  `database.types.ts` and (pending) Probity-migration archives. Still small in absolute terms but the
+  directory count is growing steadily; revisit if clone size becomes a real concern.
+- `.claude/antigravity-review-policy.json` remains `mode: probation`, `calibrationStatus: not_run`. No
+  calibration has been run yet — intended state, not drift. (The two doc gaps that would have made a
+  calibration attempt work from an incomplete doc are now closed — see UPDATE REQUIRED, resolved
+  `a1b42c2` / `b45db29`.)
+- The dblink two-session concurrency-race harness (`phase5_discovery_cooldown_race.test.sql`) remains
+  unproven — tracked separately in `.planning/STATE.md`, not a harness-doc drift issue.
+- `docs/codex-model-routing.md` and the Codex contingency-orchestrator guidance were not re-verified in
+  this pass (unrelated to this trigger); last confirmed 2026-07-09.
+- Full monthly-scope items not covered by this harness-triggered pass: product/brand drift, Claude
+  model-ID drift (`.planning/config.json` `model_profile_overrides` and any hardcoded model IDs),
+  schema/Supabase live-drift beyond what today's Probity/dependency work touched, and the full
+  security/privacy secret-leak sweep. Next full scan should cover these; due by the 30-day cadence
+  regardless (2026-08-30) even if no further harness change triggers one sooner.
 
 ## CURRENT
 
-- `CLAUDE.md`, `AGENTS.md`, `ANTIGRAVITY.md`, `CODEX.md`, `docs/agent-harness.md`, `docs/review-severity.md`,
-  `.claude/commands/{antigravity-review,codex-prompt,review-gate}.md`, and
-  `.claude/skills/{artifact_qa_gate,review_packet_generator}.md` all consistently describe probation semantics
-  (`ADVISORY` is the clean Antigravity result; `APPROVE` is invalid while in probation) and the blind-review
-  ordering. Verified by direct read across all of them, not spot-checked.
-- The reviewer verdict formats in `ANTIGRAVITY.md` and `CODEX.md` match the fields the hook actually enforces
-  (`review_id`, `risk_level`, `runtime_required`, `blind_review`, `prior_reviewer_outputs_read`,
-  `evidence_level`, `runtime_evidence`, plus the `Evidence Receipts` / `Adversarial Disproof` /
-  `Unverified Boundaries` sections).
-- `.planning/STATE.md` and `.beads/context/execution-state.md` were refreshed on 2026-07-30 and describe
-  current Phase 5 state, including the previously-contradictory Task 5 live-push record. **Corrected again in
-  round 6:** `execution-state.md` still carried an older line calling `database.types.ts` "staged, awaiting
-  review" alongside a newer line calling it "unstaged... never reviewed" — both wrong as of now. It is
-  worktree-modified (unstaged), and its review is NOT outstanding: both reviewers returned dual-clean verdicts
-  (Codex APPROVE, Antigravity ADVISORY, zero findings). The only remaining blocker is a formatting gap in the
-  saved Codex verdict text (lowercase "Codex overlay" vs. the gate's required literal "Codex Overlay"), not a
-  substantive finding.
+- `.claude/hooks/check-review-artifacts.js`'s actual enforcement (post round-8): fixed-point percent +
+  CommonMark/HTML5 character-reference decoding (41-entry verified table) for blind-review detection;
+  blob-OID archive-vs-index comparison (correct under `core.autocrlf=true`); `passingVerdicts`-gated
+  calibration archive value check; fail-closed missing-policy handling; `.beads/hooks/` protected as a
+  review-required path; `probity` added alongside `tdd-guard` in the protected-path regex (2026-07-31,
+  same-day as this scan). Suite: 54/54, 0 skipped, reproduced directly in this pass.
+- `ANTIGRAVITY.md`'s and `CODEX.md`'s `## Review Output` format sections (headings + required fields)
+  match exactly what the hook's `REQUIRED` array checks for both prompt and verdict artifacts — verified
+  by direct line-by-line comparison, not spot-checked. Only the Calibration Exit Gate *prose* (not the
+  format section) is stale, per UPDATE REQUIRED above.
+- `docs/agent-harness.md`'s "Standard Flow," "Prompt Packet Requirements," "Minimum Commit Gate," and
+  archive-retention description are all still accurate against current hook behavior — the OID-based
+  index-membership check added in round 6 is an internal mechanism change underneath the doc's
+  byte-identity *contract* (archive content must still byte-match the verdict; that didn't change), so
+  this is not treated as drift.
+- `probity.config.ts`, `package.json`/`package-lock.json`, `CLAUDE.md`, `docs/agent-harness.md`'s
+  TDD-tool references, and `.metaswarm/project-profile.json` all correctly reference Probity as of the
+  2026-07-31 migration — verified during that migration's own pre-queue sweep, not re-verified here.
+- No leftover Gemini/`gemini-review`/`GEMINI.md` references found anywhere in active workflow docs.
 
 ## Blocked Checks
 
-- Antigravity calibration receipts could not be verified because no calibration run has been performed. The
-  hook's enforcement of those receipts is covered by tests using synthetic fixtures, not by a real calibration.
-- The archive immutability guarantee is enforced at commit time only. Filesystem-level immutability (deletion,
-  tampering outside a commit, or divergence on another clone) remains unenforced and unverified.
+- Antigravity calibration receipts still cannot be verified against a real run — no calibration has
+  been performed; the hook's enforcement is covered by synthetic-fixture tests only. Unchanged from the
+  prior scan.
+- Archive immutability remains commit-time-enforced only; filesystem-level immutability is not claimed
+  or checked. Unchanged from the prior scan.
+- Live Supabase schema/RLS drift checks require credentials/network access not exercised in this pass
+  (out of scope for a harness-triggered scan; would be needed for the next full monthly scan).

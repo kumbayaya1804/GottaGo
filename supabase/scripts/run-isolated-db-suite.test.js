@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { rewriteConfig, resolveCliJsEntry, resolveJsEntryFromShimPath, validateTargets, runLifecycle, PORT_KEY_PATTERN } = require('./run-isolated-db-suite.js');
+const { rewriteConfig, resolveCliJsEntry, resolveJsEntryFromShimPath, validateTargets, runLifecycle, makeRunSupabase, killProcessTree, RUN_TIMEOUTS_MS, PORT_KEY_PATTERN } = require('./run-isolated-db-suite.js');
 
 // --- rewriteConfig / PORT_KEY_PATTERN ---------------------------------------
 
@@ -154,6 +154,38 @@ test('resolveCliJsEntry + direct spawn: full round-trip against the REAL install
   const combined = (r.stdout || '') + (r.stderr || '');
   assert.ok(!combined.includes('INJECTED'), `the real installed CLI must never see an expanded/executed payload, got: ${combined.slice(0, 300)}`);
   assert.ok(combined.includes(payload) || combined.includes('UnknownSubcommand'), `expected the literal payload string (or an UnknownSubcommand rejection naming it) to appear verbatim, got: ${combined.slice(0, 300)}`);
+});
+
+// Codex round-1 finding: `where` failed to find `supabase` in Codex's own review
+// sandbox even though `supabase.cmd --version` worked when invoked directly —
+// some restricted subprocess environments narrow the PATH/finder-invocation
+// surface without actually removing the CLI from PATH. Deterministic coverage
+// (no real CLI or restricted sandbox required): inject a `spawnSyncFn` that
+// simulates `where` failing exactly like Codex's sandbox did, and an `env.PATH`
+// pointing only at a synthetic shim directory, then confirm resolveCliJsEntry
+// still finds it via the PATH-directory-scan fallback.
+test('resolveCliJsEntry: falls back to a direct PATH scan when the finder command (where/which) fails, reproducing the Codex round-1 sandbox finding', { skip: process.platform !== 'win32' && 'npm .cmd shim format is Windows-specific' }, () => {
+  withTempDir((dir) => {
+    writeSyntheticNpmShim(dir);
+    const failingFinder = () => ({ status: 1, stdout: '' });
+    const entry = resolveCliJsEntry({
+      spawnSyncFn: failingFinder,
+      platform: 'win32',
+      env: { PATH: dir },
+    });
+    assert.notEqual(entry, null, 'expected the PATH-scan fallback to find the synthetic shim even though the finder command failed');
+    assert.match(entry, /supabase\.js$/i, `expected resolution to the real .js entry point, got: ${entry}`);
+    assert.ok(fs.existsSync(entry), `resolved entry must actually exist on disk: ${entry}`);
+  });
+});
+
+test('resolveCliJsEntry: returns null (not a throw) when both the finder command and the PATH scan find nothing', () => {
+  const entry = resolveCliJsEntry({
+    spawnSyncFn: () => ({ status: 1, stdout: '' }),
+    platform: 'win32',
+    env: { PATH: '' },
+  });
+  assert.equal(entry, null);
 });
 
 // Deterministic coverage that does NOT depend on a real supabase install:
@@ -443,4 +475,90 @@ test('runLifecycle: start AND stop both fail — exit 1, dir preserved, message 
   assert.equal(result.exitCode, 1);
   assert.match(result.message, /teardown/);
   assert.deepEqual(removed, []);
+});
+
+// --- makeRunSupabase / killProcessTree: Codex round-2 finding ----------------
+// Real, reproduced hang: `supabase start` ran 900+ seconds with no result, no
+// pgTAP output, and Docker itself became unresponsive afterward — the previous
+// spawnSync calls here had no timeout at all, so runLifecycle() could never
+// regain control to attempt teardown. Deterministic coverage below (injected
+// spawnSyncFn, no real hang required) proves per-phase timeouts are actually
+// applied and that a timed-out call triggers tree-kill; the final test proves
+// the REAL mechanism (genuine spawnSync timeout, not a mocked shape) against an
+// actually slow child process.
+
+test('makeRunSupabase: applies the correct per-phase timeout (start/test/stop) to each spawnSync call', () => {
+  const seen = [];
+  const spawnSyncFn = (cmd, args, opts) => {
+    seen.push({ args, timeout: opts.timeout });
+    return { status: 0, signal: null, pid: 123 };
+  };
+  const runSupabase = makeRunSupabase('C:\\fake\\supabase.exe', { spawnSyncFn });
+  runSupabase(['start', '--workdir', 'x']);
+  runSupabase(['test', 'db']);
+  runSupabase(['stop']);
+  assert.equal(seen[0].timeout, RUN_TIMEOUTS_MS.start);
+  assert.equal(seen[1].timeout, RUN_TIMEOUTS_MS.test);
+  assert.equal(seen[2].timeout, RUN_TIMEOUTS_MS.stop);
+});
+
+test('makeRunSupabase: a timed-out spawnSync (ETIMEDOUT) triggers tree-kill and normalizes a null status to a failure', () => {
+  const killCalls = [];
+  const spawnSyncFn = () => ({ status: null, signal: 'SIGKILL', pid: 4242, error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }) });
+  const killTree = (pid) => killCalls.push(pid);
+  const runSupabase = makeRunSupabase('C:\\fake\\supabase.exe', { spawnSyncFn, killTree });
+  const result = runSupabase(['start', '--workdir', 'x']);
+  assert.deepEqual(killCalls, [4242], 'expected killProcessTree to be called with the hung process pid');
+  assert.notEqual(result.status, null, 'a timed-out/killed call must not surface a null status to the caller — runLifecycle treats null !== 0 as failure already, but an explicit non-null status is the clearer contract');
+});
+
+test('makeRunSupabase: a normal (non-timed-out) call never invokes tree-kill', () => {
+  const killCalls = [];
+  const spawnSyncFn = () => ({ status: 0, signal: null, pid: 99 });
+  const runSupabase = makeRunSupabase('C:\\fake\\supabase.exe', { spawnSyncFn, killTree: (pid) => killCalls.push(pid) });
+  runSupabase(['stop']);
+  assert.deepEqual(killCalls, []);
+});
+
+test('killProcessTree: uses "taskkill /T /F /PID" on win32', () => {
+  const calls = [];
+  killProcessTree(555, { spawnSyncFn: (cmd, args) => { calls.push({ cmd, args }); return { status: 0 }; }, platform: 'win32' });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].cmd, 'taskkill');
+  assert.deepEqual(calls[0].args, ['/T', '/F', '/PID', '555']);
+});
+
+test('killProcessTree: uses "pkill -9 -P" on POSIX platforms', () => {
+  const calls = [];
+  killProcessTree(555, { spawnSyncFn: (cmd, args) => { calls.push({ cmd, args }); return { status: 0 }; }, platform: 'linux' });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].cmd, 'pkill');
+  assert.deepEqual(calls[0].args, ['-9', '-P', '555']);
+});
+
+test('killProcessTree: a null/undefined pid is a safe no-op (never calls spawnSyncFn)', () => {
+  const calls = [];
+  killProcessTree(null, { spawnSyncFn: (...args) => { calls.push(args); return { status: 0 }; } });
+  killProcessTree(undefined, { spawnSyncFn: (...args) => { calls.push(args); return { status: 0 }; } });
+  assert.deepEqual(calls, []);
+});
+
+// Real end-to-end proof (no real CLI or Docker required): spawn an ACTUALLY slow
+// child process through the REAL spawnSync (no injection) with a short timeout,
+// and confirm the call returns promptly instead of blocking for the child's full
+// runtime — this is the exact property whose absence caused Codex's real hang.
+// jsEntryOrBinPath here is node's own executable (not a .js entry), so
+// makeRunSupabase invokes it as `<node.exe> ...args` directly — args[0] doubles
+// as both the real first CLI argument AND the phase-timeout lookup key, so `-e`
+// (a genuine node flag) is used as the phase name, keyed to a 300ms timeout.
+test('makeRunSupabase: a genuinely slow child process is killed by a short real timeout, and the call returns promptly', () => {
+  const slowScript = 'setTimeout(() => {}, 5000)'; // 5s — far longer than the 300ms timeout below
+  const runSupabase = makeRunSupabase(process.execPath, {
+    timeoutsMs: { '-e': 300 },
+  });
+  const startedAt = Date.now();
+  const result = runSupabase(['-e', slowScript]);
+  const elapsedMs = Date.now() - startedAt;
+  assert.ok(elapsedMs < 4000, `expected the call to return well before the child's 5s runtime (returned after ${elapsedMs}ms) — an absent/ineffective timeout would block for the full duration`);
+  assert.notEqual(result.status, 0, 'a killed process must not report success');
 });

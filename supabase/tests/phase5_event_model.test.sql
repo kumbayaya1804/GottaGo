@@ -213,10 +213,18 @@ select is(
 
 -- ═══ Section 8. D-58 event-aware withdraw ════════════════════════════════════
 -- Give SUB_VER a verification event (user B) so withdrawal must cancel, not delete.
+-- event_type='verification' — NOT the placeholder 'confirm' this fixture originally
+-- used (authored 2026-07-17, before 05-02's verify_location/submit_location defined
+-- the actual live vocabulary: 'verification' for a real verifier, 'creator_claim' for
+-- the creator's own automatic evidence row). withdraw_submission's D-58 check reads
+-- specifically for event_type='verification' (05-02's fix excluding creator_claim,
+-- which is present on EVERY submission and would otherwise make the hard-delete path
+-- unreachable) — 'confirm' matches neither real event_type and was never caught
+-- because this file had never actually executed before.
 insert into public.verification_events
   (submission_id, location_id, user_id, distance_from_location_meters, weight, event_type)
 values ('11111111-0000-0000-0000-000000000005', null,
-        'bbbbbbbb-0000-0000-0000-000000000002', 20, 1.0, 'confirm');
+        'bbbbbbbb-0000-0000-0000-000000000002', 20, 1.0, 'verification');
 
 -- Owner A withdraws an UNVERIFIED pending row → hard delete (as if never submitted).
 select set_config('request.jwt.claims',
