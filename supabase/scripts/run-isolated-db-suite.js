@@ -122,31 +122,103 @@ function resolveJsEntryFromShimPath(shimPath, { readFile = (p) => fs.readFileSyn
   return shimPath;
 }
 
-function resolveCliJsEntry() {
-  const finder = process.platform === 'win32' ? 'where' : 'which';
-  const result = spawnSync(finder, ['supabase'], { encoding: 'utf8' });
-  if (result.status !== 0 || !result.stdout) {
-    return null;
+// Codex round-1 review finding (real, reproduced in Codex's own sandbox): `where`
+// returned no result even though `supabase.cmd --version` succeeded when invoked
+// directly — some sandboxed/restricted process environments give a spawned
+// subprocess a narrower PATH, or restrict invoking `where.exe` itself, without
+// actually removing `supabase` from the resolvable PATH. Falling back to a direct
+// PATH-directory scan (`process.env.PATH`, checking for `supabase`/`supabase.cmd`/
+// `supabase.exe` in each entry) does not depend on spawning any external
+// finder process at all, so it is robust to that class of sandbox restriction.
+// `where`/`which` remains the first attempt since it also finds PATHEXT-resolved
+// or symlinked installs a manual scan could miss.
+function resolveCliJsEntry({
+  spawnSyncFn = spawnSync,
+  platform = process.platform,
+  env = process.env,
+  fileExists = (p) => fs.existsSync(p),
+} = {}) {
+  const finder = platform === 'win32' ? 'where' : 'which';
+  const result = spawnSyncFn(finder, ['supabase'], { encoding: 'utf8' });
+  if (result.status === 0 && result.stdout) {
+    const candidates = result.stdout.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    const shimPath = platform === 'win32'
+      ? candidates.find((c) => /\.(cmd|bat)$/i.test(c)) || candidates.find((c) => /\.exe$/i.test(c))
+      : candidates[0];
+    if (shimPath) return resolveJsEntryFromShimPath(shimPath);
   }
-  const candidates = result.stdout.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-  const shimPath = process.platform === 'win32'
-    ? candidates.find((c) => /\.(cmd|bat)$/i.test(c)) || candidates.find((c) => /\.exe$/i.test(c))
-    : candidates[0];
-  return resolveJsEntryFromShimPath(shimPath);
+
+  const pathEnv = env.PATH || env.Path || '';
+  const dirs = pathEnv.split(platform === 'win32' ? ';' : ':').filter(Boolean);
+  const names = platform === 'win32' ? ['supabase.cmd', 'supabase.bat', 'supabase.exe'] : ['supabase'];
+  for (const dir of dirs) {
+    for (const name of names) {
+      const candidate = path.join(dir, name);
+      if (fileExists(candidate)) {
+        return resolveJsEntryFromShimPath(candidate);
+      }
+    }
+  }
+  return null;
 }
 
-function makeRunSupabase(jsEntryOrBinPath) {
+// Codex round-2 review finding (real, reproduced live): every spawnSync call here
+// previously had no timeout. A hung `supabase start` (observed for real: 900+
+// seconds, no pgTAP output, Docker itself became unresponsive afterward) never
+// returns control to runLifecycle()'s `finally` block, so the file's own
+// documented "teardown is attempted after every start attempt" guarantee cannot
+// hold — the synchronous spawnSync call that never returns is a harder failure
+// mode than anything `finally` can protect against. Configurable via env vars
+// (a single fixed value cannot fit both a slow first-ever image pull and a
+// hung/stuck failure — too short false-fails a legitimately slow cold start,
+// too long defeats the point) with defaults generous enough for a cold image
+// pull (`start`) but bounded well short of "indefinitely."
+const RUN_TIMEOUTS_MS = {
+  start: Number(process.env.RUN_ISOLATED_START_TIMEOUT_MS) || 15 * 60 * 1000,
+  test: Number(process.env.RUN_ISOLATED_TEST_TIMEOUT_MS) || 5 * 60 * 1000,
+  stop: Number(process.env.RUN_ISOLATED_STOP_TIMEOUT_MS) || 2 * 60 * 1000,
+};
+
+// spawnSync's own `timeout` option kills only the DIRECT child (e.g. the `node
+// supabase.js` process) — confirmed insufficient by Codex's real hang, where the
+// actual stuck work was happening in a DESCENDANT (`supabase.exe` -> `docker.exe`)
+// that a single-process kill leaves orphaned. Best-effort tree-kill, matching this
+// file's existing "best-effort, not an absolute guarantee" framing for teardown:
+// Windows has native support via `taskkill /T`; POSIX uses `pkill -P` (direct
+// children only — not a full recursive tree, since that needs process-group setup
+// this file doesn't otherwise use, but covers the common one-level supabase->docker
+// spawn shape).
+function killProcessTree(pid, { spawnSyncFn = spawnSync, platform = process.platform } = {}) {
+  if (!pid) return;
+  if (platform === 'win32') {
+    spawnSyncFn('taskkill', ['/T', '/F', '/PID', String(pid)], { stdio: 'ignore' });
+  } else {
+    spawnSyncFn('pkill', ['-9', '-P', String(pid)], { stdio: 'ignore' });
+  }
+}
+
+function makeRunSupabase(jsEntryOrBinPath, {
+  spawnSyncFn = spawnSync,
+  timeoutsMs = RUN_TIMEOUTS_MS,
+  killTree = killProcessTree,
+} = {}) {
   const isJsEntry = jsEntryOrBinPath.toLowerCase().endsWith('.js');
   return function runSupabase(args) {
     console.error(`[run-isolated-db-suite] supabase ${args.join(' ')}`);
-    if (isJsEntry) {
-      return spawnSync(process.execPath, [jsEntryOrBinPath, ...args], {
-        cwd: REPO_ROOT,
-        stdio: 'inherit',
-        shell: false,
-      });
+    const phase = args[0];
+    const timeout = timeoutsMs[phase] || timeoutsMs.start;
+    const spawnOpts = { cwd: REPO_ROOT, stdio: 'inherit', shell: false, timeout, killSignal: 'SIGKILL' };
+    const result = isJsEntry
+      ? spawnSyncFn(process.execPath, [jsEntryOrBinPath, ...args], spawnOpts)
+      : spawnSyncFn(jsEntryOrBinPath, args, spawnOpts);
+
+    const timedOut = Boolean(result.error && result.error.code === 'ETIMEDOUT') || result.signal === 'SIGKILL';
+    if (timedOut) {
+      console.error(`[run-isolated-db-suite] "supabase ${args.join(' ')}" exceeded its ${timeout}ms deadline — killing the process tree (pid=${result.pid}).`);
+      killTree(result.pid, { spawnSyncFn });
+      if (result.status === null) result.status = 1;
     }
-    return spawnSync(jsEntryOrBinPath, args, { cwd: REPO_ROOT, stdio: 'inherit', shell: false });
+    return result;
   };
 }
 
@@ -342,7 +414,7 @@ async function main() {
   process.exit(result.exitCode);
 }
 
-module.exports = { rewriteConfig, resolveCliJsEntry, resolveJsEntryFromShimPath, validateTargets, runLifecycle, PORT_KEY_PATTERN };
+module.exports = { rewriteConfig, resolveCliJsEntry, resolveJsEntryFromShimPath, validateTargets, runLifecycle, makeRunSupabase, killProcessTree, RUN_TIMEOUTS_MS, PORT_KEY_PATTERN };
 
 if (require.main === module) {
   main();

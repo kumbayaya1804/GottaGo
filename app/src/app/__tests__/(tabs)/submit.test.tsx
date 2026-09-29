@@ -261,6 +261,42 @@ describe('SubmitScreen — sensitivity confirm gate (D-15)', () => {
     );
   });
 
+  // buildInput() in submit.tsx is the ONLY place the accessibility toggle state becomes the
+  // payload's changingTable / wheelchair flags. submitLocation.test.ts builds SubmitInput
+  // directly, so it cannot catch this mapping being lost — this drives the real screen.
+  it.each([
+    ['neither selected', [], { changingTable: false, wheelchair: false }],
+    ['only Changing table', ['Changing table'], { changingTable: true, wheelchair: false }],
+    ['only Wheelchair accessible', ['Wheelchair accessible'], { changingTable: false, wheelchair: true }],
+    ['both selected', ['Changing table', 'Wheelchair accessible'], { changingTable: true, wheelchair: true }],
+  ])(
+    'forwards the accessibility toggles to submitLocation independently (%s)',
+    async (_name, toggles, expected) => {
+      const utils = await renderWizard();
+      // The accessibility checkboxes sit on Step 1 beside the policy choice.
+      fireEvent.changeText(utils.getByLabelText('Name'), 'Corner Cafe');
+      fireEvent.press(utils.getByText('Chill Spot'));
+      for (const label of toggles as string[]) {
+        fireEvent.press(utils.getByLabelText(label));
+      }
+      await act(async () => {
+        fireEvent.press(utils.getByText(CTA_NEXT));
+        await Promise.resolve();
+      });
+      await advanceToStep3(utils);
+      await waitFor(() => {
+        const cta = utils.getByLabelText(CTA_AT_LOCATION);
+        expect(cta.props.accessibilityState.disabled).toBe(false);
+      });
+      await act(async () => {
+        fireEvent.press(utils.getByLabelText(CTA_AT_LOCATION));
+        await Promise.resolve();
+      });
+      await waitFor(() => expect(mockSubmitLocation).toHaveBeenCalledTimes(1));
+      expect(mockSubmitLocation).toHaveBeenCalledWith(expect.objectContaining(expected));
+    },
+  );
+
   it('a fast double-press of the submit CTA calls submitLocation only once (re-entrancy guard)', async () => {
     const utils = await renderWizard();
     await advanceToStep2(utils, 'Chill Spot');

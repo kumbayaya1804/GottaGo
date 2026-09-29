@@ -37,6 +37,8 @@ function baseInput(overrides: Partial<SubmitInput> = {}): SubmitInput {
     hours: undefined,
     accessCode: undefined,
     timingTip: undefined,
+    changingTable: false,
+    wheelchair: false,
     ...overrides,
   };
 }
@@ -60,6 +62,8 @@ describe('submitLocation', () => {
       p_hours: undefined,
       p_access_code: undefined,
       p_timing_tip: undefined,
+      p_changing_table: false,
+      p_wheelchair: false,
     });
   });
 
@@ -162,6 +166,60 @@ describe('submitLocation', () => {
     expect(mockSupabase.rpc).toHaveBeenCalledWith(
       'submit_location',
       expect.objectContaining({ p_timing_tip: 'Busiest around lunch' })
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Phase 5 (D-62/D-63): the two accessibility selections are finally FORWARDED.
+  // Through Phase 4 these were rendered in SubmitFlow, toggled by the user, and then
+  // silently discarded at buildInput because the RPC exposed no parameters for them.
+  // These assertions are the regression guard against that reappearing.
+  // ---------------------------------------------------------------------------
+  it('forwards changingTable:true as p_changing_table (D-62)', async () => {
+    mockSupabase.rpc.mockResolvedValue({ data: 'id', error: null });
+
+    await submitLocation(baseInput({ changingTable: true }));
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'submit_location',
+      expect.objectContaining({ p_changing_table: true })
+    );
+  });
+
+  it('forwards wheelchair:true as p_wheelchair (D-62)', async () => {
+    mockSupabase.rpc.mockResolvedValue({ data: 'id', error: null });
+
+    await submitLocation(baseInput({ wheelchair: true }));
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'submit_location',
+      expect.objectContaining({ p_wheelchair: true })
+    );
+  });
+
+  it('sends explicit false (never undefined) for unselected accessibility options', async () => {
+    mockSupabase.rpc.mockResolvedValue({ data: 'id', error: null });
+
+    await submitLocation(baseInput({ changingTable: false, wheelchair: false }));
+
+    // Explicit `false` rather than `?? undefined`: an omitted key would fall through
+    // to the RPC's DEFAULT false and produce the same row, but sending the value the
+    // user actually chose keeps the client payload an honest record of the selection
+    // and makes a future default change a non-event.
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'submit_location',
+      expect.objectContaining({ p_changing_table: false, p_wheelchair: false })
+    );
+  });
+
+  it('forwards both accessibility selections independently', async () => {
+    mockSupabase.rpc.mockResolvedValue({ data: 'id', error: null });
+
+    await submitLocation(baseInput({ changingTable: true, wheelchair: false }));
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith(
+      'submit_location',
+      expect.objectContaining({ p_changing_table: true, p_wheelchair: false })
     );
   });
 });
