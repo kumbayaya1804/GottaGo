@@ -20,7 +20,7 @@ concurrency-sensitive `app_config` mutation) — `phase3_read_rpcs.test.sql`,
 passed cleanly as part of a 246/246 (later 253/253) full-suite result, run
 repeatedly to confirm stability. This first-ever real execution also surfaced and
 fixed 5 previously-undiscovered defects elsewhere in the Phase 5 suites (see
-`.planning/STATE.md`'s 2026-08-01 entries for full detail) — none in the Phase 3/4
+`.planning/STATE-ARCHIVE.md`'s 2026-08-01 entries for full detail) — none in the Phase 3/4
 suites this todo specifically tracked, which passed with no fixes needed.
 
 ## Problem

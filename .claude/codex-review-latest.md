@@ -1,70 +1,69 @@
-## Codex Review - Tooling consolidation, attempt 7
+## Codex Review - Regenerate database.types.ts for Phase 5 and remove the submit_location type bridge, attempt 1
 
 **VERDICT: APPROVE**
 
-scope_hash: sha256:e1664171afde3768d2cd723c2c12ebdf051c1fa3ed1a3f5d46ee810d01de20b0
-review_id: rv-20260928T170747Z-3db6d0a9
-risk_level: medium
-runtime_required: false
+scope_hash: sha256:a747ea14046678d503e4581795c5da9980fec6ae5eb0de0803fddc1b105a3e5f
+review_id: rv-20260929T021232Z-43ad8d04
+risk_level: high
+runtime_required: true
 blind_review: true
 prior_reviewer_outputs_read: false
-evidence_level: 2
-runtime_evidence: not_applicable
+evidence_level: 3
+runtime_evidence: executed
 
 ### Reviewed Queue
-
-All 19 queued paths were inspected against the staged diff. Deleted paths were read at HEAD: `.claude/commands/brainstorm.md`, `.claude/commands/metaswarm-setup.md`, `.claude/commands/metaswarm-update-version.md`, `.claude/commands/pr-shepherd.md`, `.claude/commands/prime.md`, `.claude/commands/review-design.md`, `.claude/commands/self-reflect.md`, `.claude/commands/start-task.md`, `.claude/commands/start.md`, `.metaswarm/external-tools.yaml`, `.metaswarm/project-profile.json`. Modified paths were read on disk: `CLAUDE.md`, `AGENTS_ROSTER.md`, `docs/agent-harness.md`, `docs/context-router.md`, `.claude/commands/review-gate.md`, `docs/verification.md`, `docs/stale-info-scan.md`, `.claude/skills/SKILL.md`. The 10 staged reviewer archives were excluded and not opened.
+- `app/src/lib/database.types.ts`: full file, HEAD diff, staged/working-tree equality, independently generated live schema output.
+- `app/src/features/submit/submitLocation.ts`: full file, HEAD diff, caller, input contract, RPC mock tests, emitted JavaScript.
 
 ### Skills Applied
-
-- `.claude/skills/artifact_qa_gate.md` shared core and Codex Overlay
-- `superpowers:using-superpowers`
-- `superpowers:verification-before-completion`
+- `.claude/skills/artifact_qa_gate.md` shared core and Codex Overlay.
+- `artifact-qa-gate`.
+- `superpowers:using-superpowers`.
+- `superpowers:verification-before-completion`.
+- `supabase:supabase` for live type generation and read-only catalog verification.
 
 ### Findings
+None requiring changes within this batch.
 
-No blocking or requested change in the staged scope.
+### Follow-ups
+No new follow-up finding. Jest emitted a MapScreen React act warning and a Node localStorage experimental warning; neither failed the suite or arose from these changed lines.
 
 ### Open Questions
-
-- This Codex harness cannot observe Claude Code's built-in `/code-review` implementation or confirm its exact argument parsing. The pre-check is optional and cannot substitute for either reviewer (`.claude/commands/review-gate.md:20-25`), so this does not weaken the approval gate.
+None blocking this bounded types-only change.
 
 ### Verification
-
-- `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash` exited 0 and printed the packet hash above.
-- `git diff --cached` covered 19 queued paths; the queue has the same 19 paths. `git status --short` showed unrelated unstaged state and 10 staged reviewer archives, excluded from the queue hash.
-- `ls ~/.claude/skills | rg '^gsd'` showed only `gsd-discuss-phase`, `gsd-execute-phase`, `gsd-help`, `gsd-new-project`, `gsd-phase`, and `gsd-plan-phase`.
-- Active-file searches for removed Metaswarm paths and unavailable GSD commands returned no matches (exit 1), excluding historical records and reviewer artifacts. The sole active Metaswarm mention is intentional history in `docs/verification.md:37`.
-- `cd app && npx --no-install prettier --check .` exited 1 and reported style issues in 154 files, matching `docs/verification.md:37`. This check is documented as unenforced.
-- No app or database runtime tests were run in this review: staged changes affect agent instructions and documentation only. The packet's earlier 144 harness tests were not treated as fresh reviewer execution.
+Executed on 2026-10-09 from `/Users/yaelsaint-armand/GottaGo`:
+- Fingerprint preflight: exit 0, exact packet hash, confirmed again after verification.
+- `git diff --quiet -- app/src/lib/database.types.ts app/src/features/submit/submitLocation.ts`: exit 0; reviewed disk files equal staged files.
+- `git diff --cached --check -- <both queued paths>`: exit 0.
+- In `app/`, `npx tsc --noEmit`: exit 0.
+- In `app/`, `npx eslint src --quiet`: exit 0.
+- In `app/`, `npx jest --coverage --runInBand`: authorized outside-sandbox rerun exit 0, 46/46 suites and 397/397 tests passed. Initial sandbox execution failed before tests because Watchman socket access was denied; the rerun resolved that environmental failure.
+- TypeScript `transpileModule` comparison of HEAD and disk `submitLocation.ts` with ES2020/ESNext and comments removed: exit 0, identical emitted JavaScript.
 
 ### Evidence Receipts
-
-- The profile's test, coverage, lint, and typecheck commands at `HEAD:.metaswarm/project-profile.json:25-31` match `docs/verification.md:14-17`; `app/package.json:10-13` provides scripts, and `app/jest.config.js:15-21` enforces 100% coverage.
-- `app/package.json:70` declares Prettier. Searches of `.github/workflows`, `.claude/hooks`, `.beads/hooks`, `scripts`, and package scripts found no enforced Prettier check. The manual command failed as stated.
-- `.claude/commands/review-gate.md:24-39` puts the internal pre-check before staging and packet creation, preserves blind packet/archive order, and reserves the full gate for after both archives. `docs/agent-harness.md:76-83,162-174` and `.claude/antigravity-review-policy.json` retain the approval contract.
-- `AGENTS_ROSTER.md:80-88` generates both packets first, archives both before comparison, and requires Codex APPROVE plus policy-allowed Antigravity output with findings resolved.
+1. C1: Supabase plugin `generate_typescript_types(project_id="ebmzhjmmtmldhrojkdqw")` succeeded. Saved the returned `types` string to `/private/tmp/codex-live-phase5-types.ts` without modifying the repository source. Removed the single extra newline introduced by the patch transport, preserving the generator string. `cmp` returned 0; both files have SHA-256 `3f7e6a21ab18b424a0b161eed25bc2f28408cedf6af73d08e13714f3628be51f`.
+2. C2: Read the complete queued file and HEAD diff. Additions map to `20260731000100_phase5_confidence_numeric.sql:64,123`, `20260731000200_phase5_notification_outbox.sql:44`, and `20260731000300_phase5_verify_and_publish.sql:68,75,480,682,712`. Outbox defaults/nullability/relationships match its DDL, including unique submission FK. Remaining five helper changes are generator parentheses. No unrelated changed schema shape found.
+3. C3: Supabase plugin `execute_sql` queried `pg_proc`, `pg_namespace`, `pg_get_function_arguments`, and `pg_get_function_result` for public.submit_location. Succeeded: exactly one overload, 14 parameters, uuid return; p_changing_table and p_wheelchair are boolean DEFAULT false. Other optional arguments default NULL; required numeric/text/boolean/timestamptz arguments match generated Args at `database.types.ts:960`. The unchanged wrapper explicitly sends both selections at `submitLocation.ts:39,40`; the screen maps booleans at `app/src/app/(tabs)/submit.tsx:95,96`.
+4. C4: HEAD diff changes only comment/type declarations at `submitLocation.ts:5`. Independent transpilation produced identical JavaScript. Passing wrapper tests assert complete argument mapping, true/false forwarding, returned ID and raw-error propagation.
+5. C5: Scoped `rg` over `app/src` for SubmitLocationArgs, database.types, and all newly generated identifiers found direct generated-type consumers only in the wrapper and typed Supabase singleton. No outbox app access found. Full TypeScript check and app suite passed; the singleton's generic type checks its callers throughout the app.
+6. C6: Supabase plugin read-only catalog query used `pg_class.relrowsecurity` and effective `has_table_privilege` for SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER. Succeeded: notification_outbox RLS=true; any_privilege=false for both anon and authenticated. This agrees with migration lines 111 and 119. Generated types confer no grants.
+7. Live migration-ledger SELECT succeeded with versions 20260731000000, 20260731000100, 20260731000200, 20260731000300. This confirms presence, without claiming a checksum audit of deployed migration bodies.
 
 ### Adversarial Disproof
-
-- **T1:** Read all nine deleted commands at HEAD. Seven are Metaswarm dispatch wrappers; the two setup/update commands manage Metaswarm. The setup warning against full startup dumps and CLI invocation remains protected by `docs/context-router.md:14-15` and `docs/agent-harness.md:40-47`.
-- **T2:** Active-file search found no consumer of `.metaswarm/`, `project-profile.json`, or `external-tools.yaml` outside the intentional historical formatter sentence.
-- **T3:** Installed GSD command list matches the three phase commands named in `CLAUDE.md:20`, `AGENTS_ROSTER.md:69-74`, and `.claude/skills/SKILL.md:29`. Active-file search found no removed command variant.
-- **T4:** Line-by-line staged diff changes routing text and command references, not review obligations. `docs/agent-harness.md:87-91` still requires review for consequential docs, and `.claude/commands/review-gate.md:41-56` retains stop conditions and reviewer independence. No hook or enforcement file changed.
-- **T5:** Compared every profile field. Command fields are represented by app scripts and `docs/verification.md`; the 100% threshold remains in Jest. The former `both-must-approve` value was obsolete under the current probation policy. Formatting is explicitly identified as unenforced.
-- **T6:** `.claude/commands/review-gate.md:7-12,20-39` places fixes before staging and packet generation, distinguishes the built-in command from the plugin, allows an unavailable pre-check to be recorded, and grants it no approval authority. Exact built-in invocation semantics remain unverified from this harness.
-- **T7:** No package script, CI workflow, or hook invokes Prettier; the fresh manual check exited 1 with 154 affected files. `docs/verification.md:37` accurately describes this as a non-gate.
-- **T8:** `AGENTS_ROSTER.md:80-88` agrees with `docs/agent-harness.md:76-83,162-174` and probation policy. Active-file search found no surviving two-APPROVE or sequential-packet rule.
+- Attempted to falsify generator fidelity by fresh independent generation and byte comparison: no mismatch.
+- Checked for a stale 12-argument overload or changed defaults using live function catalogs: exactly the expected 14-argument overload.
+- Checked whether the optional generated booleans silently omit user choices: wrapper supplies both explicitly, including false; unchanged required SubmitInput fields and passing tests preserve that behavior.
+- Checked whether type-only removal alters runtime: transpilation equality disproves that concern.
+- Checked whether exposing an outbox type creates client data access: effective live table privileges deny both client roles, and no app consumer exists.
 
 ### Unverified Boundaries
-
-- Claude Code's built-in `/code-review` availability and argument behavior cannot be observed in this Codex session. Its absence is handled explicitly in the command and does not bypass the external gate.
-- Agent behavior after loading these Markdown instructions was not executed in Claude Code. No app, database, hook, or CI runtime boundary changed.
+No real submission was written to production. Device GPS, transport failures against a real server, push delivery and device UAT were not exercised. SQL business logic and database concurrency suites were not rerun because this batch changes neither SQL nor runtime JavaScript. Tests mock Supabase and do not prove server submission behavior. Supabase markdown documentation fetches were unavailable through the web reader; review conclusions rely on local implementation and executed live generator/catalog checks.
 
 ### Runtime Boundary Check
+The runtime-required schema claims were exercised through the live Supabase generator and read-only SQL tools. Screen -> buildInput -> submitLocation -> typed singleton -> RPC keys agrees with the deployed signature. The wrapper rethrows errors; the screen retains form state and shows locked ERR-08 on failure (`app/src/app/__tests__/(tabs)/submit.test.tsx:319`). Screen tests replace the wrapper, while wrapper tests replace the Supabase client; neither is end-to-end transport proof.
 
-Claude Code consumes `.claude/commands/*.md`; the deleted commands have no active callers in the inspected repository. The review-gate's caller is a human invoking `/review-gate`, and downstream effects remain queue staging, packet generation, separate user-run reviewer CLIs, immutable archives, and the post-archive checker. No mocks, providers, route guards, Supabase calls, GPS behavior, or emergency-user app paths changed. For someone with 60 seconds before an emergency, the removed unavailable commands do not remove a product safety obligation; the current gate remains in force.
+Does this decision serve someone with 60 seconds before an emergency? Yes, within this scope: matching generated types to the deployed function removes contract drift without changing the submission path or adding friction. The live signature check prevents approving a merely compiling but mismatched argument contract. Existing failure feedback and retained form state remain unchanged.
 
 ### Approved
-
-The exact staged 19-path scope above is approved. This verdict does not approve unrelated unstaged changes or staged historical reviewer archives.
+The exact two-file staged types-only batch is approved. This verdict does not authorize a merge, deployment, production write, or app release, and does not establish pending device UAT as complete.

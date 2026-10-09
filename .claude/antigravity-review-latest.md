@@ -1,103 +1,119 @@
-## Antigravity Review - Tooling consolidation, attempt 7
-
-**VERDICT: ADVISORY**
-
-scope_hash: sha256:e1664171afde3768d2cd723c2c12ebdf051c1fa3ed1a3f5d46ee810d01de20b0
-review_id: rv-20260928T170747Z-3db6d0a9
-risk_level: medium
-runtime_required: false
+review_id: rv-20260929T021232Z-43ad8d04
+risk_level: high
+runtime_required: true
 blind_review: true
 prior_reviewer_outputs_read: false
 evidence_level: 3
-runtime_evidence: not_applicable
+runtime_evidence: executed
+scope_hash: sha256:a747ea14046678d503e4581795c5da9980fec6ae5eb0de0803fddc1b105a3e5f
 
-### Reviewed Queue
-- `CLAUDE.md` - Modified. Routes to lean GSD core profile, direct maintenance, and systematic-debugging; removed reference to deleted `.metaswarm/project-profile.json`.
-- `AGENTS_ROSTER.md` - Modified. Updated GSD key commands to lean core profile (frozen 1.42.3); documented `/code-review` pre-check and Antigravity + Codex gate; updated Review Cycle to reflect blind simultaneous packet generation, append-only archives, and probationary `ADVISORY` rule.
-- `docs/agent-harness.md` - Modified. Replaced `/gsd-quick` reference for small docs-only changes with direct editing under unchanged reviewer gate rules.
-- `docs/context-router.md` - Modified. Removed reference to deleted `.metaswarm/project-profile.json` from the Always Read list.
-- `.claude/commands/brainstorm.md` - Deleted. Former routing stub to uninstalled `/metaswarm:brainstorm` plugin command; contained no project-specific logic.
-- `.claude/commands/metaswarm-setup.md` - Deleted. Former wrapper around `/metaswarm:setup`; contained no project-specific workflow.
-- `.claude/commands/metaswarm-update-version.md` - Deleted. Former update utility for metaswarm package; contained no project-specific workflow.
-- `.claude/commands/pr-shepherd.md` - Deleted. Former routing stub to uninstalled `/metaswarm:pr-shepherd` plugin command.
-- `.claude/commands/prime.md` - Deleted. Former routing stub to uninstalled `/metaswarm:prime` plugin command.
-- `.claude/commands/review-design.md` - Deleted. Former routing stub to uninstalled `/metaswarm:review-design` plugin command.
-- `.claude/commands/self-reflect.md` - Deleted. Former routing stub to uninstalled `/metaswarm:self-reflect` plugin command.
-- `.claude/commands/start-task.md` - Deleted. Former routing stub to uninstalled `/metaswarm:start-task` plugin command.
-- `.claude/commands/start.md` - Deleted. Former routing stub to uninstalled `/metaswarm:start-task` plugin command.
-- `.metaswarm/external-tools.yaml` - Deleted. Metaswarm tool configuration file; unreferenced by active scripts or hooks.
-- `.metaswarm/project-profile.json` - Deleted. Metaswarm project metadata and command profile; commands and thresholds are preserved in `docs/verification.md` and `app/jest.config.js`.
-- `.claude/commands/review-gate.md` - Modified. Replaced missing GSD code-review step with Claude Code built-in `/code-review` as an internal pre-check before staging; removed phase number input; preserved blind packet generation, archival, and dual-review commit gate.
-- `docs/verification.md` - Modified. Added explicit statement documenting that Prettier formatting (`format_check`) is not an enforced check (no CI job, package script, or hook runs it; a manual run on 2026-09-28 reported style issues in 154 files) and requires an intentional reformatting pass before CI enforcement.
-- `docs/stale-info-scan.md` - Modified. Removed references to uninstalled `/gsd-transition` and `/gsd:complete-milestone` commands, phrasing triggers as milestone and phase-transition events.
-- `.claude/skills/SKILL.md` - Modified. Replaced reference to uninstalled `/gsd-progress` with installed lean core profile commands (`/gsd-discuss-phase`, `/gsd-plan-phase`, `/gsd-execute-phase`).
+# Antigravity Review Verdict: Regenerate database.types.ts for Phase 5 and remove the submit_location type bridge, Attempt 1
 
-### Skills Applied
-- `.claude/skills/artifact_qa_gate.md` shared core and Antigravity Overlay
+**VERDICT: ADVISORY**
+
+Policy `.claude/antigravity-review-policy.json` remains in `probation` mode (`approvalAuthority: false`). Under this policy, `ADVISORY` is the clean verdict token indicating architecture, PostGIS, RLS, trust engine, and data integrity requirements are satisfied without blocking issues.
+
+---
+
+## Skills Applied
+
+- `.claude/skills/artifact_qa_gate.md` core and Antigravity Overlay
 - `superpowers:using-superpowers`
 - `superpowers:verification-before-completion`
-(No project domain skills were triggered, as this change touches no PostGIS, RLS, trust, or application code.)
+- `.claude/skills/postgis_optimizer.md`
+- `.claude/skills/rls_security_guard.md`
+- `.claude/skills/trust_engine_validator.md`
 
-### Issues
-None.
+---
 
-### Concerns
-- **Prettier formatting technical debt:** As accurately documented in `docs/verification.md`, 154 files currently have style warnings. While formatting is not an enforced gate in CI or hooks, adopting Prettier enforcement in a future phase will require an atomic reformat commit to avoid polluting functional diffs.
-- **Environment dependency of `/code-review`:** Claude Code's built-in `/code-review` command is specific to Claude Code environments. The fallback in `.claude/commands/review-gate.md` ("pre-check unavailable") properly prevents blocking or stalling in other harnesses.
+## Runtime Boundary Check
 
-### Verification
-- `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`
-  - Output: `sha256:e1664171afde3768d2cd723c2c12ebdf051c1fa3ed1a3f5d46ee810d01de20b0`
-  - Exit code: 0
-  - Verified exact match with packet `scope_hash`.
-- `ls ~/.claude/skills | grep gsd`
-  - Output: `gsd-discuss-phase`, `gsd-execute-phase`, `gsd-help`, `gsd-new-project`, `gsd-phase`, `gsd-plan-phase`.
-  - Exit code: 0. Confirms installed lean core profile.
-- `node --test .claude/hooks/harness-hooks.test.js .claude/hooks/check-review-artifacts.test.js supabase/scripts/run-isolated-db-suite.test.js probity.config.test.js scripts/os-portability.test.js`
-  - Output: 144 tests, 139 passed, 0 failed, 5 skipped (Windows-only), duration ~65.5s.
-  - Exit code: 0.
-- `cd app && npx --no-install prettier --check .`
-  - Output: Style warnings in 154 files.
-  - Exit code: 0 (warnings issued; confirms claim that Prettier check currently fails on 154 files).
-- `git grep -n -E "metaswarm|project-profile\.json|external-tools\.yaml" -- ":!*.claude/reviews/*" ":!*.claude/*-review-latest.md" ":!*.claude/*-prompt-latest.md" ":!*.claude/codex-security-investigation-prompt.md" ":!*.planning/*" ":!*.beads/*"`
-  - Output: Single match at `docs/verification.md:37` explaining historical context. Exit code: 0.
-- `git grep -n -E "gsd-(quick|debug|verify-work|code-review|transition|progress)|gsd:(code-review|complete-milestone)" -- ":!*.claude/reviews/*" ":!*.claude/*-review-latest.md" ":!*.claude/*-prompt-latest.md" ":!*.claude/codex-security-investigation-prompt.md" ":!*.planning/*" ":!*.beads/*"`
-  - Output: 0 matches across all active files. Exit code: 1.
-- `git grep -n -i -E "both.*approve|two.*approve" -- ":!*.claude/reviews/*" ":!*.claude/*-review-latest.md" ":!*.claude/*-prompt-latest.md" ":!*.claude/codex-security-investigation-prompt.md" ":!*.planning/*" ":!*.beads/*"`
-  - Output: 0 matches. Exit code: 1.
+A dual-lens audit covering schema synchronization, TypeScript compilation, app test suites, and database runtime execution was conducted on the staged changes:
 
-### Evidence Receipts
-- **Receipt T1 (Deleted Metaswarm Commands):** Inspected `git show HEAD:.claude/commands/{brainstorm,metaswarm-setup,metaswarm-update-version,pr-shepherd,prime,review-design,self-reflect,start-task,start}.md`. Verified all 7 routing commands only invoked `/metaswarm:*` plugin skills, and the 2 setup commands only managed metaswarm packages/profiles. No repo-specific business logic or rules existed in any of them.
-- **Receipt T2 (No Active Metaswarm Dependencies):** Executed scoped grep across all active repo files for `metaswarm`, `project-profile.json`, and `external-tools.yaml`. The sole hit was `docs/verification.md:37`, explicitly explaining the former profile's formatting check. No active script, hook, CI workflow, or guide relies on `.metaswarm/`.
-- **Receipt T3 (No Missing GSD Skills):** Executed scoped grep across all active repo files for `/gsd-quick`, `/gsd-debug`, `/gsd-verify-work`, `/gsd-code-review`, `/gsd:code-review`, `/gsd-transition`, `/gsd:complete-milestone`, and `/gsd-progress`. Zero matches found. Verified `ls ~/.claude/skills | grep gsd` confirms only the 6 core skills are installed (`gsd-discuss-phase`, `gsd-plan-phase`, `gsd-execute-phase`, `gsd-help`, `gsd-phase`, `gsd-new-project`). `docs/stale-info-scan.md` and `.claude/skills/SKILL.md` are aligned with the installed set.
-- **Receipt T4 (Review Gate Integrity Unchanged):** Inspected git diffs of `AGENTS_ROSTER.md`, `CLAUDE.md`, `docs/agent-harness.md`, and `.claude/commands/review-gate.md`. Verified `.claude/hooks/check-review-artifacts.js` was not modified. Review rules, append-only archives, deterministic scope hashes, and blind review requirements are preserved intact.
-- **Receipt T5 (Profile Enforcements Preserved):** Inspected `app/jest.config.js` lines 15-22 (enforces 100% coverage threshold across lines, branches, functions, and statements) and `docs/verification.md` lines 13-18 (documents test, coverage, lint, typecheck commands). Verified nothing enforced was lost with `.metaswarm/project-profile.json`.
-- **Receipt T6 (Pre-Check Ordering and Safety):** Read `.claude/commands/review-gate.md` in full. Confirmed `/code-review` runs in Step 2 before Step 3 staging and fingerprint calculation. Confirmed Step 1 and Step 2 explicitly declare it is an internal self-check and not reviewer evidence. Confirmed failure/unavailability does not block the gate or allow external substitutions.
-- **Receipt T7 (Formatter Status Accuracy):** Executed `cd app && npx --no-install prettier --check .` and observed warnings across exactly 154 files. Inspected `app/package.json`, `.claude/hooks/`, and `.github/workflows/` confirming `prettier --check` is not in CI, hooks, or package scripts.
-- **Receipt T8 (Review Cycle Alignment):** Inspected `AGENTS_ROSTER.md` Review Cycle lines 78-89. Confirmed it aligns with `docs/agent-harness.md` on blind simultaneous packet generation, independent append-only archival, and Antigravity probation (`ADVISORY` clean verdict). Confirmed no active doc demands two APPROVE verdicts or sequential generation.
+1. **Schema & Type Surface Synchronization**:
+   - `app/src/lib/database.types.ts` was inspected line by line against the Phase 5 migrations (`20260731000000` to `20260731000300`).
+   - The diff adds `locations.confidence_value: number | null`, `submissions.publication_seen_at: string | null`, the `notification_outbox` table with its three foreign-key relationships (`location_id`, `recipient_user_id`, `submission_id`), and RPC signatures for `acknowledge_submission_publication`, `confidence_tier_for`, `get_my_unseen_submission_publications`, `verify_location`, and the 14-argument `submit_location`.
+   - In `app/src/features/submit/submitLocation.ts`, the temporary type intersection bridge is removed, and `SubmitLocationArgs` now references `Database['public']['Functions']['submit_location']['Args']` directly.
+   - The arguments `p_changing_table` and `p_wheelchair` are typed as optional booleans (`?: boolean`), matching the PostgreSQL function signature's `DEFAULT false` declarations.
+2. **App Layer Boundary & Compilation**:
+   - `npm --prefix app run typecheck` (`tsc --noEmit`) passes with exit status 0, confirming that no downstream consumers in `app/src` break or suffer type narrowing/widening issues.
+   - `npm --prefix app test` passes 46/46 suites and 397/397 tests with exit status 0.
+   - `npm --prefix app run lint` passes with 0 errors.
+3. **Database Runtime Verification**:
+   - Executed `phase5_verify_publish.test.sql` (111/111 pass) on a disposable isolated stack (`gotta_go_isol_1d689715`).
+   - Executed `phase5_confidence.test.sql` (37/37 pass) on a disposable isolated stack (`gotta_go_isol_2a42f7be`).
+   - Executed `node --test supabase/scripts/` (36 tests: 30 pass, 6 win32 skipped, 0 fail).
 
-### Adversarial Disproof
-- **Premise T1 Disproof Attempt:** Searched deleted command files for embedded prompt guidance or project guardrails. Found only metaswarm delegation stubs (`Invoke the /metaswarm:... skill to handle this request`). Premise holds.
-- **Premise T2 Disproof Attempt:** Searched build scripts, npm package scripts, `.github/workflows/`, and hooks for hidden references to `.metaswarm/`. Found none. Premise holds.
-- **Premise T3 Disproof Attempt:** Checked whether any docs, skills, or agent guides still directed developers to use missing GSD commands (`/gsd-quick`, `/gsd-debug`, `/gsd-transition`, `/gsd:complete-milestone`, `/gsd-progress`). Scoped search over all active files returned 0 matches. Verified installed directory has exactly 6 core skills. Premise holds.
-- **Premise T4 Disproof Attempt:** Analyzed whether removing `/gsd-code-review` or updating `AGENTS_ROSTER.md` weakens commit guardrails. Guardrails in `docs/agent-harness.md` and `check-review-artifacts.js` remain strictly intact and enforced. Premise holds.
-- **Premise T5 Disproof Attempt:** Checked if deleting `.metaswarm/project-profile.json` disables test coverage checking. Coverage is hard-enforced by Jest config (`coverageThreshold` 100%). Premise holds.
-- **Premise T6 Disproof Attempt:** Attempted to find an ordering vulnerability where `/code-review` fixes bypass reviewer hashes. Step 2 requires all fixes before Step 3 staging and hash generation; any edit after Step 3 changes `scope_hash` and triggers gate failure. Step 2 also forbids treating `/code-review` as reviewer evidence. Premise holds.
-- **Premise T7 Disproof Attempt:** Tested if Prettier check actually passed or was enforced in CI/scripts/hooks. Found 154 files failing formatting and no CI/script/hook enforcement. Premise holds.
-- **Premise T8 Disproof Attempt:** Checked for doc inconsistencies where one file claims dual APPROVE and another claims ADVISORY probation. All active docs now agree on Codex APPROVE + policy-allowed Antigravity verdict (`ADVISORY`). Premise holds.
+---
 
-### Unverified Boundaries
-- Claude Code built-in `/code-review` command execution semantics inside Claude Code CLI (cannot be run directly from Antigravity CLI; evaluated via documentation and structural ordering in `.claude/commands/review-gate.md`).
-- Supabase database migrations and pgTAP tests (not run; no SQL, migrations, or database functions were altered in this batch).
+## Claim And State Audit
 
-### Runtime Boundary Check
-- `runtime_required: false`.
-- The changes in this batch consist exclusively of developer documentation, agent routing instructions, and command templates. No application code (`app/src/**`), database schema, migrations, RLS policies, or background tasks were modified.
-- User Advocacy Gate: "Does this decision serve someone with 60 seconds before an emergency?" Yes. Removing dead tooling and uninstalled command references eliminates failure modes, startup token bloat, and confusion without modifying any emergency-critical map, search, location, or submission functionality.
+Both queued paths in the staged scope were inspected from disk:
 
-### Claim And State Audit
-- Claims T1 through T8 were individually tested and confirmed against disk files, git history, and command outputs.
-- Active planning state (`.planning/STATE.md`) and execution state (`.beads/context/execution-state.md`) accurately reflect the current tooling consolidation batch, frozen GSD 1.42.3 core profile, and probation status.
+1. `app/src/lib/database.types.ts`:
+   - Contains the regenerated types for the live Phase 5 schema.
+   - Accurately introduces `confidence_value` on `locations`, `publication_seen_at` on `submissions`, the entire `notification_outbox` schema, and all new Phase 5 RPC declarations.
+   - Formatting and helper type parenthesization match standard Supabase type generation templates.
+2. `app/src/features/submit/submitLocation.ts`:
+   - Deletes the temporary type intersection bridge `SubmitLocationArgs = Database['...']['submit_location']['Args'] & { p_changing_table: boolean; p_wheelchair: boolean }`.
+   - Simplifies `SubmitLocationArgs` to bare `Database['public']['Functions']['submit_location']['Args']`.
+   - Preserves explicit boolean forwarding for `p_changing_table` and `p_wheelchair` without altering any emitted JavaScript runtime behavior.
 
-### Approved
-All 19 queued changes (11 deletions, 8 modifications) are verified clean, architecturally sound, and compliant with all project contracts and policies.
+---
+
+## Evidence Receipts
+
+- **Scope Fingerprint**:
+  Command: `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`
+  Result: `sha256:a747ea14046678d503e4581795c5da9980fec6ae5eb0de0803fddc1b105a3e5f` (Exit 0)
+- **App TypeScript Compilation**:
+  Command: `npm --prefix app run typecheck`
+  Result: `tsc --noEmit` exited 0.
+- **App Unit & Integration Tests**:
+  Command: `npm --prefix app test`
+  Result: 46 test suites pass, 397 tests pass, Exit 0.
+- **App Linter**:
+  Command: `npm --prefix app run lint`
+  Result: 0 errors, Exit 0.
+- **Node-level Script Tests**:
+  Command: `node --test supabase/scripts/`
+  Result: 36 tests (30 pass, 6 skipped win32-only, 0 fail, Exit 0).
+- **Isolated DB Suite: Verify & Publish**:
+  Command: `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_verify_publish.test.sql`
+  Result: 111/111 tests pass, Exit 0. Stack `gotta_go_isol_1d689715` started, tested, and stopped.
+- **Isolated DB Suite: Confidence**:
+  Command: `node supabase/scripts/run-isolated-db-suite.js supabase/tests/phase5_confidence.test.sql`
+  Result: 37/37 tests pass, Exit 0. Stack `gotta_go_isol_2a42f7be` started, tested, and stopped.
+
+---
+
+## Adversarial Disproof
+
+1. **Attempted Disproof of Type Safety on `submitLocation` (C3)**:
+   - Evaluated `SubmitLocationArgs` against `SubmitInput`. The fields `changingTable` and `wheelchair` on `SubmitInput` are non-optional booleans. In `submitLocation.ts`, `p_changing_table: input.changingTable` and `p_wheelchair: input.wheelchair` are assigned directly, satisfying the optional boolean arguments `p_changing_table?: boolean` and `p_wheelchair?: boolean`. Removing the manual intersection introduces no type holes or loose `any` casts.
+2. **Attempted Disproof of Client Surface Exposure for `notification_outbox` (C6)**:
+   - While `notification_outbox` is added to `database.types.ts`, migration `20260731000200_phase5_notification_outbox.sql` revoked all access from `anon` and `authenticated` and enabled RLS. Grepped `app/src` for `notification_outbox`: 0 occurrences. No client code reads or writes this table.
+3. **Attempted Disproof of Runtime Behavior Change (C4)**:
+   - Inspected `git diff app/src/features/submit/submitLocation.ts`. Only the type alias `SubmitLocationArgs` was modified. The runtime implementation and argument payload construction remain byte-for-byte identical.
+
+---
+
+## User Advocacy Gate Assessment
+
+> **Emergency Criterion**: Does this decision serve someone with 60 seconds before an emergency?
+
+- **Direct Interface Reliability**: Replacing temporary type shims with generated types guarantees that the mobile client and the database communicate over an exact, verified RPC contract. No user restroom submission will be rejected due to parameter naming mismatches or unaligned schemas.
+- **Integrity of Accessibility Data**: The client continues to explicitly send both `changingTable` and `wheelchair` flags, ensuring urgent accessibility needs are reliably preserved.
+
+---
+
+## Unverified Boundaries
+
+1. **Live Remote Invocation**: Network RPC invocation against production `ebmzhjmmtmldhrojkdqw` was not run from this local environment. Local disposable database stacks were used for runtime verification.
+2. **Expo Push Notification Delivery**: Delivery of outbox notifications via Expo push service is part of Phase 05-05 and was not exercised.
+
+---
+
+## Follow-ups
+
+- None outstanding for this batch. All types, unit tests, and RPC contracts are verified.

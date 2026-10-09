@@ -1,276 +1,391 @@
+<!-- RETIRED: this scope (sha256:a747ea14…) was committed as 66e992a on 2026-10-09. Do not review it again. -->
 <!-- review-manifest
 reviewer: codex
-generated_at: 2026-09-28T17:07:47Z
-scope_hash: sha256:e1664171afde3768d2cd723c2c12ebdf051c1fa3ed1a3f5d46ee810d01de20b0
-review_id: rv-20260928T170747Z-3db6d0a9
-risk_level: medium
-runtime_required: false
+generated_at: 2026-09-29T02:12:32Z
+scope_hash: sha256:a747ea14046678d503e4581795c5da9980fec6ae5eb0de0803fddc1b105a3e5f
+review_id: rv-20260929T021232Z-43ad8d04
+risk_level: high
+runtime_required: true
 blind_review: true
 queue:
-  - CLAUDE.md
-  - AGENTS_ROSTER.md
-  - docs/agent-harness.md
-  - docs/context-router.md
-  - .claude/commands/brainstorm.md
-  - .claude/commands/metaswarm-setup.md
-  - .claude/commands/metaswarm-update-version.md
-  - .claude/commands/pr-shepherd.md
-  - .claude/commands/prime.md
-  - .claude/commands/review-design.md
-  - .claude/commands/self-reflect.md
-  - .claude/commands/start-task.md
-  - .claude/commands/start.md
-  - .metaswarm/external-tools.yaml
-  - .metaswarm/project-profile.json
-  - .claude/commands/review-gate.md
-  - docs/verification.md
-  - docs/stale-info-scan.md
-  - .claude/skills/SKILL.md
+  - app/src/lib/database.types.ts
+  - app/src/features/submit/submitLocation.ts
 diff_base: HEAD
 context_tier: 1
 -->
 
-# Codex Review Packet: Tooling Consolidation, Attempt 7 (metaswarm removal, GSD routing, review-gate pre-check, formatter status)
+# Codex Review Packet: Regenerate database.types.ts for Phase 5 and remove the submit_location type bridge, Attempt 1
 
 You are Codex, the approval-bearing implementation-quality, security, and user-failure-state reviewer. This packet is a set of claims, not proof. Inspect every queued path from disk and confirm the staged scope matches `scope_hash`. Allowed verdicts: APPROVE, REQUEST CHANGES, BLOCK.
-
-This is a new blind attempt on changed staged bytes. Earlier attempts covered scopes `sha256:5007656f…` (15 paths), then `sha256:6760d428…`, `sha256:f4029bcf…`, `sha256:bf0139cb…`, and `sha256:7c8ee525…` (17 paths each). Since the last attempt, two files joined the queue: `docs/stale-info-scan.md` (its scan cadence named `/gsd-transition` and `/gsd:complete-milestone`, which the `core` profile does not install; it now names the events without commands) and `.claude/skills/SKILL.md` (it named `/gsd-progress`; it now names the three installed phase commands). Earlier verdicts are archived and are not inputs to this review. Do not read them.
 
 ## Required Skills
 
 - `.claude/skills/artifact_qa_gate.md` shared core plus its **Codex Overlay**.
 - Task-relevant skills actually available in the Codex harness (for example `superpowers:using-superpowers` and `superpowers:verification-before-completion`). List only the ones you applied.
-- No project domain skill is triggered (no PostGIS, RLS, trust, or app code). Name any unavailable skill as a gap.
+
+## Queue (2 paths, all staged)
+
+Modified (2):
+- `app/src/lib/database.types.ts`
+- `app/src/features/submit/submitLocation.ts`
 
 ## Task Goal
 
-The user asked to consolidate the project's agent tooling and keep it lean: "don't lose sight of what the original project is about ... not looking to overengineer ... or have it laden with context eating token draining strategies." Metaswarm is removed from the repo. It was used for one plan (Phase 2, 02-01b); GSD plus the Antigravity/Codex review gate replaced it; its plugin is not installed. The routing docs match the lean GSD install (frozen 1.42.3, `core` profile: discuss, plan, and execute phase; no GSD code-review command).
-
-Two files were added in this attempt:
-- `.claude/commands/review-gate.md`: its first step called a GSD code-review command that the `core` profile does not include. The user chose to replace it with Claude Code's built-in `/code-review` as an internal pre-check that runs before staging and is explicitly not an approval.
-- `docs/verification.md`: the deleted metaswarm profile held a `format_check` command (`cd app && npx prettier --check .`). The user chose to document formatting as not enforced. On 2026-09-28, the implementer ran `cd app && npx --no-install prettier --check .` and it reported style issues in 154 files. No CI step, package script, or active doc runs it.
-
-## Queue (19 paths, all staged)
-
-Deleted (11): `.claude/commands/{brainstorm,metaswarm-setup,metaswarm-update-version,pr-shepherd,prime,review-design,self-reflect,start-task,start}.md`, `.metaswarm/external-tools.yaml`, `.metaswarm/project-profile.json`.
-Modified (8): `CLAUDE.md`, `AGENTS_ROSTER.md`, `docs/agent-harness.md`, `docs/context-router.md`, `.claude/commands/review-gate.md`, `docs/verification.md`, `docs/stale-info-scan.md`, `.claude/skills/SKILL.md`.
-
-The index also holds 10 staged reviewer archive files under `.claude/reviews/` from earlier attempts (count from `git diff --cached --name-only -- .claude/reviews` when this packet was generated; each reviewer's archive step adds one more, so a count one or two higher when you check is expected). They are not queue entries, and `stagedScopeHash()` hashes queue entries only. Do not open them.
+Plan 05-02 Task 4. The four Phase 5 migrations (`20260731000000` to `20260731000300`) are now applied to the production Supabase project. `app/src/lib/database.types.ts` still described the older schema, so `submitLocation.ts` carried a temporary type intersection adding the two newer `submit_location` parameters. This batch (1) replaces `database.types.ts` with types generated from the live schema and (2) deletes the intersection so `submitLocation.ts` uses the generated `Args` type directly. No runtime behavior, SQL, or test changes.
 
 ## Neutral Claim Table
 
-| # | Implementation claim | Authority source | Disproof attempt required | Evidence needed |
-|---|---|---|---|---|
-| T1 | Seven deleted command files only route to a metaswarm plugin that is not installed; the other two (`metaswarm-setup`, `metaswarm-update-version`) only manage metaswarm. None carries project-specific workflow. | the deleted files at `HEAD` (`git show HEAD:<path>`) | Find project-specific instructions in any deleted file that exist nowhere else. | Read each deleted file at `HEAD`. |
-| T2 | Nothing active depends on `.metaswarm/`: no script, hook, test, CI step, or active doc reads it after this change. | repository search | Find an executable or active-doc consumer of `.metaswarm/`, `project-profile.json`, or `external-tools.yaml`. | Scoped search excluding historical records (`.claude/reviews/**`, `.claude/*-review-latest.md`, `.planning/**`, `.beads/**`, `.claude/codex-security-investigation-prompt.md`). |
-| T3 | No active file (docs, commands, skills, root agent files) names a GSD command absent from the `core` profile, in either `/gsd-x` or `/gsd:x` form. Installed: `gsd-discuss-phase`, `gsd-plan-phase`, `gsd-execute-phase`, `gsd-help`, `gsd-phase`, `gsd-new-project` (`ls ~/.claude/skills \| grep gsd`). Replacements name installed tools. | all active files, not only the queued ones | Find a surviving active reference, or a replacement that names a tool that is not installed. | Scoped search plus reading the diffs. |
-| T4 | The edits change no review-gate rule, blind-review requirement, verdict format, protected-path list, or TDD/Probity rule. | the diffs; `check-review-artifacts.js` `REVIEW_REQUIRED_PATTERNS` (unchanged) | Find a weakened obligation in any reworded line. | Line-by-line diff reading. |
-| T5 | Nothing enforced is lost with the profile. Its test, coverage, lint, and typecheck commands are in `docs/verification.md`; its 100% coverage threshold is enforced in `app/jest.config.js`; its `format_check` command is now documented as not enforced, with the reason. | `git show HEAD:.metaswarm/project-profile.json`; `docs/verification.md`; `app/jest.config.js` | Find a profile value enforced or documented only in the deleted profile. | Compare field by field. |
-| T6 | Replacing the GSD code-review step with `/code-review` preserves the gate: it runs before staging, so its fixes cannot change a staged `scope_hash` after packets exist; it is labeled a self-check and not reviewer evidence; the command is identified unambiguously (the built-in `code-review`, not `engineering:code-review`) with an invocation that matches that command; its unavailability neither blocks the gate nor lets another tool stand in; Steps 4-9 (both blind packets, archives, Codex approval, the full gate after both archives) are unchanged. | `.claude/commands/review-gate.md` on disk (full file) | Show an ordering where a pre-check fix lands after packet generation, or wording that lets the pre-check stand in for a reviewer. | Read the whole file, not only the hunks. |
-| T8 | `AGENTS_ROSTER.md` agrees with the current contract: its Review Cycle generates both blind packets before either reviewer runs, compares verdicts only after both archives exist, and requires Codex APPROVE plus the policy-allowed Antigravity verdict with no unresolved finding; its routing sentence names the `/code-review` pre-check. No other active document still requires two APPROVE verdicts or a sequential packet order. | `docs/agent-harness.md` (numbered workflow and probation rule); `.claude/antigravity-review-policy.json`; `.claude/commands/review-gate.md` | Find any active doc (excluding historical records) that contradicts the roster's cycle, or a roster step that weakens the gate. | Read the roster's Review Cycle in full; scoped search for approval-condition wording. |
-| T7 | The formatter statement in `docs/verification.md` is accurate and internally consistent: Prettier is a dev dependency, no CI job, package script, or hook runs `prettier --check`, and a manual run currently fails. | `app/package.json`; `.github/workflows/*.yml`; the command itself | Find a CI step, script, or hook that runs Prettier, or show the check passing. | Run `cd app && npx --no-install prettier --check . \| tail -3` and search. |
+| # | Claim | Authority source | Disproof to attempt | Evidence needed |
+|---|-------|------------------|---------------------|-----------------|
+| C1 | `database.types.ts` is byte-identical to what the live project's type generator emits now. | The live project `ebmzhjmmtmldhrojkdqw`, via the Supabase type-generation tool or CLI | Regenerate independently and compare byte for byte; look for any hand edit or transcription slip | Command run, comparison result |
+| C2 | The diff against the previous file contains only Phase 5 schema additions plus generator boilerplate: `locations.confidence_value`, `submissions.publication_seen_at`, the `notification_outbox` table, the functions `acknowledge_submission_publication`, `confidence_tier_for`, `get_my_unseen_submission_publications`, `verify_location`, the two new optional `submit_location` parameters, and a parenthesization change in five generic helper types. | `git diff HEAD -- app/src/lib/database.types.ts` and the migrations in `supabase/migrations/2026073100*.sql` | Find any changed line that is not explained by a migration or by the generator template | Diff read against the migrations |
+| C3 | The generated `submit_location` `Args` matches the deployed 14-argument function, including that the two accessibility parameters are optional with SQL defaults, and `submitLocation.ts` still sends both explicitly. | Live function signature, `20260731000300_phase5_verify_and_publish.sql`, `submitLocation.ts` | Compare parameter names, types, and optionality with the live function; find a call site that would now fail to type-check or send a wrong key | Function signature query, `tsc` result |
+| C4 | Removing the intersection changes no runtime behavior; the emitted JavaScript for `submitLocation.ts` is unchanged apart from erased types. | The diff of `submitLocation.ts` (type alias only) | Find any non-type change in the file diff | Diff, test results |
+| C5 | No other file in `app/src` depended on the removed bridge or on a type that changed shape in the regenerated file. | `tsc --noEmit`, grep for the removed names and for consumers of the changed types | Search for consumers of `Database`, `Tables`, `Functions`, `Constants` whose inferred types could narrow or widen | `tsc` result, grep |
+| C6 | Regenerated types expose no server-only surface to the client that was not already reachable: the `notification_outbox` type is present because the table exists, but the client has no privilege on it. | Live grants on `public.notification_outbox`, `20260731000200_phase5_notification_outbox.sql` | Query the live grants for `anon` and `authenticated`; look for any app code that reads the table | Grant query, grep |
 
 ## User Advocacy Gate
 
-"Does this decision serve someone with 60 seconds before an emergency?" No app code, map, search, or submission path changes. Indirectly: a review command that points at a missing tool stalls every non-trivial fix, including emergency-critical ones; a lean startup leaves more of each session for product work. Assess whether any removed item carried an obligation that protects emergency-critical behavior, and whether the new pre-check could delay urgent fixes.
+Does this decision serve someone with 60 seconds before an emergency? This batch is types only. Its value to that person is indirect: the app sends a request the server accepts, so a contribution does not fail with a generic error because the client and server disagreed about a function signature. Reviewers should say whether the change could mask a signature mismatch (a type that compiles but sends the wrong argument) and whether any failure state leaves a contributor without a clear outcome.
 
 ## Runtime Boundary And Mock Audit
 
-- No runtime code, hook, test, migration, or CI change. `runtime_required: false`.
-- Claude Code loads `.claude/commands/*.md` as slash commands. Deleting nine files removes them from the command list. Confirm no remaining command or skill invokes them by name.
-- `/code-review` is a built-in Claude Code skill in this environment, not a repo file, so it cannot be read from disk. The implementer asserts that the session's skill list shows two distinct entries: `code-review` (built-in; "Review the current diff, or a PR number/branch/path target ... at the given effort level (low/medium ... max)") and `engineering:code-review` (a plugin skill whose SKILL.md takes a PR URL or file path). If you cannot observe the built-in from your harness, mark its behavior unverifiable rather than inferring it from the plugin skill.
-- The router and command files are agent instructions; their only consumer is agent behavior.
+- The types are generated from the live production schema, which already has the four migrations applied; that state was verified separately with read-only queries (ledger, function signatures, grants).
+- Nothing here executes SQL. The app tests mock the Supabase client, so they prove request shaping and UI states, not server behavior or that the generated types match the server. C1 and C3 are the only claims that tie the types to the live schema.
+- Not exercised: a real device, a real submit against the live database, push delivery.
 
-## Verification (implementer-run, macOS 27.0, Node v26.10.0, 2026-09-28)
+## Verification
 
-| Evidence | Result |
-|---|---|
-| `git grep` for `gsd-code-review`, `gsd:code-review`, `gsd-quick`, `gsd-debug`, `gsd-verify-work`, `metaswarm`, `project-profile.json` over active files (excluding the historical paths in T2 and `docs/verification.md`, whose new paragraph names the former profile on purpose) | no matches |
-| Node test runner over the five harness test files (queue hooks, review-gate checker, isolated DB runner, OS portability, Probity config), run 2026-09-28 before attempt 2; later attempts change only Markdown | 144 tests, 139 pass, 0 fail, 5 skipped (Windows-only) |
-| Built-in `/code-review low` on the six modified files before staging | attempts 2 and 3: no findings. Attempt 4: three runs. Run 1 flagged the roster routing sentence omitting the pre-check (fixed). Run 2 flagged the unused phase-number input in `review-gate.md` (removed). Run 3: no findings. Attempt 5: one run, no findings. Low-effort passes. |
-| `cd app && npx --no-install prettier --check .` | style issues in 154 files |
-| Staging | `stage-queue` failed while the deletions were pre-staged with `git rm`; they were unstaged (files stay deleted on disk) and `stage-queue` staged all queued paths (the same workaround in every attempt since 3). Known harness edge case, not changed in this batch. |
+Run on the working tree before this packet:
+
+- In `app/`: `npx tsc --noEmit` exit 0; `npx eslint src --quiet` exit 0; `npx jest --coverage` exit 0 with 46 suites and 397 tests.
+- The diff of `database.types.ts` was read line by line against the expected Phase 5 additions; nothing else differs except the helper-type parenthesization.
+- Live read-only checks (done earlier, same day): the migration ledger lists the four Phase 5 versions; exactly one `submit_location` with 14 arguments exists; the outbox has row-level security on and no grants to `anon` or `authenticated`.
+
+The file was written from the generator's output by the implementer, not produced by a CLI redirect, so a byte comparison by the reviewer is the check that matters.
 
 ## Blind-Review Rules
 
-- Exclude `.claude/reviews/**` and every `.claude/*-review-latest.md` file from every repository-wide search, including `rg`, `grep -r`, and `git grep` (for example `rg ... -g '!.claude/reviews/**' -g '!.claude/*-review-latest.md'`). An unscoped search can surface archived reviewer text and break blind review; if that happens, stop using the result and report it in the verdict. Do not read the other reviewer's packet, verdict, or archives.
+- Exclude `.claude/reviews/**` and every `.claude/*-review-latest.md` file from every repository-wide search, including `rg`, `grep -r`, and `git grep` (for example `rg ... -g '!.claude/reviews/**' -g '!.claude/*-review-latest.md'`). If an unscoped search surfaces archived reviewer text, stop using the result and report it.
+- Do not read the other reviewer's packet, verdict, or archives.
 - The only gate command you may run is the fingerprint preflight: `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`.
 - Read deleted files with `git show HEAD:<path>`.
+- A problem found only in lines this batch did not change is a `NOTE (follow-up)` under `### Follow-ups`, not REQUEST CHANGES, unless the batch's change depends on it or directly contradicts it. BLOCK-level safety problems block wherever they are.
 
-## Staged Diff (modified files)
+## Staged Diff
+
+### app/src/lib/database.types.ts
 
 ```diff
-diff --git a/.claude/commands/review-gate.md b/.claude/commands/review-gate.md
-index 36116c7..8875646 100644
---- a/.claude/commands/review-gate.md
-+++ b/.claude/commands/review-gate.md
-@@ -1,10 +1,10 @@
- # /review-gate
+diff --git a/app/src/lib/database.types.ts b/app/src/lib/database.types.ts
+index 864f9a2..4e6e13b 100644
+--- a/app/src/lib/database.types.ts
++++ b/app/src/lib/database.types.ts
+@@ -154,6 +154,7 @@ export type Database = {
+           chill_spot: boolean | null
+           confidence_score: string | null
+           confidence_tier: string | null
++          confidence_value: number | null
+           coordinates: unknown
+           created_at: string | null
+           data_source: string
+@@ -183,6 +184,7 @@ export type Database = {
+           chill_spot?: boolean | null
+           confidence_score?: string | null
+           confidence_tier?: string | null
++          confidence_value?: number | null
+           coordinates: unknown
+           created_at?: string | null
+           data_source?: string
+@@ -212,6 +214,7 @@ export type Database = {
+           chill_spot?: boolean | null
+           confidence_score?: string | null
+           confidence_tier?: string | null
++          confidence_value?: number | null
+           coordinates?: unknown
+           created_at?: string | null
+           data_source?: string
+@@ -235,6 +238,88 @@ export type Database = {
+         }
+         Relationships: []
+       }
++      notification_outbox: {
++        Row: {
++          attempt_count: number
++          claim_expires_at: string | null
++          claim_token: string | null
++          claimed_at: string | null
++          created_at: string
++          delivered_at: string | null
++          expo_ticket_id: string | null
++          failed_at: string | null
++          id: string
++          last_error: string | null
++          location_id: string | null
++          max_attempts: number
++          next_attempt_at: string
++          receipt_checked_at: string | null
++          recipient_user_id: string
++          submission_id: string
++          ticket_created_at: string | null
++        }
++        Insert: {
++          attempt_count?: number
++          claim_expires_at?: string | null
++          claim_token?: string | null
++          claimed_at?: string | null
++          created_at?: string
++          delivered_at?: string | null
++          expo_ticket_id?: string | null
++          failed_at?: string | null
++          id?: string
++          last_error?: string | null
++          location_id?: string | null
++          max_attempts?: number
++          next_attempt_at?: string
++          receipt_checked_at?: string | null
++          recipient_user_id: string
++          submission_id: string
++          ticket_created_at?: string | null
++        }
++        Update: {
++          attempt_count?: number
++          claim_expires_at?: string | null
++          claim_token?: string | null
++          claimed_at?: string | null
++          created_at?: string
++          delivered_at?: string | null
++          expo_ticket_id?: string | null
++          failed_at?: string | null
++          id?: string
++          last_error?: string | null
++          location_id?: string | null
++          max_attempts?: number
++          next_attempt_at?: string
++          receipt_checked_at?: string | null
++          recipient_user_id?: string
++          submission_id?: string
++          ticket_created_at?: string | null
++        }
++        Relationships: [
++          {
++            foreignKeyName: "notification_outbox_location_id_fkey"
++            columns: ["location_id"]
++            isOneToOne: false
++            referencedRelation: "locations"
++            referencedColumns: ["id"]
++          },
++          {
++            foreignKeyName: "notification_outbox_recipient_user_id_fkey"
++            columns: ["recipient_user_id"]
++            isOneToOne: false
++            referencedRelation: "users"
++            referencedColumns: ["id"]
++          },
++          {
++            foreignKeyName: "notification_outbox_submission_id_fkey"
++            columns: ["submission_id"]
++            isOneToOne: true
++            referencedRelation: "submissions"
++            referencedColumns: ["id"]
++          },
++        ]
++      }
+       ratings: {
+         Row: {
+           accessibility: number | null
+@@ -413,6 +498,7 @@ export type Database = {
+           location_id: string | null
+           name: string | null
+           policy_tag: string | null
++          publication_seen_at: string | null
+           status: string
+           submitter_id: string | null
+           timing_tip: string | null
+@@ -432,6 +518,7 @@ export type Database = {
+           location_id?: string | null
+           name?: string | null
+           policy_tag?: string | null
++          publication_seen_at?: string | null
+           status?: string
+           submitter_id?: string | null
+           timing_tip?: string | null
+@@ -451,6 +538,7 @@ export type Database = {
+           location_id?: string | null
+           name?: string | null
+           policy_tag?: string | null
++          publication_seen_at?: string | null
+           status?: string
+           submitter_id?: string | null
+           timing_tip?: string | null
+@@ -754,7 +842,12 @@ export type Database = {
+       }
+     }
+     Functions: {
++      acknowledge_submission_publication: {
++        Args: { p_submission_id: string }
++        Returns: undefined
++      }
+       check_display_name_available: { Args: { name: string }; Returns: boolean }
++      confidence_tier_for: { Args: { p_value: number }; Returns: string }
+       confirm_access_code: {
+         Args: { p_location_id: string }
+         Returns: undefined
+@@ -791,6 +884,15 @@ export type Database = {
+           policy_tag: string
+         }[]
+       }
++      get_my_unseen_submission_publications: {
++        Args: never
++        Returns: {
++          location_id: string
++          name: string
++          published_at: string
++          submission_id: string
++        }[]
++      }
+       get_profile_stats: { Args: never; Returns: Json }
+       search_locations_bbox: {
+         Args: {
+@@ -862,6 +964,7 @@ export type Database = {
+           p_accuracy_m: number
+           p_address?: string
+           p_captured_at: string
++          p_changing_table?: boolean
+           p_hours?: Json
+           p_lat: number
+           p_lng: number
+@@ -869,6 +972,7 @@ export type Database = {
+           p_name: string
+           p_policy_tag: string
+           p_timing_tip?: string
++          p_wheelchair?: boolean
+         }
+         Returns: string
+       }
+@@ -880,6 +984,17 @@ export type Database = {
+         Args: { new_display_name?: string; new_family_mode?: boolean }
+         Returns: undefined
+       }
++      verify_location: {
++        Args: {
++          p_accuracy_m: number
++          p_captured_at: string
++          p_lat: number
++          p_lng: number
++          p_mocked: boolean
++          p_submission_id: string
++        }
++        Returns: Json
++      }
+       withdraw_submission: {
+         Args: { p_submission_id: string }
+         Returns: undefined
+@@ -902,12 +1017,12 @@ export type Tables<
+   DefaultSchemaTableNameOrOptions extends
+     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+     | { schema: keyof DatabaseWithoutInternals },
+-  TableName extends DefaultSchemaTableNameOrOptions extends {
++  TableName extends (DefaultSchemaTableNameOrOptions extends {
+     schema: keyof DatabaseWithoutInternals
+   }
+     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+-    : never = never,
++    : never) = never,
+ > = DefaultSchemaTableNameOrOptions extends {
+   schema: keyof DatabaseWithoutInternals
+ }
+@@ -931,11 +1046,11 @@ export type TablesInsert<
+   DefaultSchemaTableNameOrOptions extends
+     | keyof DefaultSchema["Tables"]
+     | { schema: keyof DatabaseWithoutInternals },
+-  TableName extends DefaultSchemaTableNameOrOptions extends {
++  TableName extends (DefaultSchemaTableNameOrOptions extends {
+     schema: keyof DatabaseWithoutInternals
+   }
+     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+-    : never = never,
++    : never) = never,
+ > = DefaultSchemaTableNameOrOptions extends {
+   schema: keyof DatabaseWithoutInternals
+ }
+@@ -956,11 +1071,11 @@ export type TablesUpdate<
+   DefaultSchemaTableNameOrOptions extends
+     | keyof DefaultSchema["Tables"]
+     | { schema: keyof DatabaseWithoutInternals },
+-  TableName extends DefaultSchemaTableNameOrOptions extends {
++  TableName extends (DefaultSchemaTableNameOrOptions extends {
+     schema: keyof DatabaseWithoutInternals
+   }
+     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+-    : never = never,
++    : never) = never,
+ > = DefaultSchemaTableNameOrOptions extends {
+   schema: keyof DatabaseWithoutInternals
+ }
+@@ -981,11 +1096,11 @@ export type Enums<
+   DefaultSchemaEnumNameOrOptions extends
+     | keyof DefaultSchema["Enums"]
+     | { schema: keyof DatabaseWithoutInternals },
+-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
++  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+     schema: keyof DatabaseWithoutInternals
+   }
+     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+-    : never = never,
++    : never) = never,
+ > = DefaultSchemaEnumNameOrOptions extends {
+   schema: keyof DatabaseWithoutInternals
+ }
+@@ -998,11 +1113,11 @@ export type CompositeTypes<
+   PublicCompositeTypeNameOrOptions extends
+     | keyof DefaultSchema["CompositeTypes"]
+     | { schema: keyof DatabaseWithoutInternals },
+-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
++  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+     schema: keyof DatabaseWithoutInternals
+   }
+     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+-    : never = never,
++    : never) = never,
+ > = PublicCompositeTypeNameOrOptions extends {
+   schema: keyof DatabaseWithoutInternals
+ }
+```
+
+### app/src/features/submit/submitLocation.ts
+
+```diff
+diff --git a/app/src/features/submit/submitLocation.ts b/app/src/features/submit/submitLocation.ts
+index a5fc598..82dc597 100644
+--- a/app/src/features/submit/submitLocation.ts
++++ b/app/src/features/submit/submitLocation.ts
+@@ -2,23 +2,7 @@ import { supabase } from '../../lib/supabase';
+ import type { Database } from '../../lib/database.types';
+ import type { SubmitInput } from './types';
  
--Prepare the full review gate for the current task. This command coordinates GSD review, Antigravity packet generation, Codex packet generation, and final commit readiness. Claude prepares artifacts; the user runs the external reviewer CLIs.
-+Prepare the full review gate for the current task. This command coordinates an internal code-review pre-check, Antigravity packet generation, Codex packet generation, and final commit readiness. Claude prepares artifacts; the user runs the external reviewer CLIs.
+-/**
+- * TEMPORARY BRIDGE — remove when 05-02 Task 4 runs `supabase gen types`.
+- *
+- * The generated `Args` type still describes the OLD 12-argument submit_location
+- * signature, because `database.types.ts` can only be regenerated against the LIVE
+- * schema and the Phase 5 migrations have not been pushed yet (05-02 Task 5 is a
+- * blocking human-authorized checkpoint). Intersecting the generated type with the
+- * two new parameters keeps this file type-safe in the meantime WITHOUT hand-editing
+- * `database.types.ts`, which the plan forbids.
+- *
+- * After Task 4 regenerates the types, delete this intersection and go back to the
+- * bare `Database['public']['Functions']['submit_location']['Args']`.
+- */
+-type SubmitLocationArgs = Database['public']['Functions']['submit_location']['Args'] & {
+-  p_changing_table: boolean;
+-  p_wheelchair: boolean;
+-};
++type SubmitLocationArgs = Database['public']['Functions']['submit_location']['Args'];
  
- ## Order
- 
--1. GSD code review for the scoped phase or files.
-+1. Internal pre-check with Claude Code's built-in `/code-review` on the task's changes. It is not an approval; Antigravity and Codex remain the gate.
- 2. Stage the exact queue and compute its deterministic `scope_hash`.
- 3. Generate both blind packets with a shared `review_id` before either reviewer runs.
- 4. User-run Antigravity verdict saved and archived.
-@@ -14,14 +14,16 @@ Prepare the full review gate for the current task. This command coordinates GSD
- 
- ## Inputs
- 
--- Optional phase number. Defaults to current active phase from GSD state.
--- Optional `--depth=quick|standard|deep` for GSD code review.
-+- Scope is always the files in `.claude/review-queue.txt`.
-+- Optional `/code-review` effort level (`low` through `max`). Defaults to the level last used.
-+
-+`/code-review` here means Claude Code's built-in review command (listed as `code-review`, with no plugin prefix). It is not the `engineering:code-review` plugin skill, which takes a PR URL. Invoke it as `/code-review [low|medium|high|xhigh|max] [path ...]`, passing the queued paths; with no target it reviews the current diff.
- 
- ## Steps
- 
- 1. Confirm `.claude/review-queue.txt` lists only current task files. Remove stale entries only with explicit confirmation that they belong to a closed task.
--2. Stage every queued path (including deletions), inspect `git diff --cached`, and compute `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`.
--3. Run the installed GSD code-review command (`/gsd-code-review` or `/gsd:code-review`, depending on runtime) for the same scope.
-+2. Run `/code-review` on the queued paths. Fix what it finds that holds up, with the same TDD and verification rules as any change, before staging. Its findings are Claude's own check, not reviewer evidence. If the built-in command is unavailable in the session, do not substitute another tool and do not stall: note "pre-check unavailable" in both packets' verification table and continue.
-+3. Stage every queued path (including deletions), inspect `git diff --cached`, and compute `node .claude/hooks/check-review-artifacts.js --print-staged-scope-hash`. Any later edit changes this hash, so do all pre-check fixes first.
- 4. Run `/antigravity-review` and `/codex-prompt` before opening either existing verdict.
- 5. Ask the user to run Antigravity with the short command shown by `/antigravity-review`; require the policy-allowed verdict and append-only archive.
- 6. Ask the user to run Codex with the short command shown by `/codex-prompt`; do not provide the Antigravity verdict and require its append-only archive.
-diff --git a/.claude/skills/SKILL.md b/.claude/skills/SKILL.md
-index 908f7f1..9584415 100644
---- a/.claude/skills/SKILL.md
-+++ b/.claude/skills/SKILL.md
-@@ -26,4 +26,4 @@ The shared Artifact QA Gate remains mandatory for artifact work and review.
- 
- Vendored Supabase and Postgres best-practices references may exist under `.claude/skills/` or `.agents/skills/`; load them only for Supabase/Postgres tasks.
- 
--Phase lifecycle management is handled by the globally installed GSD plugin (`/gsd-execute-phase`, `/gsd-progress`, etc.). No project-local `gsd_orchestrator.md` is needed.
-+Phase lifecycle management is handled by the globally installed GSD plugin in its lean `core` profile (`/gsd-discuss-phase`, `/gsd-plan-phase`, `/gsd-execute-phase`). No project-local `gsd_orchestrator.md` is needed.
-diff --git a/AGENTS_ROSTER.md b/AGENTS_ROSTER.md
-index 5df3f5b..10107f0 100644
---- a/AGENTS_ROSTER.md
-+++ b/AGENTS_ROSTER.md
-@@ -66,14 +66,12 @@ Codex reads the packet, inspects actual files from disk, and returns the format
- 
- Role: phase lifecycle and planning engine.
- 
--Key commands:
-+Key commands (lean `core` profile, frozen at 1.42.3):
- - `/gsd-discuss-phase`
- - `/gsd-plan-phase`
- - `/gsd-execute-phase`
--- `/gsd-verify-work`
--- `/gsd-code-review`
--- `/gsd-quick`
--- `/gsd-debug`
-+
-+Verification, code review, small fixes, and debugging are not GSD commands here. They use the Superpowers skills (`verification-before-completion`, `systematic-debugging`, `test-driven-development`) and `/review-gate`: Claude Code's built-in `/code-review` as a pre-check before staging, then the Antigravity + Codex review gate.
- 
- GSD state files do not replace implementation evidence. Agents still inspect actual files and run verification.
- 
-@@ -81,13 +79,13 @@ GSD state files do not replace implementation evidence. Agents still inspect act
- 
- 1. Claude finishes a scoped task and verifies it.
- 2. `.claude/review-queue.txt` lists current changed files.
--3. Claude prepares Antigravity packet.
--4. User runs Antigravity and saves verdict.
--5. Claude prepares Codex packet.
--6. User runs Codex and saves verdict.
-+3. Claude prepares both blind packets (Antigravity and Codex) before either reviewer runs.
-+4. User runs Antigravity; its verdict is saved and archived.
-+5. User runs Codex without access to the Antigravity verdict; its verdict is saved and archived.
-+6. Only after both archives exist are the verdicts compared.
- 7. Claude fixes all BLOCK and REQUEST CHANGES findings.
--8. Affected files re-enter the queue and reviewers re-review.
--9. Commit only after both reviewers APPROVE.
-+8. Affected files re-enter the queue and reviewers re-review as a new attempt.
-+9. Commit only after Codex APPROVE and the policy-allowed Antigravity verdict (`ADVISORY` during probation), with no unresolved finding.
- 
- ## Non-Negotiables
- 
-diff --git a/CLAUDE.md b/CLAUDE.md
-index d1f6303..fe90d1f 100644
---- a/CLAUDE.md
-+++ b/CLAUDE.md
-@@ -15,11 +15,11 @@ After that, load only the context tier selected by `docs/context-router.md`. Do
- 
- ## Workflow Entry Points
- 
--Use GSD for project work unless the user explicitly asks to bypass it:
-+GSD is installed in its lean `core` profile (frozen at 1.42.3; the upstream package is deprecated). Use it for phase work unless the user explicitly asks to bypass it:
- 
--- `/gsd-quick` for small fixes, docs, and ad-hoc maintenance.
--- `/gsd-debug` for bug investigation.
--- `/gsd-plan-phase` and `/gsd-execute-phase` for phase work.
-+- `/gsd-discuss-phase`, `/gsd-plan-phase`, and `/gsd-execute-phase` for phase work. Phase 5 plans already exist; executing them does not require re-planning.
-+- Small fixes, docs, and ad-hoc maintenance: do them directly, with the same verification and review rules.
-+- Bug investigation: `superpowers:systematic-debugging`.
- - `/review-gate` for non-trivial changes that need both reviewers.
- 
- For file-changing work, keep `.claude/review-queue.txt` current. For code or behavior changes under `app/src/**`, follow the TDD and verification rules in `docs/agent-harness.md`.
-@@ -68,7 +68,6 @@ Use the router instead of embedding these here:
- - Agent/review contract: `docs/agent-harness.md`
- - Codex details: `CODEX.md`
- - Antigravity details: `ANTIGRAVITY.md`
--- Tool profile: `.metaswarm/project-profile.json`
- 
- ## Current Recovery Rule
- 
-diff --git a/docs/agent-harness.md b/docs/agent-harness.md
-index d1a744a..0235d20 100644
---- a/docs/agent-harness.md
-+++ b/docs/agent-harness.md
-@@ -84,7 +84,7 @@ Artifacts do not replace inspecting actual files from disk.
- 
- ## Scope Rules
- 
--- Small docs-only changes may use `/gsd-quick`, but still require reviewer approval if they alter security, schema, workflow, review gates, product scope, launch constraints, or agent instructions.
-+- Small docs-only changes may be made directly, but still require reviewer approval if they alter security, schema, workflow, review gates, product scope, launch constraints, or agent instructions.
- - Schema, RLS, GPS verification, trust/confidence, shadowban, privacy, auth, and service-role handling require Codex approval plus Antigravity review while Antigravity remains enabled.
- - Frontend-only changes require Codex review when they affect location permission, map behavior, error states, user identity, privacy, Supabase calls, or emergency-user availability.
- - Reviewer prompts must name exact files and dependency boundaries. Do not ask reviewers to infer scope from chat history.
-diff --git a/docs/context-router.md b/docs/context-router.md
-index 1d5cbdc..cdf0ee3 100644
---- a/docs/context-router.md
-+++ b/docs/context-router.md
-@@ -10,7 +10,6 @@ Keep review quality high while avoiding default full-document dumps. Start from
- 
- - `AGENTS.md`
- - `.planning/STATE.md`
--- `.metaswarm/project-profile.json`
- - `.beads/context/execution-state.md` when recovering, resuming, or checking current phase state
- 
- For any artifact creation, change, review, debugging, finalization, or handoff-state
-diff --git a/docs/stale-info-scan.md b/docs/stale-info-scan.md
-index fe14ca0..11962f1 100644
---- a/docs/stale-info-scan.md
-+++ b/docs/stale-info-scan.md
-@@ -10,8 +10,8 @@ This document defines how Gotta Go scans for stale, contradictory, or outdated p
- Run a stale-information scan:
- 
- - Every 30 calendar days while the project is active.
--- Before any phase transition, including `/gsd-transition`.
--- Before closing a milestone, including `/gsd:complete-milestone`.
-+- Before any phase transition (moving from one GSD phase to the next).
-+- Before closing a milestone.
- - After dependency, SDK, Supabase, Mapbox, Expo, auth, schema, migration, or harness changes.
- - Before TestFlight, app-store submission, public launch, or a new market launch.
- - Whenever a reviewer reports possible drift between docs, code, migrations, or generated types.
-diff --git a/docs/verification.md b/docs/verification.md
-index af83a01..6c05798 100644
---- a/docs/verification.md
-+++ b/docs/verification.md
-@@ -34,6 +34,8 @@ node --test probity.config.test.js
- node --test scripts/os-portability.test.js
- ```
- 
-+Formatting is not an enforced check yet. Prettier is an app dev dependency, and `cd app && npx prettier --check .` was the former metaswarm profile's `format_check` command, but no CI job, package script, or hook runs it. A manual run on 2026-09-28 reported style issues in 154 files. Do not report it as a passing or failing gate. Making it required needs its own reviewed change that reformats those files and then adds the check to CI.
-+
- Dated entries in `.planning/`, `.beads/`, and `.claude/reviews/` may cite the original Windows development host (`C:\...` paths, `npm.cmd`, PowerShell). Those are historical records and stay as written; the commands in this file are the current ones.
- 
- ## Supabase And Database Verification
+ /**
+  * Submits a new bathroom location via the `submit_location` SECURITY DEFINER RPC.
 ```
 
 ## Required Verdict Format
@@ -278,14 +393,14 @@ index af83a01..6c05798 100644
 Write to `.claude/codex-review-latest.md`, run `node .claude/hooks/archive-review-artifact.js codex`, and print the verdict.
 
 ```md
-## Codex Review - Tooling consolidation, attempt 7
+## Codex Review - Regenerate database.types.ts for Phase 5 and remove the submit_location type bridge, attempt 1
 
 **VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
 
-scope_hash: sha256:e1664171afde3768d2cd723c2c12ebdf051c1fa3ed1a3f5d46ee810d01de20b0
-review_id: rv-20260928T170747Z-3db6d0a9
-risk_level: medium
-runtime_required: false
+scope_hash: sha256:a747ea14046678d503e4581795c5da9980fec6ae5eb0de0803fddc1b105a3e5f
+review_id: rv-20260929T021232Z-43ad8d04
+risk_level: high
+runtime_required: true
 blind_review: true
 prior_reviewer_outputs_read: false
 evidence_level: 0|1|2|3|4
@@ -296,11 +411,11 @@ runtime_evidence: executed|not_applicable|unavailable
 - `.claude/skills/artifact_qa_gate.md` shared core and Codex Overlay
 - <list any other skills actually applied>
 ### Findings
+### Follow-ups
 ### Open Questions
 ### Verification
 ### Evidence Receipts
 ### Adversarial Disproof
-- Address T1-T8 individually.
 ### Unverified Boundaries
 ### Runtime Boundary Check
 ### Approved

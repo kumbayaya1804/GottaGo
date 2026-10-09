@@ -119,7 +119,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 **Multi-agent workflow:** Claude (primary coder via GSD + TDD), Antigravity CLI (correctness/logic/architecture/PostGIS), Codex app (quality/security/style/test coverage). Review workflow: Claude implements → logs files to `.claude/review-queue.txt` → Antigravity + Codex review → address all BLOCK/REQUEST CHANGES → commit with reviewer verdicts. Claude does not self-approve.
 
-**TDD:** `tdd-guard` is installed (package.json). Red → Green → Refactor enforced for all non-trivial behavior. Tests must cover security-sensitive and data-integrity behavior, not only rendering or happy paths.
+**TDD:** Probity (`@nizos/probity`, `probity.config.ts`) enforces TDD on `app/src/**`. Red → Green → Refactor enforced for all non-trivial behavior. Tests must cover security-sensitive and data-integrity behavior, not only rendering or happy paths.
 
 ## Blockers
 
@@ -154,7 +154,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 | Save/favorite locations added to Phase 8 | Own research (FEATURES.md) flagged this as a high-value, low-cost retention lever for the parent segment that had never been triaged into a phase | Decided — Phase 8 (not yet built) |
 | Two reward-loop push notifications added ("contribution verified" in Phase 5, "report fixed" in Phase 7) | Narrow, non-spammy scope from FEATURES.md research; explicitly excludes proximity/marketing notifications, which remain out of scope | Decided — Phases 5/7 (not yet built; push infrastructure itself is an open Phase 5 readiness gate) |
 | Personal impact stat added to Phase 5, narrowing the gamification-UI deferral | Users should feel their contributions genuinely helped someone. A fabricated "people helped" number would be dishonest (no analytics track downstream reach) — real GPS-verified contribution count, framed around urgency-under-stakes, is honest and resonant without it. This is a private, non-comparative reflection, not the comparative/competitive gamification (leaderboards, points, rankings) that stays deferred to v2 | Decided — Phase 5 (not yet built; exact metric definition is an open Phase 5 discussion gate) |
-| TDD enforced via tdd-guard | Red → Green → Refactor for all non-trivial behavior; tests must cover integrity/security paths | Implemented |
+| TDD enforced via Probity (migrated from tdd-guard 2026-07-31) | Red → Green → Refactor for all non-trivial behavior; tests must cover integrity/security paths | Implemented |
 
 ## Evolution
 
