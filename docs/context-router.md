@@ -39,6 +39,7 @@ Do not load these in full at startup:
 - `ANTIGRAVITY.md`
 - `.claude/codex-prompt-latest.md`
 - `.claude/antigravity-prompt-latest.md`
+- `.planning/STATE-ARCHIVE.md` and `.planning/archive/**` (historical provenance only; read a section when tracing history, never as current state)
 
 Use excerpts, headings, frontmatter, grep hits, line windows, diffs, or exact sections unless the whole file is being edited or reviewed.
 

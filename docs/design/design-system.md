@@ -1,7 +1,7 @@
 # Gotta Go — Design System
 **Status:** Source of truth for Phase 2–8 client implementation. No screen ships without matching this contract.
 **Last updated:** 2026-06-25
-**Replaces:** `app/constants/Colors.ts` (5-token placeholder) — Phase 2 must update that file to match the token table below.
+**Replaces:** `app/src/constants/Colors.ts` (5-token placeholder) — Phase 2 must update that file to match the token table below.
 
 ---
 
