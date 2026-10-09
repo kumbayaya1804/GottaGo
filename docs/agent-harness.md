@@ -29,7 +29,7 @@ This document defines how Claude, Antigravity, Codex, and GSD coordinate on Gott
    The implementing orchestrator cannot self-approve. Both initial packets are generated from the same neutral claim table before either review runs. Neither reviewer sees the other's output until both initial verdicts are saved in append-only archives.
 
 8. Codex orchestration is an explicit contingency.
-    When the human explicitly assigns orchestration to Codex, including during a Claude availability or rate-limit interruption, GPT-5.6 Sol may temporarily own GSD-compatible planning, scoped implementation, verification, packet preparation, and finding resolution. Terra and Luna may receive bounded delegated tasks under `docs/codex-model-routing.md`. This does not let the implementing Sol session self-approve; a separate Codex review run remains required.
+    When the human explicitly assigns orchestration to Codex, including during a Claude availability or rate-limit interruption, Codex may temporarily own GSD-compatible planning, scoped implementation, verification, packet preparation, and finding resolution. This does not let the implementing Codex session self-approve; a separate Codex review run remains required.
 
 9. Artifact QA is a shared permanent gate.
    For artifact creation, modification, review, debugging, finalization, and handoff-state changes, load `.claude/skills/artifact_qa_gate.md`. Codex and Antigravity apply the same shared evidence core plus their distinct role overlays. The shared skill standardizes proof without merging reviewer roles or verdicts.
@@ -213,7 +213,7 @@ review-gate hardening workstream; neither reviewer's approval treats them as res
 requires an architectural change (index-based reads for all trust inputs; a trusted case manifest or
 oracle for calibration) considered out of scope for the session that authored the surrounding hardening,
 and deliberately left to whichever session takes it on next. Full round-by-round history is in
-`.planning/STATE.md`'s 2026-07-30/31 entries.
+`.planning/STATE-ARCHIVE.md`'s 2026-07-30/31 entries.
 
 **Also disclosed (2026-09-26, not yet accepted or rejected by the user): the blind-review packet
 scanner is a heuristic.** `referencesUnsafeFullGateInvocation()` in `check-review-artifacts.js` allows

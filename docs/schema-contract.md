@@ -297,6 +297,6 @@ Reviewers should check:
 - Soft-delete filters are reflected in public views/RPCs
 - RLS is enabled before client access
 - Policies are tested
-- Security-definer functions set `search_path` safely
+- Security-definer functions pin `search_path` (new functions use `''` with every object schema-qualified) and have explicit EXECUTE grants: revoke the default from `public`, then grant each intended caller. Public discovery RPCs (`search_locations_bbox`, `search_locations_nearby`, `get_location_detail`) grant `anon` and `authenticated`; contributor and moderation RPCs grant only `authenticated` (or `service_role`). Tests prove both the allowed and the denied roles
 - No migration stores sensitive GPS samples without a retention decision
 

@@ -316,6 +316,61 @@ Serious problems, not always fatal. Address in dedicated phases.
 
 ---
 
+### HIGH-8: PL/pgSQL Name Conflicts Pass the Migration and Fail at Runtime
+
+**What goes wrong:** A function declared `returns table (id uuid, ...)` also reads `select ... from public.users where id = auth.uid()`. Every `returns table` output column is a PL/pgSQL variable, so the unqualified `id` is ambiguous (SQLSTATE 42702). PL/pgSQL resolves names when the function runs, not when it is created.
+
+**Why it happens:** Migrations and service-role tests exercise only the create step and the anonymous path. Here the failing statement sat inside `if auth.uid() is not null`.
+
+**Consequences:** Live incident: every signed-in user's map, Nearby list, and location detail failed from 2026-07-04 to 2026-07-30 while anonymous reads kept working (`20260730000000_fix_ambiguous_id_in_search_rpcs.sql`).
+
+**Prevention:**
+- Qualify every column in a `returns table` function body with a table alias.
+- Call each changed RPC as `anon` and as an authenticated user; a clean migration apply is not evidence.
+- Unqualified PostGIS calls under `set search_path = ''` fail the same way (`20260710010000_phase3_postgis_schema_qualification_fix.sql`).
+
+**Detection:** `column reference "..." is ambiguous` or `function st_...does not exist` from an RPC that applied cleanly.
+
+**Phase:** Every phase that adds or rewrites an RPC.
+
+---
+
+### HIGH-9: Default Grants Leave Client Roles Over-Privileged
+
+**What goes wrong:** A new function is executable by PUBLIC (Postgres default), and a new table keeps Supabase's broad default grants to `anon` and `authenticated`. RLS denies row reads and writes but does not restrict TRUNCATE, and it does not stop a client from calling a security-definer function.
+
+**Why it happens:** Policies get written and reviewed; grants do not, because they are implicit.
+
+**Consequences:** Any later policy or SQL mistake has a larger blast radius, and a definer function is reachable by roles that were never meant to call it.
+
+**Prevention:**
+- `revoke execute on function ... from public`, then grant each intended caller explicitly: `anon` and `authenticated` for public discovery RPCs, only `authenticated` (or `service_role`) for write and moderation RPCs. Test the denied roles as well as the allowed ones.
+- `revoke all privileges on table ... from anon, authenticated`, then grant only what policies serve. Precedent: `20260710121534_verification_events_client_write_acl_lockdown.sql`.
+
+**Detection:** `information_schema.role_table_grants` and `information_schema.routine_privileges` show grants to `anon` or `PUBLIC` that no policy or feature needs, or a discovery RPC missing its `anon` grant.
+
+**Phase:** Every phase that adds a table or function.
+
+---
+
+### HIGH-10: Inconsistent Lock Order and Unlocked Reads in Trust Transactions
+
+**What goes wrong:** A verification transaction reads a creator's or verifier's `shadowban_status` with a plain SELECT, then decides publication and updates trust rows in whatever order the code reaches them.
+
+**Why it happens:** Under read committed, a concurrent shadowban can commit between the read and the decision. Two reciprocal calls (A verifies B's submission while B verifies A's) each update the caller row first, so they deadlock.
+
+**Consequences:** A shadowbanned user's stale eligibility counts toward publication, or transactions abort with deadlock errors. Found repeatedly during Phase 5 plan review before any SQL shipped.
+
+**Prevention:**
+- Lock every involved `users` row in one pass, in ascending `id` order, before reading or updating any of them: `FOR NO KEY UPDATE` if the transaction later updates the row, otherwise `FOR SHARE`.
+- Test with two real database sessions; a single-session pgTAP file cannot exercise either race.
+
+**Detection:** `deadlock detected` in logs, or a publish decision that ignores a shadowban committed moments earlier.
+
+**Phase:** Trust Engine & Verification (Phase 5).
+
+---
+
 ## MODERATE PITFALLS
 
 Address in normal course of development. Each one is a 1-2 day fix if caught early, 1-2 weeks if caught after launch.
@@ -429,11 +484,12 @@ Mixing anonymous + authenticated events with no `user_id` alias produces unreada
 | Phase Topic | Critical/High Pitfalls to Address | Why This Phase |
 |---|---|---|
 | **Foundation / Schema audit** | CRITICAL-1 (SRID 4326), CRITICAL-3 (RLS), HIGH-3 (anon key) | Recovered schema must be audited before any feature code |
+| **Every phase that adds a table or RPC** | HIGH-8 (PL/pgSQL runtime name conflicts), HIGH-9 (default grants) | Both pass a clean migration apply and fail later |
 | **Authentication** | MODERATE-1 (email leak), MODERATE-3 (SecureStore), MODERATE-4 (offline refresh) | Identity is the trust root |
 | **Map & Discovery** | CRITICAL-2 (ST_DWithin), HIGH-4 (permission UX), HIGH-7 (Realtime cost), MODERATE-8 (Mapbox token) | First user-facing surface |
 | **Submissions** | HIGH-2 (PIN liability framing), MODERATE-2 (raw coords leak) | First write surface — content liability begins |
 | **Verification / GPS** | CRITICAL-4 (spoofing defense in depth), MODERATE-7 (replay), MODERATE-2 (coord privacy) | Load-bearing wall |
-| **Trust Engine** | CRITICAL-5 (server-only mutation), CRITICAL-6 (gamification ordering), HIGH-1 (decay formula), MODERATE-6 (matview refresh) | All downstream signals depend on this |
+| **Trust Engine** | CRITICAL-5 (server-only mutation), CRITICAL-6 (gamification ordering), HIGH-1 (decay formula), HIGH-10 (lock order, unlocked reads), MODERATE-6 (matview refresh) | All downstream signals depend on this |
 | **Moderation** | MODERATE-5 (shadowban leak), HIGH-2 (business opt-out) | Abuse defense |
 | **Pre-launch / Submission** | HIGH-5 (App Store rejection), CRITICAL-7 (cold start density) | Last gates before public exposure |
 

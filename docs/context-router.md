@@ -56,7 +56,7 @@ Read:
 Add only when relevant:
 - `SPEC.md` excerpts for product/user-flow guarantees.
 - `docs/schema-contract.md` excerpts for Supabase, PostGIS, RLS, trust, shadowban, GPS, or migration behavior.
-- `.claude/skills/*.md` domain skill that matches the changed boundary.
+- `.claude/skills/*/SKILL.md` domain skill that matches the changed boundary.
 
 ### Schema, Supabase, RLS, PostGIS, Trust
 
@@ -64,7 +64,7 @@ Read:
 - `docs/schema-contract.md` affected table/RPC/policy sections.
 - Relevant migrations and SQL functions.
 - `docs/verification.md`.
-- Matching skills: `postgis_optimizer.md`, `rls_security_guard.md`, `trust_engine_validator.md`.
+- Matching skills: `postgis-optimizer`, `rls-security-guard`, `trust-engine-validator`, and `pgtap-testing` for any test under `supabase/tests`.
 
 Also inspect client call sites when a database behavior is consumed by app code.
 
@@ -75,6 +75,7 @@ Read:
 - Parent layouts/providers and route guards.
 - Tests and mocks for auth, router, Supabase, GPS, network, and permission boundaries.
 - Relevant `SPEC.md` or design excerpts only for the changed user flow.
+- Matching skills: `user-advocacy-gate` for any user-visible state, and `privacy-pii-guard` for logging, analytics, crash reporting, or error display.
 
 Do not load the schema contract unless the UI change reads/writes Supabase, GPS, trust, shadowban, or location records.
 
@@ -116,17 +117,6 @@ Read:
 - `docs/stale-info-scan.md` excerpts for prompt/review drift rules.
 
 Verify with targeted `rg` checks for stale invocation text, full-read mandates, and artifact names.
-
-### Codex Model Or Delegation Decisions
-
-Read:
-- `docs/codex-model-routing.md`.
-- `docs/agent-harness.md` for review independence and approval boundaries.
-- `.beads/context/execution-state.md` for the current orchestrator/recovery state.
-
-Do not load model-routing guidance for ordinary single-agent implementation unless
-model choice, reasoning effort, delegation, or an orchestrator contingency is in
-scope.
 
 ### Stale-Info Scan
 

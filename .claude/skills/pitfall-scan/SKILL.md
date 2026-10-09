@@ -1,3 +1,8 @@
+---
+name: pitfall-scan
+description: Use before implementing or approving Gotta Go changes involving PostGIS units or indexes, GPS verification, shadowban or RLS placement, trust weighting, emergency-UX fallback, or planning and review artifacts that can drift from code, to check the work against known project pitfalls.
+---
+
 # Skill: Pitfall Scan
 
 ## Purpose
@@ -13,7 +18,7 @@ If that file is missing, stop and report the missing source instead of inventing
 ## Workflow
 
 1. Read only the relevant headings or search hits from `.planning/research/PITFALLS.md`.
-2. Map proposed changes to CRITICAL and MAJOR pitfalls first.
+2. Map proposed changes to CRITICAL and HIGH pitfalls first. The file's tiers are CRITICAL, HIGH, MODERATE, and MINOR; report every match at any tier.
 3. For each match, cite the pitfall and require the documented prevention strategy in the plan or implementation.
 4. Expand to full pitfall sections only when the excerpt is insufficient.
 
