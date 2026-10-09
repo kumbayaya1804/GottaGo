@@ -116,7 +116,7 @@ Every Antigravity packet requires:
 - `superpowers:using-superpowers`;
 - `superpowers:verification-before-completion`;
 - task-relevant Superpowers skills selected by trigger;
-- task-relevant project skills such as `postgis_optimizer.md`, `rls_security_guard.md`, or `trust_engine_validator.md` when their boundary is touched.
+- task-relevant project skills such as `.claude/skills/postgis-optimizer/SKILL.md`, `rls-security-guard`, `trust-engine-validator`, `pgtap-testing`, `user-advocacy-gate`, or `privacy-pii-guard` when their boundary is touched.
 
 Every Codex packet requires `.claude/skills/artifact_qa_gate.md`, the `Codex Overlay`,
 and task-relevant skills actually available to Codex. Do not claim unavailable skills.

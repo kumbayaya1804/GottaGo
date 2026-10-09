@@ -550,6 +550,27 @@ test('stage-queue: a deletion already staged with git rm is accepted, alongside 
   assert.deepEqual(staged, ['A\ta.txt', 'D\tgone.txt']);
 });
 
+// fs.existsSync follows symlinks, so a dangling symlink reads as absent. A staged deletion
+// later replaced by a dangling symlink must be staged as the symlink, not skipped as an
+// already-staged deletion (2026-09-27 Codex finding).
+test(
+  'stage-queue: a dangling symlink that replaces an already-staged deletion is staged, not skipped',
+  { skip: process.platform === 'win32' && 'creating symlinks needs elevated rights on Windows' },
+  () => {
+    const { root, git } = makeGitRoot();
+    fs.writeFileSync(path.join(root, 'gone.txt'), 'x\n');
+    git('add', 'gone.txt');
+    git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'g');
+    git('rm', '-q', 'gone.txt');
+    fs.symlinkSync(path.join(root, 'no-such-target'), path.join(root, 'gone.txt'));
+    fs.writeFileSync(path.join(root, '.claude', 'review-queue.txt'), 'gone.txt\n');
+
+    const result = run('stage-queue', { cwd: root, env: { CLAUDE_PROJECT_DIR: root } });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(git('diff', '--cached', '--name-status').stdout.trim(), 'T\tgone.txt');
+  },
+);
+
 test('stage-queue: running it twice in a row gives the same staged result, for nested paths too (idempotent across review rounds)', () => {
   const { root, git } = makeGitRoot();
   fs.mkdirSync(path.join(root, 'sub', 'dir'), { recursive: true });

@@ -42,7 +42,7 @@ const SKILLS = {
     '- `.claude/skills/artifact_qa_gate.md` shared core plus its **Antigravity Overlay**.',
     '- `superpowers:using-superpowers` first.',
     '- `superpowers:verification-before-completion` before any positive verdict.',
-    '- Project domain skills (`postgis_optimizer.md`, `rls_security_guard.md`, `trust_engine_validator.md`) only when the queue touches their boundary. Name any unavailable skill as a gap.',
+    '- Project domain skills under `.claude/skills/<name>/SKILL.md` (`postgis-optimizer`, `rls-security-guard`, `trust-engine-validator`, `pgtap-testing`, `user-advocacy-gate`, `privacy-pii-guard`) only when the queue touches their boundary. Name any unavailable skill as a gap.',
   ],
   codex: [
     '- `.claude/skills/artifact_qa_gate.md` shared core plus its **Codex Overlay**.',

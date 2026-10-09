@@ -16,7 +16,7 @@ Current workflow:
 Example:
 
 ```bash
-agy --effort high -p "You are Antigravity reviewing Gotta Go. Use the strongest high-reasoning model selected for this CLI profile. Read .claude/antigravity-prompt-latest.md in full, follow .claude/antigravity-review-policy.json, inspect the queued files independently, write the policy-allowed verdict to .claude/antigravity-review-latest.md, run node .claude/hooks/archive-review-artifact.js antigravity, and print the same verdict."
+agy --effort high -p "You are Antigravity reviewing Gotta Go. Read .claude/antigravity-prompt-latest.md in full, follow .claude/antigravity-review-policy.json, inspect the queued files independently, write the policy-allowed verdict to .claude/antigravity-review-latest.md, run node .claude/hooks/archive-review-artifact.js antigravity, and print the same verdict."
 ```
 
 Never require the full packet to be passed inline on the command line.
@@ -73,12 +73,9 @@ The shared core does not import Codex's conclusions, collapse reviewer roles, or
 one approval to substitute for the other. Antigravity independently rebuilds evidence
 from the staged files and authority sources.
 
-### Model And Probation Posture
+### Probation Posture
 
-Use the strongest high-reasoning Antigravity model available. Flash-class runs may
-provide advisory findings but are not approval-bearing evidence for architecture,
-security, concurrency, RLS, PostGIS, trust, migration, or review-gate changes.
-Regardless of model, `.claude/antigravity-review-policy.json` controls whether
+`.claude/antigravity-review-policy.json` controls whether
 Antigravity is in `probation`, `active`, or `disabled` mode.
 
 During probation:

@@ -365,7 +365,14 @@ function stageQueue(root) {
 
 // True when the path is absent from the working tree and the index but present in HEAD.
 function isStagedDeletion(root, relPath) {
-  if (fs.existsSync(path.join(root, relPath))) return false;
+  // lstat, not existsSync: existsSync follows symlinks, so a dangling symlink that
+  // replaced the deleted file would read as absent and be skipped.
+  try {
+    fs.lstatSync(path.join(root, relPath));
+    return false;
+  } catch {
+    // absent from the working tree; fall through to the index and HEAD checks
+  }
   const git = (args) =>
     spawnSync('git', ['--literal-pathspecs', ...args], { cwd: root, encoding: 'utf8', shell: false });
   const inIndex = git(['ls-files', '--cached', '-z', '--', relPath]);
