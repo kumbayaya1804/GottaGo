@@ -154,6 +154,7 @@ export type Database = {
           chill_spot: boolean | null
           confidence_score: string | null
           confidence_tier: string | null
+          confidence_value: number | null
           coordinates: unknown
           created_at: string | null
           data_source: string
@@ -183,6 +184,7 @@ export type Database = {
           chill_spot?: boolean | null
           confidence_score?: string | null
           confidence_tier?: string | null
+          confidence_value?: number | null
           coordinates: unknown
           created_at?: string | null
           data_source?: string
@@ -212,6 +214,7 @@ export type Database = {
           chill_spot?: boolean | null
           confidence_score?: string | null
           confidence_tier?: string | null
+          confidence_value?: number | null
           coordinates?: unknown
           created_at?: string | null
           data_source?: string
@@ -234,6 +237,88 @@ export type Database = {
           verification_count?: number | null
         }
         Relationships: []
+      }
+      notification_outbox: {
+        Row: {
+          attempt_count: number
+          claim_expires_at: string | null
+          claim_token: string | null
+          claimed_at: string | null
+          created_at: string
+          delivered_at: string | null
+          expo_ticket_id: string | null
+          failed_at: string | null
+          id: string
+          last_error: string | null
+          location_id: string | null
+          max_attempts: number
+          next_attempt_at: string
+          receipt_checked_at: string | null
+          recipient_user_id: string
+          submission_id: string
+          ticket_created_at: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          claim_expires_at?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          expo_ticket_id?: string | null
+          failed_at?: string | null
+          id?: string
+          last_error?: string | null
+          location_id?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          receipt_checked_at?: string | null
+          recipient_user_id: string
+          submission_id: string
+          ticket_created_at?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          claim_expires_at?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          expo_ticket_id?: string | null
+          failed_at?: string | null
+          id?: string
+          last_error?: string | null
+          location_id?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          receipt_checked_at?: string | null
+          recipient_user_id?: string
+          submission_id?: string
+          ticket_created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_outbox_recipient_user_id_fkey"
+            columns: ["recipient_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_outbox_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: true
+            referencedRelation: "submissions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ratings: {
         Row: {
@@ -413,6 +498,7 @@ export type Database = {
           location_id: string | null
           name: string | null
           policy_tag: string | null
+          publication_seen_at: string | null
           status: string
           submitter_id: string | null
           timing_tip: string | null
@@ -432,6 +518,7 @@ export type Database = {
           location_id?: string | null
           name?: string | null
           policy_tag?: string | null
+          publication_seen_at?: string | null
           status?: string
           submitter_id?: string | null
           timing_tip?: string | null
@@ -451,6 +538,7 @@ export type Database = {
           location_id?: string | null
           name?: string | null
           policy_tag?: string | null
+          publication_seen_at?: string | null
           status?: string
           submitter_id?: string | null
           timing_tip?: string | null
@@ -754,7 +842,12 @@ export type Database = {
       }
     }
     Functions: {
+      acknowledge_submission_publication: {
+        Args: { p_submission_id: string }
+        Returns: undefined
+      }
       check_display_name_available: { Args: { name: string }; Returns: boolean }
+      confidence_tier_for: { Args: { p_value: number }; Returns: string }
       confirm_access_code: {
         Args: { p_location_id: string }
         Returns: undefined
@@ -789,6 +882,15 @@ export type Database = {
           lng: number
           name: string
           policy_tag: string
+        }[]
+      }
+      get_my_unseen_submission_publications: {
+        Args: never
+        Returns: {
+          location_id: string
+          name: string
+          published_at: string
+          submission_id: string
         }[]
       }
       get_profile_stats: { Args: never; Returns: Json }
@@ -862,6 +964,7 @@ export type Database = {
           p_accuracy_m: number
           p_address?: string
           p_captured_at: string
+          p_changing_table?: boolean
           p_hours?: Json
           p_lat: number
           p_lng: number
@@ -869,6 +972,7 @@ export type Database = {
           p_name: string
           p_policy_tag: string
           p_timing_tip?: string
+          p_wheelchair?: boolean
         }
         Returns: string
       }
@@ -879,6 +983,17 @@ export type Database = {
       update_profile: {
         Args: { new_display_name?: string; new_family_mode?: boolean }
         Returns: undefined
+      }
+      verify_location: {
+        Args: {
+          p_accuracy_m: number
+          p_captured_at: string
+          p_lat: number
+          p_lng: number
+          p_mocked: boolean
+          p_submission_id: string
+        }
+        Returns: Json
       }
       withdraw_submission: {
         Args: { p_submission_id: string }
@@ -902,12 +1017,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -931,11 +1046,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -956,11 +1071,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -981,11 +1096,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -998,11 +1113,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

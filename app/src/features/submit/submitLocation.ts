@@ -2,23 +2,7 @@ import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
 import type { SubmitInput } from './types';
 
-/**
- * TEMPORARY BRIDGE — remove when 05-02 Task 4 runs `supabase gen types`.
- *
- * The generated `Args` type still describes the OLD 12-argument submit_location
- * signature, because `database.types.ts` can only be regenerated against the LIVE
- * schema and the Phase 5 migrations have not been pushed yet (05-02 Task 5 is a
- * blocking human-authorized checkpoint). Intersecting the generated type with the
- * two new parameters keeps this file type-safe in the meantime WITHOUT hand-editing
- * `database.types.ts`, which the plan forbids.
- *
- * After Task 4 regenerates the types, delete this intersection and go back to the
- * bare `Database['public']['Functions']['submit_location']['Args']`.
- */
-type SubmitLocationArgs = Database['public']['Functions']['submit_location']['Args'] & {
-  p_changing_table: boolean;
-  p_wheelchair: boolean;
-};
+type SubmitLocationArgs = Database['public']['Functions']['submit_location']['Args'];
 
 /**
  * Submits a new bathroom location via the `submit_location` SECURITY DEFINER RPC.
