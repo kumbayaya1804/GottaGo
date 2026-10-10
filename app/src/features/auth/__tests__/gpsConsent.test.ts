@@ -1,4 +1,4 @@
-﻿// Mock the supabase singleton so rpc() and Location can be intercepted
+// Mock the supabase singleton so rpc() and Location can be intercepted
 jest.mock('../../../lib/supabase', () => ({
   supabase: {
     rpc: jest.fn(),

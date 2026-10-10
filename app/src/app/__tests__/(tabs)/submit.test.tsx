@@ -3,7 +3,7 @@
  * SubmitFlow wizard (04-05).
  *
  * src/app/** is excluded from coverage collection — these tests exist for
- * TDD Guard compliance and behavioral verification only, not coverage metrics.
+ * Probity compliance and behavioral verification only, not coverage metrics.
  * Real GPS accuracy / permission prompts / mock-location are device-only and are
  * covered by the Task 3 device-UAT checkpoint, not jest.
  */

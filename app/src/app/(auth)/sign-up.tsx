@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Sign-Up Screen
  *
  * Form with display name + email + password. Calls checkDisplayNameAvailable

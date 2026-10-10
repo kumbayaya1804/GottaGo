@@ -1,4 +1,4 @@
-﻿import { useSession } from '../useSession';
+import { useSession } from '../useSession';
 import { SessionContext } from '../SessionProvider';
 import React from 'react';
 import { renderHook } from '@testing-library/react-native';

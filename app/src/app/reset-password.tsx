@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Reset Password Screen
  *
  * Shown when the user follows the password-reset deep-link (PASSWORD_RECOVERY event).

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * GPS Consent Screen
  *
  * Shown after account creation. Explains GPS usage, offers:

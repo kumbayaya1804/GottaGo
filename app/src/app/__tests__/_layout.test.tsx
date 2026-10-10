@@ -1,8 +1,8 @@
-﻿/**
+/**
  * Thin render tests for app/src/app/_layout.tsx (Root Layout).
  *
  * src/app/** is excluded from coverage collection — these tests exist for
- * TDD Guard compliance and behavioral verification only, not coverage metrics.
+ * Probity compliance and behavioral verification only, not coverage metrics.
  */
 
 import React from 'react';
@@ -70,7 +70,6 @@ jest.mock('expo-router', () => ({
 
 import RootLayout from '../_layout';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = global as any;
 
 beforeEach(() => {

@@ -2,7 +2,7 @@
  * Thin render + behavior tests for app/src/app/(tabs)/profile.tsx.
  *
  * src/app/** is excluded from coverage collection — these tests exist for
- * TDD Guard compliance and behavioral verification only, not coverage metrics.
+ * Probity compliance and behavioral verification only, not coverage metrics.
  */
 
 import React from 'react';
