@@ -2,7 +2,7 @@
  * Thin render + behavior tests for app/src/app/(components)/DeleteAccountModal.tsx.
  *
  * src/app/** is excluded from coverage collection — these tests exist for
- * TDD Guard compliance and behavioral verification only, not coverage metrics.
+ * Probity compliance and behavioral verification only, not coverage metrics.
  *
  * T-02-03 critical: the Destructive button must stay disabled until the input
  * equals exactly "DELETE" (case-sensitive) — "delete" and "Delete" must not enable it.

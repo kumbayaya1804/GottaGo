@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Sign-In Screen
  *
  * Error display rule (T-02-01):

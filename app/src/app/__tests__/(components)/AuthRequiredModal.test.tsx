@@ -2,7 +2,7 @@
  * Thin render + behavior tests for app/src/app/(components)/AuthRequiredModal.tsx.
  *
  * src/app/** is excluded from coverage collection — these tests exist for
- * TDD Guard compliance and behavioral verification only, not coverage metrics.
+ * Probity compliance and behavioral verification only, not coverage metrics.
  *
  * ERR-10: inline slide-up modal, never a navigation redirect.
  */

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Protected route segments. A route is protected if it requires authentication
  * to access — the caller (root _layout.tsx) gates on loading before calling
  * nextRoute, so no loading check is needed here.

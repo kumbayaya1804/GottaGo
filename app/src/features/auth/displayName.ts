@@ -1,4 +1,4 @@
-﻿import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 /** Constraint name for the case-insensitive display name unique index (Pattern 5). */
 const DISPLAY_NAME_UNIQUE_CONSTRAINT = 'users_display_name_lower_uniq';

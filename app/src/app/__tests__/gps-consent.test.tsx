@@ -1,8 +1,8 @@
-﻿/**
+/**
  * Thin render + behavior tests for app/src/app/gps-consent.tsx.
  *
  * src/app/** is excluded from coverage collection — these tests exist for
- * TDD Guard compliance and behavioral verification only, not coverage metrics.
+ * Probity compliance and behavioral verification only, not coverage metrics.
  *
  * T-02-04 critical: "Skip for now" must NOT call requestGpsConsent.
  */

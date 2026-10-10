@@ -8,7 +8,7 @@ module.exports = [
     },
   },
   {
-    files: ['**/__tests__/**', '**/*.test.ts', '**/*.test.tsx'],
+    files: ['**/__tests__/**', '**/*.test.ts', '**/*.test.tsx', 'jest.setup.ts'],
     rules: {
       'import/first': 'off',
       '@typescript-eslint/no-require-imports': 'off',

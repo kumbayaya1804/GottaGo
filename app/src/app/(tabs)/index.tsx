@@ -73,10 +73,10 @@ const LOCATION_UNAVAILABLE_COPY =
 
 /** Shape of the ShapeSource press event we consume (single pin vs. cluster). */
 interface ShapePressEvent {
-  features: Array<{
+  features: {
     properties?: Record<string, unknown> | null;
     geometry?: { coordinates?: [number, number] } | null;
-  }>;
+  }[];
 }
 
 export default function MapScreen() {

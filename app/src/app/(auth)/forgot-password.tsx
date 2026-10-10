@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Forgot Password Screen
  *
  * Two states: 'form' (email input) and 'success' (confirmation).
