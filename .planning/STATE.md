@@ -24,7 +24,7 @@ See `.planning/PROJECT.md` (product) and `.planning/ROADMAP.md` (phases). Curren
 Phase: 5 of 11 (Trust Engine & Verification)
 Plan: 3 of 6 (05-03 next; 05-01 and 05-02 complete, 05-02 merged `f0768c5` and live)
 Status: In progress
-Last activity: 2026-10-09 — 05-02 Task 4 types batch merged (`66e992a`, PR #2 `7990928`); stale-state cleanup
+Last activity: 2026-10-09 — cleanup plan Steps 1-5 merged (PRs #2-#4, docs `b2e0b64`, savepoint `ffe7921`)
 Progress: [█████░░░░░] 54%
 
 ## Accumulated Context
@@ -47,6 +47,12 @@ Scope changes (the full dated session log through 2026-09-28 is in `STATE-ARCHIV
 ### Pending Todos
 
 - [Non-comparative engagement and novelty ideas](todos/pending/2026-07-06-non-comparative-engagement-and-novelty-ideas.md) — dopamine/retention mechanic ideas (discovery log, private streaks, gut-health trivia, quiet aggregate social proof, self-facing badges) compatible with the standing anti-comparative-gamification decision; not yet scoped to a phase.
+- [Phase 5 caller-role access tests](todos/pending/2026-10-09-phase5-caller-role-access-tests.md) — discovery/verify pgTAP tests never `SET ROLE`; anon denial is unproven (highest priority).
+- [GPS consent silent failure](todos/pending/2026-10-09-gps-consent-silent-failure.md) — `gpsConsent.ts` returns granted when saving consent fails.
+- [stage-queue lstat error handling](todos/pending/2026-10-09-stage-queue-lstat-error-handling.md) — non-ENOENT errors treated as absence.
+- [Schema-contract snapshot refresh](todos/pending/2026-10-09-schema-contract-snapshot-refresh.md) — still the July snapshot.
+- [MapScreen act warning](todos/pending/2026-10-09-mapscreen-act-warning.md) — test-only cleanup.
+- [Design-system Colors description](todos/pending/2026-10-09-design-system-colors-description.md) — stale "5-token placeholder" wording.
 
 **Resolved 2026-08-01:** [Run pgTAP suite on Docker-capable machine](todos/completed/2026-07-07-run-pgtap-suite-on-docker-capable-machine.md) — Docker became available; the full inherited Phase 3/4 + all Phase 5 suite ran clean via the isolated runner for the first time ever (246/246, later 253/253). Moved to `todos/completed/`.
 
@@ -60,7 +66,6 @@ Scope changes (the full dated session log through 2026-09-28 is in `STATE-ARCHIV
 
 ### Blockers/Concerns
 
-- Windows BOM/lint patch batch pending (`~/Downloads/GottaGo-transfer/05-02-bom-strip.patch`, full-tier review).
 - 05-03 needs Mapbox tokens (on hold by the user).
 - Apple Developer enrollment not started (USD 99/year; needed for iOS distribution and Apple sign-in).
 
@@ -74,5 +79,5 @@ Scope changes (the full dated session log through 2026-09-28 is in `STATE-ARCHIV
 ## Session Continuity
 
 Last session: 2026-10-09
-Stopped at: stale-state cleanup (plan Steps 2-6); skills-restructure salvage in progress on `chore/skills-restructure`
+Stopped at: cleanup done except the stale-info scan; next is 05-03 (needs Mapbox tokens) or the follow-up todos
 Resume file: .beads/context/execution-state.md
