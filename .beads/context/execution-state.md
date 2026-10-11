@@ -15,7 +15,7 @@ Plan for this stretch (approved 2026-10-09): `~/.claude/plans/nested-petting-sun
 
 **Device setup (done unless noted):** iPhone 14 Pro Max (cable works, Developer Mode on, `devicectl` sees it) plus `Pixel_9` AVD; Xcode 27.0, iOS 27.0 simulator runtime, CocoaPods, Watchman, Android SDK with `ANDROID_HOME` in `~/.zshrc`. Local Supabase stack with the dev-only Eugene seed; `app/.env.local` (gitignored, mode 600) points at `http://192.168.0.65:54321` with the local anon key. Mapbox placeholders `PASTE_PK_TOKEN_HERE` / `PASTE_SK_TOKEN_HERE` still in `app/.env.local`. The local stack binds 0.0.0.0: run it only on a trusted network. After a reboot: start OrbStack, then `supabase start`.
 
-**User-scope tooling (not in the repo):** Probity (TDD on `app/src/**`, verified live), GSD 1.42.3 frozen `--profile=core` (do not update: upstream deprecated), Beads `bd` not installed (`.beads/hooks` holds the git gate hook; `git config core.hooksPath` must print `.beads/hooks`). Shared status line `~/.claude/hooks/statusline.js` (Claude Code and Antigravity); Codex uses `[tui] status_line` in `~/.codex/config.toml`.
+**User-scope tooling (not in the repo):** Probity (TDD on `app/src/**`, verified live), GSD 1.42.3 frozen `--profile=core` (do not update: upstream deprecated), the Beads `bd` CLI is no longer part of the project (removed 2026-10-10: its hook sections, session-hook call, and database files are gone; `.beads/` remains only as the path of the git gate hook and these context files; `git config core.hooksPath` must point at `.beads/hooks`). Shared status line `~/.claude/hooks/statusline.js` (Claude Code and Antigravity); Codex uses `[tui] status_line` in `~/.codex/config.toml`.
 
 ## Recovery Instructions
 

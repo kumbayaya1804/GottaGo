@@ -63,6 +63,5 @@ Use the router instead of embedding these here:
 
 ## Current Recovery Rule
 
-When the task needs recovery state and `bd` is unavailable, do not run `bd prime` or
-block on it. Follow `docs/context-router.md`'s Beads fallback; stale Beads plans are
-not authoritative over current state.
+When the task needs recovery state, follow the Recovery State section of
+`docs/context-router.md`.

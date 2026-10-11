@@ -28,7 +28,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Paths whose staged changes REQUIRE a review-queue entry (check B). Planning
-// and beads state (.planning/**, .beads/**) are deliberately excluded: GSD
+// and recovery state (.planning/**, .beads/**) are deliberately excluded: GSD
 // commits those on every plan execution and they may still be queued
 // voluntarily (check A covers them when they are).
 const REVIEW_REQUIRED_PATTERNS = [
