@@ -7,16 +7,15 @@
  * in exec form (`command: "node"` plus `args`), so no shell runs at all. Deliberate
  * differences from the originals: paths are normalized before the containment check,
  * case folding applies only when the root's filesystem is case-insensitive, NotebookEdit
- * paths are queued, edits inside a git worktree queue into that worktree (and the Stop
- * reminder checks it), and a failing `bd` falls back to the pointer message instead of
- * emitting nothing.
+ * paths are queued, and edits inside a git worktree queue into that worktree (and the Stop
+ * reminder checks it).
  *
  * Commands (first CLI argument):
  *   queue-edit         PostToolUse: read the tool payload from stdin and append the
  *                      edited file's repo-relative path to .claude/review-queue.txt.
- *   session-start      SessionStart: `bd prime` if bd exists; if bd is missing or fails,
- *                      point at the execution-state recovery docs.
- *   pre-compact        PreCompact: same, with `--work-type recovery`.
+ *   session-start      SessionStart: point at the context router, when the
+ *                      execution-state doc exists.
+ *   pre-compact        PreCompact: point at the recovery docs, same condition.
  *   stop-review-queue  Stop: remind about reviewers when the project queue, or the queue
  *                      of the worktree Claude is working in, is non-empty.
  *   stop-stale-scan    Stop: remind when the stale-information scan is >= 30 days old.
@@ -50,10 +49,9 @@ const MESSAGES = {
   staleScan:
     'Stale-information scan is due or missing: run /stale-info-scan before phase transitions, ' +
     'milestone close, release, or dependency/schema/harness changes.',
-  bdMissing: 'bd CLI not found.',
   recoveryPointer:
     'For recovery, read .beads/context/execution-state.md, .planning/STATE.md, ' +
-    'and docs/context-router.md instead of running bd prime.',
+    'and docs/context-router.md.',
   startupPointer:
     'Startup context is docs/context-router.md; load planning and recovery state ' +
     'only when the task requires it under that router.',
@@ -318,22 +316,11 @@ function staleScanMessage(root, now = Date.now()) {
 }
 
 /**
- * Runs `bd prime [args]` when bd is on PATH (its stdout becomes hook context). When
- * bd is missing or fails, and the execution-state doc exists, returns a pointer
- * message naming the reason. bd's stdin is detached so it can neither consume the
- * hook payload nor block waiting for input.
+ * Returns the pointer message when the execution-state doc exists, and nothing
+ * otherwise. Runs no external program.
  */
-function beadsOrFallback(root, bdArgs, pointer) {
-  const result = spawnSync('bd', bdArgs, { cwd: root, stdio: ['ignore', 'inherit', 'inherit'] });
-  let reason;
-  if (result.error) {
-    reason = result.error.code === 'ENOENT' ? MESSAGES.bdMissing : `bd prime failed (${result.error.message}).`;
-  } else if (result.status !== 0) {
-    reason = `bd prime failed (exit ${result.status === null ? result.signal : result.status}).`;
-  } else {
-    return null;
-  }
-  return fs.existsSync(path.join(root, EXECUTION_STATE_RELATIVE)) ? { systemMessage: `${reason} ${pointer}` } : null;
+function pointerMessage(root, pointer) {
+  return fs.existsSync(path.join(root, EXECUTION_STATE_RELATIVE)) ? { systemMessage: pointer } : null;
 }
 
 /**
@@ -398,10 +385,10 @@ function main(argv, env, cwd) {
       queueEdit(root, readStdin());
       return;
     case 'session-start':
-      emit(beadsOrFallback(root, ['prime'], MESSAGES.startupPointer));
+      emit(pointerMessage(root, MESSAGES.startupPointer));
       return;
     case 'pre-compact':
-      emit(beadsOrFallback(root, ['prime', '--work-type', 'recovery'], MESSAGES.recoveryPointer));
+      emit(pointerMessage(root, MESSAGES.recoveryPointer));
       return;
     case 'stop-review-queue':
       emit(reviewQueueMessage(root, readStdin()));

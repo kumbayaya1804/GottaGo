@@ -58,15 +58,13 @@ Flag or block changes that create blank maps, silent failures, excessive frictio
 - Never approve from intent; inspect implementation, tests, runtime boundaries, and failure paths.
 - Never use full-document prompt dumps when focused excerpts, diffs, and dependency chains answer the review question.
 
-## Beads And Recovery
+## Recovery
 
 Load recovery state when the router requires it; a general question does not require
-it. Use `bd` only when the CLI is available on
-PATH. If recovery needs Beads and `bd` is missing, do not fail the session or inject
-stale Beads state. Read these files instead:
+it. Read these files:
 
 - `.beads/context/execution-state.md`
 - `.beads/context/project-context.md` only when recovery or historical tooling context is needed
 - `.planning/STATE.md`
 
-If Beads state conflicts with `.planning/STATE.md`, treat `.planning/STATE.md` and `.beads/context/execution-state.md` as the current recovery sources and flag the conflict.
+`.planning/STATE.md` and `.beads/context/execution-state.md` are the current recovery sources; if they conflict with each other or with `git log`, flag the conflict. The `.beads/` directory is only a path: it holds the tracked git hooks and these context files. The project does not use an issue-tracker CLI there.

@@ -35,10 +35,5 @@ supabase/.temp/
 *.apk
 *.aab
 
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
-
 # GSD/Claude Code executor worktree isolation (harness-managed, ephemeral)
 .claude/worktrees/

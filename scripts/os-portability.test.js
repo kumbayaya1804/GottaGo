@@ -21,10 +21,7 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const HISTORICAL_PREFIXES = [
   '.planning/',
   '.claude/reviews/',
-  '.beads/issues.jsonl',
-  '.beads/interactions.jsonl',
   '.beads/context/execution-state.md',
-  '.beads/plans/',
   // Past reviewer prompts/verdicts; regenerated per review round, never hand-edited.
   '.claude/antigravity-prompt-latest.md',
   '.claude/antigravity-review-latest.md',

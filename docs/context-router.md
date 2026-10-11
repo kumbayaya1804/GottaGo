@@ -154,12 +154,10 @@ Before treating a review artifact as current, compare:
 
 If those do not match, the artifact is stale even if it says APPROVE.
 
-## Beads Fallback
+## Recovery State
 
-Apply this fallback only when the task needs recovery or Beads state. Use `bd prime`
-only when `bd` is available. If not:
+Apply this only when the task needs recovery state:
 
 1. Read `.beads/context/execution-state.md`.
 2. Read `.planning/STATE.md`.
 3. Read `.beads/context/project-context.md` only when recovery requires historical tooling context.
-4. Ignore `.beads/plans/active-plan.md` if its phase/status conflicts with the current state files.

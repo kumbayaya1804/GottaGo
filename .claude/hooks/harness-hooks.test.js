@@ -384,38 +384,43 @@ test('stop-stale-scan: silent when fresh, due at the 30-day boundary', () => {
 
 // ---------------------------------------------------------------- session-start / pre-compact
 
-test('session-start: without bd on PATH, falls back to the execution-state pointer message', () => {
+test('session-start: emits the startup pointer when the execution-state doc exists', () => {
   const root = makeRoot();
   fs.mkdirSync(path.join(root, '.beads', 'context'), { recursive: true });
   fs.writeFileSync(path.join(root, '.beads', 'context', 'execution-state.md'), '# state\n');
-  const emptyBin = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-nobin-'));
-  fixtureRoots.push(emptyBin);
-  const result = run('session-start', { cwd: root, env: { CLAUDE_PROJECT_DIR: root, PATH: emptyBin } });
+  const result = run('session-start', { cwd: root, env: { CLAUDE_PROJECT_DIR: root } });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(JSON.parse(result.stdout).systemMessage, /bd CLI not found\. Startup context is docs\/context-router\.md/);
+  assert.deepEqual(JSON.parse(result.stdout), {
+    systemMessage:
+      'Startup context is docs/context-router.md; load planning and recovery state ' +
+      'only when the task requires it under that router.',
+  });
 });
 
-test('pre-compact: without bd on PATH, falls back to the recovery pointer message', () => {
+test('pre-compact: emits the recovery pointer when the execution-state doc exists', () => {
   const root = makeRoot();
   fs.mkdirSync(path.join(root, '.beads', 'context'), { recursive: true });
   fs.writeFileSync(path.join(root, '.beads', 'context', 'execution-state.md'), '# state\n');
-  const emptyBin = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-nobin-'));
-  fixtureRoots.push(emptyBin);
-  const result = run('pre-compact', { cwd: root, env: { CLAUDE_PROJECT_DIR: root, PATH: emptyBin } });
-  assert.match(JSON.parse(result.stdout).systemMessage, /For recovery, read \.beads\/context\/execution-state\.md/);
+  const result = run('pre-compact', { cwd: root, env: { CLAUDE_PROJECT_DIR: root } });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), {
+    systemMessage:
+      'For recovery, read .beads/context/execution-state.md, .planning/STATE.md, ' +
+      'and docs/context-router.md.',
+  });
 });
 
-test('session-start: without bd AND without execution-state.md there is no output at all', () => {
+test('session-start / pre-compact: without execution-state.md there is no output at all', () => {
   const root = makeRoot();
-  const emptyBin = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-nobin-'));
-  fixtureRoots.push(emptyBin);
-  const result = run('session-start', { cwd: root, env: { CLAUDE_PROJECT_DIR: root, PATH: emptyBin } });
-  assert.equal(result.status, 0);
-  assert.equal(result.stdout, '');
+  for (const command of ['session-start', 'pre-compact']) {
+    const result = run(command, { cwd: root, env: { CLAUDE_PROJECT_DIR: root } });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, '');
+  }
 });
 
 test(
-  'session-start / pre-compact: when bd IS on PATH, runs `bd prime` (with --work-type recovery for pre-compact) and emits no fallback message',
+  'session-start / pre-compact: never run a `bd` executable, even when one is on PATH',
   { skip: process.platform === 'win32' && 'fake bd is a POSIX sh script' },
   () => {
     const root = makeRoot();
@@ -423,41 +428,16 @@ test(
     fs.writeFileSync(path.join(root, '.beads', 'context', 'execution-state.md'), '# state\n');
     const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-bd-'));
     fixtureRoots.push(bin);
-    fs.writeFileSync(path.join(bin, 'bd'), '#!/bin/sh\necho "BD-ARGS:$*"\n', { mode: 0o755 });
+    const marker = path.join(bin, 'bd-was-run');
+    fs.writeFileSync(path.join(bin, 'bd'), `#!/bin/sh\necho ran > "${marker}"\necho "BD-ARGS:$*"\n`, { mode: 0o755 });
     const env = { CLAUDE_PROJECT_DIR: root, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
 
-    const start = run('session-start', { cwd: root, env });
-    assert.match(start.stdout, /BD-ARGS:prime\s*$/m);
-    assert.doesNotMatch(start.stdout, /systemMessage/);
-
-    const compact = run('pre-compact', { cwd: root, env });
-    assert.match(compact.stdout, /BD-ARGS:prime --work-type recovery/);
-    assert.doesNotMatch(compact.stdout, /systemMessage/);
-  },
-);
-
-test(
-  'session-start / pre-compact: when bd is present but FAILS, still emits the fallback pointer, and bd never reads the hook stdin',
-  { skip: process.platform === 'win32' && 'fake bd is a POSIX sh script' },
-  () => {
-    const root = makeRoot();
-    fs.mkdirSync(path.join(root, '.beads', 'context'), { recursive: true });
-    fs.writeFileSync(path.join(root, '.beads', 'context', 'execution-state.md'), '# state\n');
-    const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-bd-'));
-    fixtureRoots.push(bin);
-    fs.writeFileSync(path.join(bin, 'bd'), '#!/bin/sh\nread line\necho "GOT:$line"\nexit 3\n', { mode: 0o755 });
-    const env = { CLAUDE_PROJECT_DIR: root, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
-
-    for (const [command, pattern] of [
-      ['session-start', /Startup context is docs\/context-router\.md/],
-      ['pre-compact', /For recovery, read \.beads\/context\/execution-state\.md/],
-    ]) {
+    for (const command of ['session-start', 'pre-compact']) {
       const result = run(command, { cwd: root, env, stdin: '{"hook_event_name":"x"}\n' });
       assert.equal(result.status, 0, result.stderr);
-      assert.doesNotMatch(result.stdout, /GOT:\{/, 'bd must not consume the hook payload on stdin');
-      const message = JSON.parse(result.stdout.trim().split('\n').pop()).systemMessage;
-      assert.match(message, /bd prime failed \(exit 3\)/);
-      assert.match(message, pattern);
+      assert.doesNotMatch(result.stdout, /BD-ARGS/);
+      assert.equal(fs.existsSync(marker), false, `${command} must not execute bd`);
+      assert.equal(typeof JSON.parse(result.stdout).systemMessage, 'string');
     }
   },
 );
