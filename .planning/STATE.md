@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-10-09T00:00:00.000Z"
-last_activity: 2026-10-09
+last_updated: "2026-10-10T00:00:00.000Z"
+last_activity: 2026-10-10
 progress:
   total_phases: 11
   completed_phases: 5
@@ -24,7 +24,7 @@ See `.planning/PROJECT.md` (product) and `.planning/ROADMAP.md` (phases). Curren
 Phase: 5 of 11 (Trust Engine & Verification)
 Plan: 3 of 6 (05-03 next; 05-01 and 05-02 complete, 05-02 merged `f0768c5` and live)
 Status: In progress
-Last activity: 2026-10-09 — cleanup plan Steps 1-5 merged (PRs #2-#4, docs `b2e0b64`, savepoint `ffe7921`)
+Last activity: 2026-10-10 — PRs #5 (startup-context routing, `7f1d8dd`) and #6 (bd CLI removed, `6a8a5ed`) merged; five follow-up batches in review
 Progress: [█████░░░░░] 54%
 
 ## Accumulated Context
@@ -66,8 +66,11 @@ Scope changes (the full dated session log through 2026-09-28 is in `STATE-ARCHIV
 
 ### Blockers/Concerns
 
-- 05-03 needs Mapbox tokens (on hold by the user).
+- 05-03 was on hold for Mapbox tokens. Both tokens are present in `app/.env.local` (token-shaped since 2026-09-28, not yet exercised by a build), so the remaining gate is the user's go-ahead and a first device build.
 - Apple Developer enrollment not started (USD 99/year; needed for iOS distribution and Apple sign-in).
+- Termly placeholder URLs in `app/src/constants/legal.ts` block any user-facing build until the user supplies the live policy UUIDs (`todos/pending/2026-10-10-termly-placeholder-urls.md`).
+- Five follow-up batches are in review in worktrees and not yet on master (stale-scan fixes, GPS consent ERR-12, QA gate Implementer Overlay, Phase 5 caller-role tests, Antigravity scope); see the resume file.
+- Reviewer coverage: Antigravity missed every blocker Codex found on 2026-10-10 and is being narrowed to database batches, so most batches will rest on Codex alone.
 
 ### Quick Tasks Completed
 
@@ -78,6 +81,6 @@ Scope changes (the full dated session log through 2026-09-28 is in `STATE-ARCHIV
 
 ## Session Continuity
 
-Last session: 2026-10-09
-Stopped at: cleanup done except the stale-info scan; next is 05-03 (needs Mapbox tokens) or the follow-up todos
+Last session: 2026-10-10
+Stopped at: PRs #5 and #6 merged; five batches awaiting reviewer verdicts; next is landing them, then 05-03 (needs Mapbox tokens)
 Resume file: .beads/context/execution-state.md
