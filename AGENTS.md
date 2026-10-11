@@ -4,12 +4,12 @@ Status: active, intentionally short. This file is auto-loaded by Codex and may b
 
 ## Load Order
 
-1. Read this file.
+1. Read this file once; use the auto-loaded copy when already present in context.
 2. Read `docs/context-router.md`.
 3. Use the router to choose the smallest task-appropriate context set.
 4. When Superpowers is installed, invoke `superpowers:using-superpowers` and each task-relevant Superpowers skill before acting.
 5. For artifact creation, modification, review, or finalization, load `.claude/skills/artifact_qa_gate.md` and apply the role-specific overlay.
-6. Load full source docs only when the router says the whole document is directly relevant.
+6. Load full source docs only when the router says the whole document is directly relevant. Reuse unchanged context within a task; fresh reviews still inspect current bytes.
 
 Do not start by loading `SPEC.md`, `docs/schema-contract.md`, `AGENTS_ROSTER.md`, `CODEX.md`, `ANTIGRAVITY.md`, `.planning/PROJECT.md`, or `.planning/ROADMAP.md` in full. Those are source documents, not default startup context.
 
@@ -24,20 +24,17 @@ Claude does not self-approve. Non-trivial code, workflow, schema, security, priv
 
 ## Current Review Workflow
 
-Claude prepares review artifacts. The user runs the reviewer CLIs.
+Before packet preparation, review, staging for review, or commit, read
+`docs/agent-harness.md` for the full workflow, evidence contract, tier rules, and
+commit gate. Claude prepares packets; the user runs the reviewer CLIs. Both reviewers
+apply the shared Artifact QA core and their own overlays to the same staged bytes.
+Generate required packets before either run; keep initial reviews blind and independent
+until all required exact verdicts are archived. Changed queued bytes require fresh packets and reviews.
 
-Both reviewers apply the shared `.claude/skills/artifact_qa_gate.md` core to the exact
-same staged bytes. Codex applies the Codex overlay; Antigravity applies the Antigravity
-overlay. Antigravity also invokes `superpowers:using-superpowers`, the task-relevant
-Superpowers skills, and `superpowers:verification-before-completion` before its verdict.
-Their initial runs, evidence, artifacts, and verdicts remain blind and independent. Generate both packets before either run, then archive each exact verdict before revealing the other reviewer's output.
-
-1. Claude verifies the task locally and ensures `.claude/review-queue.txt` lists the changed files for the current task.
-2. Claude writes `.claude/review-claims.md` and runs `node .claude/hooks/review-packets.js` (see `/codex-prompt`). It stages the queue and writes both blind packets, or only the Codex packet for a low-tier batch.
-3. Full tier: the user runs Antigravity (`agy` or `antigravity`) with a short prompt pointing at its packet. The verdict is saved to `.claude/antigravity-review-latest.md` and archived.
-4. The user runs `codex exec` with a short prompt pointing at its packet. The verdict is saved to `.claude/codex-review-latest.md` and archived.
-5. Claude fixes all BLOCK and REQUEST CHANGES findings and regenerates the packets. Findings in lines the batch did not change become follow-ups in `.planning/todos/pending/`.
-6. Commit only after Codex is APPROVE, Antigravity (full tier) has the verdict permitted by its current policy (`ADVISORY` during probation), all findings are resolved, required verdicts are archived, the relevant verification is reported, and the user agrees.
+Commit only after Codex is APPROVE, Antigravity (full tier) has its policy-valid verdict
+(`ADVISORY` during probation), findings are resolved under the harness rules, required
+verdicts are archived, verification is reported, and the user agrees. An implementing
+Codex session cannot supply its own independent approval.
 
 Low tier: when `lowRiskCodexOnly` is on in `.claude/antigravity-review-policy.json`, every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and the Codex packet declares `risk_level: low`, Codex alone reviews. Everything else keeps both reviewers, including slash commands and skills (they can run shell commands and widen tool permissions when invoked), `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `ANTIGRAVITY.md`, and all app, database, hook, settings, policy, and spec files. The gate computes the tier from the staged queue, counting a rename as its old path plus its new path. Declaring `medium` or `high` for a low-tier batch escalates it to both reviewers; declaring `low` for any other batch blocks.
 
@@ -63,7 +60,10 @@ Flag or block changes that create blank maps, silent failures, excessive frictio
 
 ## Beads And Recovery
 
-Use `bd` only when the CLI is available on PATH. If `bd` is missing, do not fail the session or inject stale Beads state. Read these files instead:
+Load recovery state when the router requires it; a general question does not require
+it. Use `bd` only when the CLI is available on
+PATH. If recovery needs Beads and `bd` is missing, do not fail the session or inject
+stale Beads state. Read these files instead:
 
 - `.beads/context/execution-state.md`
 - `.beads/context/project-context.md` only when recovery or historical tooling context is needed

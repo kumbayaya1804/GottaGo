@@ -55,8 +55,8 @@ const MESSAGES = {
     'For recovery, read .beads/context/execution-state.md, .planning/STATE.md, ' +
     'and docs/context-router.md instead of running bd prime.',
   startupPointer:
-    'Startup context is docs/context-router.md, .planning/STATE.md, and ' +
-    '.beads/context/execution-state.md.',
+    'Startup context is docs/context-router.md; load planning and recovery state ' +
+    'only when the task requires it under that router.',
 };
 
 // Fallback only, for a path with no letters to probe: default macOS (APFS/HFS+) and

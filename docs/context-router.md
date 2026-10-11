@@ -6,11 +6,15 @@ Status: active. This file controls context loading for Claude, GSD agents, Antig
 
 Keep review quality high while avoiding default full-document dumps. Start from the smallest context that can answer the current question, then expand only when the task crosses a boundary.
 
-## Always Read
+## Startup Context
 
-- `AGENTS.md`
-- `.planning/STATE.md`
-- `.beads/context/execution-state.md` when recovering, resuming, or checking current phase state
+- `AGENTS.md` (use the auto-loaded copy if already present).
+- This router once per task; reuse it while unchanged and available in context.
+- `.planning/STATE.md` for implementation, planning, recovery, phase/status questions, or state-dependent reviews.
+- `.beads/context/execution-state.md` for recovery, resuming project work, phase status, or routes requiring current workflow rules.
+
+Skip state files for self-contained questions and narrow edits unrelated to phase
+state. Starting a conversation alone is not recovery; resuming project work is.
 
 For any artifact creation, change, review, debugging, finalization, or handoff-state
 update, also read `.claude/skills/artifact_qa_gate.md` and apply the current role's
@@ -21,6 +25,9 @@ only the skills whose trigger matches the task. The shared Artifact QA Gate rema
 mandatory for artifact work and composes with those process skills; it does not replace
 them. Every review packet names its required skills, and every verdict names the skills
 actually applied.
+
+Reuse unchanged, fully available skill instructions. Re-read after changes or context
+loss; catalog presence alone does not trigger a skill.
 
 Read `CLAUDE.md` only when operating in Claude Code and it was not already auto-loaded. Read `AGENTS_ROSTER.md` only when editing agent roles.
 
@@ -42,6 +49,15 @@ Do not load these in full at startup:
 - `.planning/STATE-ARCHIVE.md` and `.planning/archive/**` (historical provenance only; read a section when tracing history, never as current state)
 
 Use excerpts, headings, frontmatter, grep hits, line windows, diffs, or exact sections unless the whole file is being edited or reviewed.
+
+## Keep Work Focused
+
+- Search scoped paths first; expand to resolve dependencies, failures, or uncertainty.
+- Save long logs locally; return relevant diagnostics, exit status, and totals. Inspect failures fully.
+- Reuse unchanged reads and valid checks within a task. Re-run affected checks after edits,
+  failures, or environment changes. Avoid repeating plans, contents, and successful logs.
+- Fresh reviews still require current scope/hash, full queued-file inspection, and packet
+  evidence. Never reuse old verdicts or skip security, privacy, urgent-user, or runtime checks.
 
 ## Task Routes
 
@@ -140,7 +156,8 @@ If those do not match, the artifact is stale even if it says APPROVE.
 
 ## Beads Fallback
 
-Use `bd prime` only when `bd` is available. If not:
+Apply this fallback only when the task needs recovery or Beads state. Use `bd prime`
+only when `bd` is available. If not:
 
 1. Read `.beads/context/execution-state.md`.
 2. Read `.planning/STATE.md`.
