@@ -50,13 +50,13 @@ Use `docs/context-router.md` before loading broad context. Read `docs/agent-harn
 `.claude/skills/artifact_qa_gate.md` is mandatory for Codex artifact work and every
 Codex review. Apply the shared preflight, evidence ladder, saved-artifact readback,
 diff inspection, verification, stress-boundary, and fail-closed rules, then apply the
-Codex-specific implementation/security/privacy/test overlay. This routed skill is the
-project-local permanent contract; the global Codex `artifact-qa-gate` skill may add
-generic tooling guidance but does not replace the project overlay.
-
-When Codex is the authorized implementer or contingency orchestrator, the same gate
-applies to implementation, but that session cannot produce the independent Codex
-approval required by the review gate.
+overlay for the session's role. In a review session that is the **Codex Overlay**
+(implementation, security, privacy, and test review). When Codex is the authorized
+implementer or contingency orchestrator it is the **Implementer Overlay**, and that
+session cannot produce the independent Codex approval required by the review gate.
+This routed skill is the project-local permanent contract; the global Codex
+`artifact-qa-gate` skill may add generic tooling guidance but does not replace the
+project overlays.
 
 ## Review Priorities
 

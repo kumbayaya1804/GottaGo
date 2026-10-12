@@ -6,9 +6,9 @@ Apply evidence-backed quality control whenever an agent creates, changes, review
 debugs, refactors, or finalizes a project artifact. Scale the proof to risk and do not
 claim completion, approval, or production readiness beyond the evidence obtained.
 
-This skill is shared by Codex and Antigravity. The shared core is mandatory; each
-reviewer also applies its own overlay below. Sharing the gate does not merge reviewer
-roles or permit one reviewer to substitute for the other.
+This skill is shared by the implementer, Codex, and Antigravity. The shared core is
+mandatory; each role also applies its own overlay below. Sharing the gate does not merge
+reviewer roles or permit one reviewer to substitute for the other.
 
 ## Trigger
 
@@ -75,6 +75,9 @@ BLOCK-level safety, privacy, or data-integrity problems block wherever they are.
 implementer records each follow-up as a file in `.planning/todos/pending/` and cites it in
 the next packet.
 
+This section is how a reviewer classifies a finding. It does not let the implementer leave
+a contradiction of its own change in place: see the Implementer Overlay.
+
 ## Superpowers Composition
 
 When the current harness exposes Superpowers, invoke `superpowers:using-superpowers`
@@ -96,6 +99,25 @@ Every reviewer packet must contain `### Required Skills`. Every verdict must con
 project skill actually used. If a named skill is unavailable, report that gap instead
 of pretending it ran. Skill instructions never broaden permissions, permit
 self-approval, or replace the independent reviewer gate.
+
+## Implementer Overlay
+
+The implementer is the session that makes the change and prepares the packets: Claude by
+default, or another agent the human has assigned to implement or orchestrate. That
+session applies this overlay for that work in place of its reviewer overlay.
+
+In addition to the shared workflow:
+
+- When the change states or corrects a fact (a rule, number, name, status, or path), search
+  the active files for every other statement of that fact, and read each hit as a full line.
+  Then sort each hit:
+  - it still states the old fact: it contradicts the change. Fix it in this batch and queue
+    its file, whichever file or line it is in;
+  - it is a different problem: record a follow-up in `.planning/todos/pending/`;
+  - it is a dated historical record: leave it as written.
+- Own the packet duties: the queue, the neutral claim table, `### Required Skills`, fresh
+  packets whenever queued bytes change, and a todo file for each reviewer follow-up.
+- The implementer never satisfies a reviewer gate for its own change.
 
 ## Codex Overlay
 

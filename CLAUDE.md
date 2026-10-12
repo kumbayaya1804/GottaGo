@@ -8,7 +8,8 @@ Follow `AGENTS.md` and `docs/context-router.md`, reusing auto-loaded or already-
 instructions while unchanged and available in context. The router selects planning
 and recovery state by task; a general question or new terminal alone does not require it.
 Invoke `superpowers:using-superpowers` and task-relevant skills. For artifact work,
-load `.claude/skills/artifact_qa_gate.md` and apply the shared core.
+load `.claude/skills/artifact_qa_gate.md` and apply the shared core and its
+Implementer Overlay.
 
 After that, load only the context tier selected by `docs/context-router.md`. Do not read the full roster, product spec, schema contract, roadmap, stale scan, Codex guide, or Antigravity guide unless the router makes that file relevant to the current task.
 

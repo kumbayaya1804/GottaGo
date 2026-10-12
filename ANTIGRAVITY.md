@@ -73,7 +73,9 @@ Use `docs/context-router.md` before loading broad context. Read `docs/agent-harn
 `.claude/skills/artifact_qa_gate.md` is mandatory for Antigravity artifact work and
 every Antigravity review. Apply the shared preflight, evidence ladder, saved-artifact
 readback, diff inspection, verification, stress-boundary, and fail-closed rules, then
-apply the Antigravity-specific architecture/PostGIS/RLS/trust/migration overlay.
+apply the Antigravity-specific architecture/PostGIS/RLS/trust/migration overlay. If the
+human assigns Antigravity a bounded implementation task, apply the **Implementer
+Overlay** for that task; that session cannot then review the same change.
 
 The shared core does not import Codex's conclusions, collapse reviewer roles, or permit
 one approval to substitute for the other. Antigravity independently rebuilds evidence
