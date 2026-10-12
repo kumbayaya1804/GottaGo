@@ -60,7 +60,7 @@ Plans:
 
 **Goal**: Produce a design contract (markdown spec + annotated wireframes) that all client-facing phases implement against. No Phase 2+ screen ships without matching this contract. Figma is not required — markdown spec + annotated wireframes is the source of truth.
 **Depends on**: Phase 1
-**Requirements**: Design contract covers all 13 critical flows; all v1 screens have wireframes; emergency mode reachable in ≤2 taps; all 11 named error states have defined copy and UI treatment; component acceptance checklist cited by Phase 2+ PLAN.md files
+**Requirements**: Design contract covers all 13 critical flows; all v1 screens have wireframes; emergency mode reachable in ≤2 taps; all 11 named error states have defined copy and UI treatment (a twelfth, ERR-12 consent not saved, was added on 2026-10-10); component acceptance checklist cited by Phase 2+ PLAN.md files
 **Success Criteria** (what must be TRUE):
 
   1. Flow maps cover all 13 named flows (first launch, GPS consent, sign-in/sign-up, map discovery, emergency mode ×3, submit, verify, report, rating, offline, no-location, no-results) — no critical path ends without a defined next state
@@ -68,7 +68,7 @@ Plans:
   3. Design system doc exists: colors, typography, spacing, button hierarchy, icon rules, status states, form controls, map marker states, confidence/status badges, accessibility minimums
   4. Navigation model documented: unauthenticated routes, protected tabs, emergency access from every screen, modal back/escape behavior
   5. Emergency-use UX rules documented: one-handed reach targets, large primary actions, no dead-end states, denied-location fallback, ≤2 taps to nearest usable bathroom from any top-level route
-  6. All 11 error states have defined copy and UI treatment (denied GPS, low accuracy, stale GPS, offline, slow network, no results, suppressed location, failed submit, failed verification, auth required, code-gated content)
+  6. All 11 error states have defined copy and UI treatment (denied GPS, low accuracy, stale GPS, offline, slow network, no results, suppressed location, failed submit, failed verification, auth required, code-gated content). ERR-12, consent not saved, was added to the matrix on 2026-10-10
   7. Accessibility rules documented: dynamic type tolerance, screen-reader labels for map/list controls, non-color-only status, touch target minimums, reduced-motion behavior
   8. Component acceptance checklist exists and is cited in Phase 2+ PLAN.md files before review
 

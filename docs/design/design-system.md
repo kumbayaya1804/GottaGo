@@ -1,6 +1,6 @@
 # Gotta Go — Design System
 **Status:** Source of truth for Phase 2–8 client implementation. No screen ships without matching this contract.
-**Last updated:** 2026-06-25
+**Last updated:** 2026-10-10 (ERR-12 added; earlier content 2026-06-25)
 **Replaces:** `app/src/constants/Colors.ts` (5-token placeholder) — Phase 2 must update that file to match the token table below.
 
 ---
@@ -412,7 +412,7 @@ Tab bar height: 49pt + safe area bottom inset. Icon: 24pt. Label: 11pt (Label sc
 
 ## 15. Error-State Copy Matrix
 
-All 11 named error states. Every Phase 2+ component must handle all applicable states. Exact copy strings are LOCKED — do not paraphrase. UI treatment is the implementation contract.
+All 12 named error states. Every Phase 2+ component must handle all applicable states. Exact copy strings are LOCKED — do not paraphrase. UI treatment is the implementation contract.
 
 | State ID | Name | Trigger | Exact Copy | UI Treatment | Recovery |
 |----------|------|---------|-----------|-------------|---------|
@@ -427,6 +427,7 @@ All 11 named error states. Every Phase 2+ component must handle all applicable s
 | ERR-09 | Failed Verification | `submit_verification_event` RPC returns error (includes mocked GPS, shadowban, distance failure, generic network error) | "Unable to verify your location. Please try again." | Inline below 'I'm Here' button. Generic — never reveals detection reason (security requirement: do not reveal shadowban detection or GPS spoofing detection). Icon: alert-circle, errorRed. | Tap 'Try Again' → re-attempts GPS read + verification |
 | ERR-10 | Auth Required | Unauthenticated user attempts protected action (Submit, Verify, Rate, Report, access code reveal) | "Sign in to [action]" (action = specific verb: "Sign in to contribute", "Sign in to verify", "Sign in to rate", "Sign in to report", "Sign in to see access code") | Slide-up modal (not full navigation). Buttons: Primary 'Sign In', Secondary 'Create Account', Ghost 'Cancel'. After auth completes, returns user to same action flow — no navigation loss. | Tap 'Sign In' → /(auth)/sign-in with returnTo param |
 | ERR-11 | Code-Gated Content | Unauthenticated user on location detail with access code | "Sign in to view the access code" | Access code field not rendered for unauthenticated users — field is absent, not masked. Shows inline link "Sign in to view the access code" in place of the code field. For authenticated users: field renders as "Access Code: ****" with 'Tap to reveal' affordance; after tap: plain code + copy button. | Tap link → ERR-10 flow |
+| ERR-12 | Consent Not Saved | OS location permission is granted but the `set_gps_consent` RPC returns an error or fails, or the permission request itself fails | "Couldn't save your location choice. Check your connection and try again." | Inline above the primary button on the GPS Consent screen: a warning mark in `errorRed` (the text glyph that stands in for alert-circle, as in ERR-08) beside `textPrimary` text on `primarySurface` (`errorRed` text on `primarySurface` is 3.4:1 in the light theme and fails the 4.5:1 body-text minimum in 18.1; the mark meets the 3:1 non-text minimum). Announced on every failure: on iOS by an explicit VoiceOver announcement (`accessibilityLiveRegion` is Android-only), on Android by the assertive live region, which is removed while a retry is in flight so a repeated failure is announced again. The primary button label changes to 'Try again'. 'Skip for now' stays available. The save is treated as unconfirmed until a retry succeeds. | Tap 'Try again' → re-requests permission and re-saves consent, then continues to the map; or 'Skip for now' → map |
 
 Every error state must have a defined recovery action. 'No internet' is not a dead end — cached data remains. 'No results' is not a dead end — search/filter options remain. An error screen with no actionable next step is a product defect.
 
@@ -497,6 +498,7 @@ GPS consent capture sequence (non-negotiable — GDPR requirement):
 2. OS permission dialog fires (`Location.requestForegroundPermissionsAsync()`)
 3. IF OS dialog resolves to `granted`: write `users.gps_consent = true` and `users.gps_consent_at = now()` to Supabase (via SECURITY DEFINER RPC)
 4. IF OS dialog resolves to `denied`: `gps_consent` remains false/unset; map opens to ERR-01 state
+5. IF the consent write fails (or the permission request itself errors): consent is treated as NOT confirmed (a lost response can still have been stored server-side, so the app never assumes either way); the screen shows ERR-12 with 'Try again' and keeps 'Skip for now'
 DO NOT write consent before the OS dialog resolves. The pre-prompt button triggers the OS dialog only — it is not itself consent. Writing consent before OS resolution would record false consent.
 
 ---
