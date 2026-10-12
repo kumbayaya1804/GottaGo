@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 # --- BEGIN PROJECT CUSTOM HOOKS (tracked in git) ---
 # node .claude/hooks/check-review-artifacts.js blocks commits that stage files
-# currently in .claude/review-queue.txt if the Antigravity/Codex packets or
-# verdicts are missing required runtime-boundary/mock-boundary sections.
+# currently in .claude/review-queue.txt unless every required reviewer packet and
+# verdict is present, current, and complete (see docs/agent-harness.md).
 # FAIL CLOSED (2026-07-30 review finding): this previously wrapped the gate in
 # `if command -v node`, so a commit made with node absent from PATH skipped the
 # entire review gate and exited 0 — a caller-level bypass that no amount of

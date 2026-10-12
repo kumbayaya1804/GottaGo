@@ -49,7 +49,7 @@ function claims({ body = CLAIMS_BODY, risk = 'medium' } = {}) {
 }
 
 // A throwaway repo with a probation policy, one committed file, and an optional low-risk flag.
-function makeRepo({ lowRiskCodexOnly = false } = {}) {
+function makeRepo({ lowRiskCodexOnly = false, antigravityScope } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'review-packets-'));
   fixtureRoots.push(root);
   const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
@@ -70,6 +70,7 @@ function makeRepo({ lowRiskCodexOnly = false } = {}) {
       requireBlindReview: true,
       requireAppendOnlyVerdicts: true,
       ...(lowRiskCodexOnly ? { lowRiskCodexOnly: true } : {}),
+      ...(antigravityScope ? { antigravityScope } : {}),
     }) + '\n'
   );
   write(root, 'docs/old.md', 'old\n');
@@ -108,7 +109,7 @@ function assertGateValidPacket(content, reviewer, queued) {
   assert.equal(field(content, 'blind_review'), 'true');
 }
 
-test('full tier: writes both packets with the gate scope hash and one shared review_id', () => {
+test('full tier with scope all (the default when the key is absent): writes both packets with the gate scope hash and one shared review_id', () => {
   const { root } = makeRepo();
   write(root, 'app/src/x.ts', 'export const x = 1;\n');
   write(root, '.claude/review-queue.txt', 'app/src/x.ts\n');
@@ -152,6 +153,81 @@ test('low tier: writes only the Codex packet, labeled risk_level: low, when the 
   assert.equal(read(root, '.claude/antigravity-prompt-latest.md'), null, 'no Antigravity packet for a low-tier batch');
   assert.match(result.stdout, /Codex only/);
   assert.doesNotMatch(result.stdout, /agy/);
+});
+
+test('database scope: a batch with no database path gets only the Codex packet, at its declared risk', () => {
+  const { root } = makeRepo({ antigravityScope: 'database' });
+  write(root, 'app/src/x.ts', 'x\n');
+  write(root, 'AGENTS.md', 'rules\n');
+  write(root, '.claude/review-queue.txt', 'app/src/x.ts\nAGENTS.md\n');
+  write(root, '.claude/review-claims.md', claims({ risk: 'high' }));
+
+  const result = run(root);
+  assert.equal(result.status, 0, result.stderr);
+  const cx = read(root, '.claude/codex-prompt-latest.md');
+  assert.equal(field(cx, 'risk_level'), 'high');
+  assertGateValidPacket(cx, 'codex', ['app/src/x.ts', 'AGENTS.md']);
+  assert.equal(read(root, '.claude/antigravity-prompt-latest.md'), null, 'no Antigravity packet without database paths');
+  assert.match(result.stdout, /Codex only/);
+  assert.doesNotMatch(result.stdout, /agy/);
+});
+
+test('database scope: a batch touching supabase/ gets both packets', () => {
+  const { root } = makeRepo({ antigravityScope: 'database' });
+  write(root, 'app/src/x.ts', 'x\n');
+  write(root, 'supabase/migrations/20260101000000_x.sql', 'select 1;\n');
+  write(root, '.claude/review-queue.txt', 'app/src/x.ts\nsupabase/migrations/20260101000000_x.sql\n');
+  write(root, '.claude/review-claims.md', claims({ risk: 'high' }));
+
+  const result = run(root);
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(read(root, '.claude/codex-prompt-latest.md'));
+  assert.ok(read(root, '.claude/antigravity-prompt-latest.md'), 'database work still gets the Antigravity packet');
+  assert.match(result.stdout, /agy/);
+});
+
+test('end to end: under database scope a non-database batch passes the real gate with only a Codex APPROVE', () => {
+  const { root } = makeRepo({ antigravityScope: 'database' });
+  write(root, 'app/src/x.ts', 'x\n');
+  write(root, '.claude/review-queue.txt', 'app/src/x.ts\n');
+  write(root, '.claude/review-claims.md', claims());
+  assert.equal(run(root).status, 0);
+  fillCodexVerdict(root, 'APPROVE');
+
+  const result = spawnSync(process.execPath, [gatePath], { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('refuses to write any packet when the tracked policy has unstaged changes', () => {
+  const { root } = makeRepo();
+  const policyPath = path.join(root, '.claude', 'antigravity-review-policy.json');
+  const committed = JSON.parse(fs.readFileSync(policyPath, 'utf8'));
+  // Only the working tree narrows Antigravity's scope; the staged policy still requires it.
+  fs.writeFileSync(policyPath, JSON.stringify({ ...committed, antigravityScope: 'database' }) + '\n');
+  write(root, 'app/src/x.ts', 'x\n');
+  write(root, '.claude/review-queue.txt', 'app/src/x.ts\n');
+  write(root, '.claude/review-claims.md', claims({ risk: 'high' }));
+
+  const result = run(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /review policy .*has unstaged changes/);
+  assert.equal(read(root, '.claude/codex-prompt-latest.md'), null, 'no packet is written');
+});
+
+test('refuses to write any packet when the policy file is missing', () => {
+  const { root } = makeRepo();
+  // The gate fails closed without a policy, so a packet written here could never be
+  // committed against; stop before a reviewer spends a run on it.
+  fs.rmSync(path.join(root, '.claude', 'antigravity-review-policy.json'));
+  write(root, 'docs/new.md', 'new\n');
+  write(root, '.claude/review-queue.txt', 'docs/new.md\n.claude/antigravity-review-policy.json\n');
+  write(root, '.claude/review-claims.md', claims({ risk: 'high' }));
+
+  const result = run(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /review policy is missing/);
+  assert.equal(read(root, '.claude/codex-prompt-latest.md'), null, 'no packet is written');
+  assert.equal(read(root, '.claude/antigravity-prompt-latest.md'), null, 'no packet is written');
 });
 
 test('refuses to write any packet when the claims text names a reviewer verdict file', () => {
@@ -298,7 +374,7 @@ test('a claims file with CRLF line endings is accepted', () => {
   assert.match(read(root, '.claude/codex-prompt-latest.md'), /Attempt 2/);
 });
 
-test('low-tier paths with claims declaring medium or high risk get both packets (escalation, never a silent downgrade)', () => {
+test('scope all: low-tier paths with claims declaring medium or high risk get both packets (escalation, never a silent downgrade)', () => {
   const { root } = makeRepo({ lowRiskCodexOnly: true });
   write(root, 'docs/new.md', 'new\n');
   write(root, '.claude/review-queue.txt', 'docs/new.md\n');

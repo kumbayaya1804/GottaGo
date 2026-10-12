@@ -6,7 +6,7 @@ Prepare the full review gate for the current task. This command coordinates an i
 
 1. Internal pre-check with Claude Code's built-in `/code-review` on the task's changes. It is not an approval; the reviewers remain the gate.
 2. Write the task's claims and run `node .claude/hooks/review-packets.js`. It stages the exact queue, computes the `scope_hash`, a shared `review_id`, and the risk tier, and writes the blind packets before any reviewer runs.
-3. Full tier: user-run Antigravity verdict saved and archived. Low tier: skipped.
+3. When the script lists Antigravity as a required reviewer: user-run Antigravity verdict saved and archived. Otherwise: skipped.
 4. User-run Codex verdict saved and archived without access to any Antigravity output.
 5. Compare only after every required initial verdict is archived.
 6. Fix and re-review all BLOCK and REQUEST CHANGES findings as new attempts. Findings in lines the batch did not change are follow-ups, not blockers (see the follow-up rule in `.claude/skills/artifact_qa_gate.md`).
@@ -23,10 +23,10 @@ Prepare the full review gate for the current task. This command coordinates an i
 1. Confirm `.claude/review-queue.txt` lists only current task files. Remove stale entries only with explicit confirmation that they belong to a closed task.
 2. Run `/code-review medium` once on the queued paths. Fix what it finds that holds up, with the same TDD and verification rules as any change, before generating packets. Re-run it only after a fix that changes logic, not after a wording fix. Its findings are Claude's own check, not reviewer evidence. If the built-in command is unavailable in the session, do not substitute another tool and do not stall: note "pre-check unavailable" in the claims file's Verification section and continue.
 3. Write `.claude/review-claims.md` and run `node .claude/hooks/review-packets.js` (see `/codex-prompt`). Any later edit to a queued file changes the `scope_hash`, so do all pre-check fixes first.
-4. Full tier only: ask the user to run Antigravity with the command the script printed; require the policy-allowed verdict and append-only archive.
+4. When the script lists Antigravity as a required reviewer: ask the user to run Antigravity with the command the script printed; require the policy-allowed verdict and append-only archive.
 5. Ask the user to run Codex with the command the script printed; do not provide any Antigravity verdict, and require its append-only archive.
 6. After every required initial verdict is archived, compare findings and resolve conflicts. Record each follow-up as a file in `.planning/todos/pending/`.
-7. After Codex is APPROVE (and, in the full tier, Antigravity has its policy-allowed verdict), verify freshness:
+7. After Codex is APPROVE (and, when required, Antigravity has its policy-allowed verdict), verify freshness:
    - run `node .claude/hooks/check-review-artifacts.js`; this is the first point at which the full cross-review gate may run
    - queue matches changed files
    - prompt manifests match current queue
@@ -40,7 +40,7 @@ Prepare the full review gate for the current task. This command coordinates an i
 - Missing or empty review queue.
 - Missing required reviewer verdict.
 - Missing append-only verdict archive.
-- BLOCK or REQUEST CHANGES from any reviewer, including an Antigravity objection on a low-tier batch.
+- BLOCK or REQUEST CHANGES from any reviewer, including an Antigravity objection on a batch where it is optional (while the policy mode is `probation` or `active`; `disabled` ignores Antigravity entirely).
 - Reviewer verdict scope does not match current queue/diff.
 - Relevant stale-info finding is unresolved and not explicitly deferred.
 

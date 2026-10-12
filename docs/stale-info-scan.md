@@ -1,7 +1,7 @@
 # Stale Information Scan
 
 Status: active project control.
-Last reviewed: 2026-09-27.
+Last reviewed: 2026-10-10 (prompt-drift checks made conditional on the required reviewers).
 
 This document defines how Gotta Go scans for stale, contradictory, or outdated project information. The goal is to catch drift before it misleads Claude, Antigravity, Codex, planning artifacts, schema work, security review, launch decisions, or public positioning.
 
@@ -96,16 +96,16 @@ When external verification matters, use official sources first. Treat general we
 
 ### Codex And Antigravity Prompt Drift
 
-`.claude/codex-prompt-latest.md` and `.claude/antigravity-prompt-latest.md` are what the reviewers actually read before returning a verdict — a stale or malformed packet directly degrades review quality, independent of whether the underlying code is fine. Check that:
+`.claude/codex-prompt-latest.md` and, when Antigravity is required for the batch, `.claude/antigravity-prompt-latest.md` are what the reviewers actually read before returning a verdict — a stale or malformed packet directly degrades review quality, independent of whether the underlying code is fine. Check that:
 
-- Both prompt files satisfy every item in `docs/agent-harness.md` § Prompt Packet Requirements: task goal and phase, changed files from `.claude/review-queue.txt`, relevant project context/constraints, actual file contents or an explicit diff, verification commands already run with outcomes, known caveats/failed commands/missing tooling, and the required output format and verdict definitions.
+- Every required prompt file (Codex's for every batch; Antigravity's when the policy requires it, see `AGENTS.md`) satisfies every item in `docs/agent-harness.md` § Prompt Packet Requirements: task goal and phase, changed files from `.claude/review-queue.txt`, relevant project context/constraints, actual file contents or an explicit diff, verification commands already run with outcomes, known caveats/failed commands/missing tooling, and the required output format and verdict definitions.
 - The files reflect the **current** task, not a stale round, phase, or finding set from a task that already closed (e.g. a leftover "Round 2 re-review of 9 RC findings" packet after those findings were resolved and committed). A prompt describing work that no longer matches `.claude/review-queue.txt` or the current diff is `UPDATE REQUIRED`, not just aging.
 - `.claude/review-queue.txt` lists exactly the files in scope for the pending review — no orphaned entries from a prior, already-reviewed task.
 - `CODEX.md` and `ANTIGRAVITY.md` still match `docs/agent-harness.md` on role boundaries (Codex: implementation/security/test quality; Antigravity: architecture/PostGIS/RLS/trust math/data integrity), the verdict definitions in `docs/review-severity.md`, and the required output format — a drift here means a reviewer packet built from either standing-instructions file will be internally inconsistent with what the harness contract expects.
-- Neither prompt file contains secrets, service-role keys, auth tokens, `.env` values, or precise user location data (see docs/agent-harness.md § Prompt Packet Requirements and § Permission Posture).
-- `.claude/antigravity-review-latest.md` and `.claude/codex-review-latest.md` correspond to the prompt that most recently ran, not an older prompt — a mismatched pair means the "latest" verdict is being read against the wrong scope.
+- No prompt file contains secrets, service-role keys, auth tokens, `.env` values, or precise user location data (see docs/agent-harness.md § Prompt Packet Requirements and § Permission Posture).
+- Each required verdict (`.claude/codex-review-latest.md`, plus `.claude/antigravity-review-latest.md` when Antigravity is required) corresponds to the prompt that most recently ran, not an older prompt — a mismatch means the "latest" verdict is being read against the wrong scope. An Antigravity packet or verdict left over from an earlier scope is expected on a batch that does not require Antigravity and is not stale information.
 
-If a prompt packet is missing, malformed, or scoped to stale work, treat it as `BLOCKING STALE INFO` when a review is currently pending on it, or `UPDATE REQUIRED` otherwise — do not let a reviewer proceed against a packet you know is wrong.
+If a required prompt packet is missing, malformed, or scoped to stale work, treat it as `BLOCKING STALE INFO` when a review is currently pending on it, or `UPDATE REQUIRED` otherwise — do not let a reviewer proceed against a packet you know is wrong.
 
 ### Planning And Status Drift
 

@@ -6,6 +6,8 @@ Codex is the senior implementation-quality reviewer and escalation engineer for 
 
 Claude remains the default implementer. Codex may implement only when the human explicitly assigns a task or a bounded fix is safer to apply directly than describe.
 
+Codex reviews every batch. Whether Antigravity also reviews a batch is decided by the review policy; the rule, with every setting and the current value, is stated once in `AGENTS.md` ("Who reviews"), and the packet script prints the reviewers a batch requires. On any batch where Antigravity is not required there is no second reviewer behind a Codex approval. Under the `database` setting those batches include app code that calls database RPCs (for example the submit and access-code callers): check there that the client is not the enforcement boundary and that what it sends matches the server function's contract.
+
 ## Invocation
 
 Current workflow:
@@ -135,7 +137,7 @@ Use this format and save/print it:
 **VERDICT: APPROVE / REQUEST CHANGES / BLOCK**
 
 scope_hash: sha256:<exact packet fingerprint>
-review_id: <same opaque id as both blind packets>
+review_id: <same opaque id as every blind packet for this scope>
 risk_level: low|medium|high
 runtime_required: true|false
 blind_review: true

@@ -21,14 +21,14 @@ Responsibilities:
 - Write code, tests, migrations, docs, and review packets.
 - Maintain `.claude/review-queue.txt`.
 - Run local verification or report exact blockers.
-- Prepare Antigravity and Codex packets.
+- Prepare the Codex packet for every batch, and the Antigravity packet when the policy requires it.
 - Resolve reviewer findings before commit.
 
 Claude does not self-approve.
 
 ## Agent 2 - Antigravity
 
-Role: architectural auditor and systems reviewer.
+Role: architectural auditor and systems reviewer, on the batches the review policy requires it for (see Review Cycle).
 
 Primary focus:
 - PostGIS correctness and performance.
@@ -37,7 +37,7 @@ Primary focus:
 - Data integrity and cross-boundary runtime behavior.
 - Accuracy-vs-availability tradeoffs for emergency users.
 
-Invocation model:
+Invocation model when `node .claude/hooks/review-packets.js` lists Antigravity as a required reviewer:
 - Claude writes `.claude/antigravity-prompt-latest.md`.
 - The user runs `agy` or `antigravity` with a short prompt pointing at that packet.
 - The verdict is saved to `.claude/antigravity-review-latest.md`.
@@ -71,7 +71,7 @@ Key commands (lean `core` profile, frozen at 1.42.3):
 - `/gsd-plan-phase`
 - `/gsd-execute-phase`
 
-Verification, code review, small fixes, and debugging are not GSD commands here. They use the Superpowers skills (`verification-before-completion`, `systematic-debugging`, `test-driven-development`) and `/review-gate`: Claude Code's built-in `/code-review` as a pre-check before staging, then the Antigravity + Codex review gate.
+Verification, code review, small fixes, and debugging are not GSD commands here. They use the Superpowers skills (`verification-before-completion`, `systematic-debugging`, `test-driven-development`) and `/review-gate`: Claude Code's built-in `/code-review` as a pre-check before staging, then the review gate (Codex for every batch; Antigravity too when the policy requires it).
 
 GSD state files do not replace implementation evidence. Agents still inspect actual files and run verification.
 
@@ -79,18 +79,18 @@ GSD state files do not replace implementation evidence. Agents still inspect act
 
 1. Claude finishes a scoped task and verifies it.
 2. `.claude/review-queue.txt` lists current changed files.
-3. Claude runs `node .claude/hooks/review-packets.js`, which writes every required blind packet before any reviewer runs: both packets in the full tier, only Codex's in the low tier (Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, declared `risk_level: low`; the rule is in `AGENTS.md`).
-4. Full tier: user runs Antigravity; its verdict is saved and archived.
+3. Claude runs `node .claude/hooks/review-packets.js`, which writes every required blind packet before any reviewer runs: Codex's for every batch, plus Antigravity's when the review policy requires it for the batch (the rule is in `AGENTS.md`, "Who reviews"). The script prints the reviewers the batch requires.
+4. When Antigravity is required: user runs Antigravity; its verdict is saved and archived.
 5. User runs Codex without access to any Antigravity verdict; its verdict is saved and archived.
 6. Only after every required archive exists are the verdicts compared.
 7. Claude fixes all BLOCK and REQUEST CHANGES findings. Findings only in unchanged lines become follow-ups in `.planning/todos/pending/`.
 8. Affected files re-enter the queue and reviewers re-review as a new attempt.
-9. Commit only after Codex APPROVE and, in the full tier, the policy-allowed Antigravity verdict (`ADVISORY` during probation), with no unresolved finding.
+9. Commit only after Codex APPROVE and, when Antigravity is required, the policy-allowed Antigravity verdict (`ADVISORY` during probation), with no unresolved finding.
 
 ## Non-Negotiables
 
 1. Never commit with a BLOCK verdict outstanding.
-2. Never skip both reviewers for non-trivial code, workflow, schema, security, privacy, or review-gate changes.
+2. Never skip Codex review for non-trivial code, workflow, schema, security, privacy, or review-gate changes, or Antigravity review when the policy requires it.
 3. Never store coordinates outside PostGIS geometry/geography columns.
 4. Never log PII, auth tokens, user IDs, emails, or precise location data in client-visible contexts.
 5. Never trust the client for trust math, GPS authority, shadowban decisions, or RLS enforcement.

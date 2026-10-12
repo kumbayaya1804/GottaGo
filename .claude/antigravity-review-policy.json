@@ -9,5 +9,6 @@
   "minimumHighRiskEvidenceLevel": 3,
   "requireBlindReview": true,
   "requireAppendOnlyVerdicts": true,
-  "lowRiskCodexOnly": true
+  "lowRiskCodexOnly": true,
+  "antigravityScope": "database"
 }

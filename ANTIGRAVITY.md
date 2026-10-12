@@ -2,11 +2,17 @@
 
 ## Mission
 
-Antigravity is the senior architect and lead systems auditor for Gotta Go. Antigravity protects architecture, PostGIS correctness, RLS placement, trust/confidence math, data integrity, and emergency-user availability.
+Antigravity is the senior architect and lead systems auditor for Gotta Go. Antigravity protects architecture, PostGIS correctness, RLS placement, trust/confidence math, data integrity, and emergency-user availability on the batches the review policy requires it for (see Scope).
+
+## Scope
+
+Whether Antigravity is a required reviewer for a batch is decided by `.claude/antigravity-review-policy.json`. The rule, with every setting and the current value, is stated once in `AGENTS.md` ("Who reviews"); `node .claude/hooks/review-packets.js` prints the reviewers a batch requires. When Antigravity is not required, no packet is written and no verdict is needed. While the mode is `probation` or `active`, an objection Antigravity raises on the current scope still blocks; with `mode: disabled` its artifacts are ignored. Under the `database` setting, app code that calls database RPCs is outside its scope; Codex alone reviews it.
+
+Antigravity was narrowed to database batches on 2026-10-10 after four blind reviews of non-database batches in which the other reviewer found blocking defects and Antigravity reported none. It is widened by changing `antigravityScope` to `all` in a reviewed batch. A batch that changes the policy file is judged under the policy it stages; that staged policy decides every reviewer the batch requires (so a batch widening the scope to `all` itself requires Antigravity), and the change takes effect only once every required verdict and archive is in place and the commit gate passes.
 
 ## Invocation
 
-Current workflow:
+Current workflow when `node .claude/hooks/review-packets.js` lists Antigravity as a required reviewer:
 
 1. Claude writes `.claude/antigravity-prompt-latest.md`.
 2. The user runs `agy` or `antigravity` with a short prompt pointing at that packet.
@@ -23,7 +29,7 @@ Never require the full packet to be passed inline on the command line.
 
 ## Quick Start
 
-- Read `.claude/antigravity-prompt-latest.md`; if missing, stop and report missing scope.
+- Follow this Quick Start only when the packet script lists Antigravity as required. Read `.claude/antigravity-prompt-latest.md`; if the required packet is missing, stop and report missing scope.
 - Read `.claude/antigravity-review-policy.json`. While `mode` is `probation`, `APPROVE` is forbidden; use `ADVISORY` only when no blocking finding remains.
 - Invoke `superpowers:using-superpowers`, then every available skill named under the packet's `### Required Skills`.
 - Read `.claude/skills/artifact_qa_gate.md`; apply its shared core and **Antigravity Overlay**.
@@ -43,7 +49,7 @@ Never require the full packet to be passed inline on the command line.
 ## Adversarial Review Discipline
 
 - **Dual-Lens Audit (Semantics + Low-Level Runtime/Transport)**: Audit both high-level SQL/code contracts and low-level physical runtime dynamics (libpq parameters, socket paths, `pg_hba.conf` client-IP rules, Linux kernel loopback routing `ip-route(8)`, Docker container config, and test harness execution wrappers).
-- **Adversarial Disproof Policy**: Never approve a technical claim, workaround, or reasoning chain simply because it sounds plausible. Before issuing `APPROVED`, actively construct counter-arguments to disprove every premise in the packet.
+- **Adversarial Disproof Policy**: Never approve a technical claim, workaround, or reasoning chain simply because it sounds plausible. Before issuing a clean verdict, actively construct counter-arguments to disprove every premise in the packet.
 - **Authoritative Spec Verification**: Verify low-level system behaviors against official manuals and specifications (e.g. `pg_hba.conf` matches `getpeername()` client IP, not destination IP). Do not rely on unverified memory or intuition.
 - Review the resulting system, not only the requested delta. A syntax-only fix can make an unsafe dormant path callable.
 - For each claimed fix, identify the protected asset, attacker/caller, enforcement layer, allowed path, denied path, and evidence that proves both.
@@ -181,7 +187,7 @@ Use this format and save/print it:
 **VERDICT: ADVISORY / APPROVE / REQUEST CHANGES / BLOCK**
 
 scope_hash: sha256:<exact packet fingerprint>
-review_id: <same opaque id as both blind packets>
+review_id: <same opaque id as every blind packet for this scope>
 risk_level: low|medium|high
 runtime_required: true|false
 blind_review: true

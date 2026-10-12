@@ -1,8 +1,8 @@
 # /antigravity-review
 
-Same flow as `/codex-prompt`: follow `.claude/commands/codex-prompt.md`. One script, `node .claude/hooks/review-packets.js`, writes both blind packets (Antigravity and Codex) from `.claude/review-claims.md`.
+Same flow as `/codex-prompt`: follow `.claude/commands/codex-prompt.md`. One script, `node .claude/hooks/review-packets.js`, writes the blind packets from `.claude/review-claims.md`: Codex's for every batch, and Antigravity's when the policy requires it for the batch.
 
-For a low-tier batch (Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md` only, declared `risk_level: low`, with `lowRiskCodexOnly` on; the rule is in `AGENTS.md`), no Antigravity packet is written and Antigravity is not required. The script says so in its output.
+Whether Antigravity is required for a batch is decided by the review policy (`.claude/antigravity-review-policy.json`). The rule, with every setting, is stated once in `AGENTS.md` ("Who reviews"). When Antigravity is not required, no Antigravity packet is written. The script prints the reviewers the batch requires.
 
 When the Antigravity packet is written, the user runs:
 

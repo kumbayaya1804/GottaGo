@@ -19,7 +19,7 @@ GSD is installed in its lean `core` profile (frozen at 1.42.3; the upstream pack
 - `/gsd-discuss-phase`, `/gsd-plan-phase`, and `/gsd-execute-phase` for phase work. Phase 5 plans already exist; executing them does not require re-planning.
 - Small fixes, docs, and ad-hoc maintenance: do them directly, with the same verification and review rules.
 - Bug investigation: `superpowers:systematic-debugging`.
-- `/review-gate` for non-trivial changes that need both reviewers.
+- `/review-gate` for non-trivial changes that need the full review gate.
 
 For file-changing work, keep `.claude/review-queue.txt` current. For code or behavior changes under `app/src/**`, follow the TDD and verification rules in `docs/agent-harness.md`.
 
@@ -29,8 +29,9 @@ Read `docs/agent-harness.md` before preparing packets or committing; it owns the
 artifact paths, packet generation, review tiers, blind archival, finding resolution,
 and commit gate. `/codex-prompt` and `/antigravity-review` enter that workflow.
 Claude writes packets; the user runs reviewers. `AGENTS.md`, this file, commands,
-and skills remain full tier. Codex supplies independent approval; Antigravity's
-clean probationary verdict is `ADVISORY`.
+and skills are never low tier. Codex reviews every batch and supplies independent
+approval; Antigravity reviews the batches the policy requires (the rule is in `AGENTS.md`),
+and its clean probationary verdict is `ADVISORY`.
 
 Do not invoke Antigravity or Codex directly from Claude unless the user explicitly overrides this rule. Do not inline full packet contents into a command line.
 

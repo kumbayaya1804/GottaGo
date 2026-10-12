@@ -554,7 +554,7 @@ test('blocks a blind packet that tells the reviewer to run the full cross-review
 
     const result = runHook(root);
     assert.equal(result.status, 1, invocation);
-    assert.match(result.stderr, /full cross-review gate before both initial verdicts are archived/);
+    assert.match(result.stderr, /full cross-review gate before every required initial verdict is archived/);
   }
 });
 
@@ -1520,7 +1520,7 @@ test('an unknown command-line argument exits 2 with usage and never runs the gat
 });
 
 // Importing the gate (tests, tooling, a reviewer's evaluator) must not run it: a run
-// reads both canonical verdicts and prints diagnostics about them.
+// reads every canonical verdict and prints diagnostics about them.
 test('requiring the gate module has no side effects and exposes its helpers', () => {
   const root = createRepo();
   stage(root, 'docs/unqueued.md', 'x\n');
@@ -1749,6 +1749,259 @@ test('low tier: a non-boolean lowRiskCodexOnly fails closed', () => {
   const result = runHook(root);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /lowRiskCodexOnly must be true or false/);
+});
+
+// ---------------------------------------------------------------- Antigravity scope
+// Policy antigravityScope: "database" requires the Antigravity verdict only when the staged
+// queue touches database work. Codex stays required for every batch.
+
+function scopedRepo(queued, policy = { antigravityScope: 'database' }) {
+  const root = createRepo();
+  writePolicy(root, policy);
+  write(root, '.claude/review-queue.txt', queued.map((f) => `${f}\n`).join(''));
+  for (const f of queued) stage(root, f);
+  return root;
+}
+
+test('antigravityRequired: every batch by default; only database paths when the policy scopes it', () => {
+  const { antigravityRequired } = require(hookPath);
+  assert.equal(antigravityRequired(['app/src/x.ts'], {}), true);
+  assert.equal(antigravityRequired(['app/src/x.ts'], { antigravityScope: 'all' }), true);
+
+  const scoped = { antigravityScope: 'database' };
+  for (const f of [
+    'supabase/migrations/20260101000000_x.sql',
+    'supabase/tests/x.test.sql',
+    'supabase/config.toml',
+    'supabase/functions/drain/index.ts',
+    'supabase/scripts/run-isolated-db-suite.js',
+    'docs/schema-contract.md',
+    'app/src/lib/database.types.ts',
+  ]) {
+    assert.equal(antigravityRequired(['docs/a.md', 'app/src/x.ts', f], scoped), true, f);
+  }
+  for (const f of [
+    'app/src/app/gps-consent.tsx',
+    'app/src/lib/supabase.ts',
+    'AGENTS.md',
+    'ANTIGRAVITY.md',
+    'SPEC.md',
+    'docs/agent-harness.md',
+    '.claude/hooks/check-review-artifacts.js',
+    '.claude/skills/artifact_qa_gate.md',
+    '.claude/antigravity-review-policy.json',
+    '.github/workflows/ci.yml',
+  ]) {
+    assert.equal(antigravityRequired([f], scoped), false, f);
+  }
+  // Nothing staged is not evidence of "no database work": fail closed.
+  assert.equal(antigravityRequired([], scoped), true);
+});
+
+test('database scope: a non-database batch passes with Codex alone, at any risk level', () => {
+  const queued = ['app/src/example.ts', 'AGENTS.md'];
+  const root = scopedRepo(queued);
+  writeCodexOnly(root, queued, { riskLevel: 'high', evidenceLevel: 3 });
+  const result = runHook(root);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('database scope: one supabase file in the batch requires Antigravity again', () => {
+  const queued = ['app/src/example.ts', 'supabase/migrations/20260101000000_example.sql'];
+  const root = scopedRepo(queued);
+  writeCodexOnly(root, queued, { riskLevel: 'high', evidenceLevel: 3 });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Antigravity prompt packet is missing/);
+});
+
+test('database scope: an Antigravity BLOCK or REQUEST CHANGES for the current scope still blocks a non-database batch', () => {
+  for (const verdict of ['BLOCK', 'REQUEST CHANGES']) {
+    const queued = ['app/src/example.ts'];
+    const root = scopedRepo(queued);
+    writeCodexOnly(root, queued, {
+      riskLevel: 'high',
+      evidenceLevel: 3,
+      antigravityVerdict: verdict,
+      keepAntigravity: true,
+    });
+    const result = runHook(root);
+    assert.equal(result.status, 1, verdict);
+    assert.match(result.stderr, new RegExp(`Antigravity review verdict.*${verdict}.*current scope`));
+  }
+});
+
+test('database scope: risk_level low is still refused outside the low-tier paths, without demanding Antigravity', () => {
+  const queued = ['app/src/example.ts'];
+  const root = scopedRepo(queued, { antigravityScope: 'database', lowRiskCodexOnly: true });
+  writeCodexOnly(root, queued, { riskLevel: 'low' });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /risk_level: low.*full-tier/);
+  assert.doesNotMatch(result.stderr, /Antigravity prompt packet is missing/);
+});
+
+test('database scope: risk_level low on a full-tier path is refused with lowRiskCodexOnly off', () => {
+  const queued = ['app/src/example.ts'];
+  const root = scopedRepo(queued, { antigravityScope: 'database', lowRiskCodexOnly: false });
+  writeCodexOnly(root, queued, { riskLevel: 'low' });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /risk_level: low.*full-tier/);
+  assert.doesNotMatch(result.stderr, /Antigravity prompt packet is missing/);
+});
+
+test('database scope: without the policy key a non-database batch still requires Antigravity (unchanged behavior)', () => {
+  const queued = ['app/src/example.ts'];
+  const root = scopedRepo(queued, {});
+  writeCodexOnly(root, queued, { riskLevel: 'high', evidenceLevel: 3 });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Antigravity prompt packet is missing/);
+});
+
+test('mode disabled: Antigravity artifacts are ignored, including an objection on the current scope', () => {
+  const queued = ['app/src/example.ts'];
+  const root = createRepo();
+  writePolicy(root, { mode: 'disabled', antigravityScope: 'database' });
+  write(root, '.claude/review-queue.txt', 'app/src/example.ts\n');
+  stage(root, 'app/src/example.ts');
+  writeCodexOnly(root, queued, {
+    riskLevel: 'high',
+    evidenceLevel: 3,
+    antigravityVerdict: 'BLOCK',
+    keepAntigravity: true,
+  });
+  const result = runHook(root);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('database scope: an unknown antigravityScope value fails closed', () => {
+  const queued = ['app/src/example.ts'];
+  const root = scopedRepo(queued, { antigravityScope: 'none' });
+  writeCodexOnly(root, queued, { riskLevel: 'high', evidenceLevel: 3 });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /antigravityScope must be "all" or "database"/);
+});
+
+// The policy decides which reviewers are required, so the gate must judge the policy bytes
+// the commit records, not an unstaged working-tree edit.
+
+function commitPolicy(root, overrides) {
+  writePolicy(root, overrides);
+  execFileSync('git', ['add', '--', '.claude/antigravity-review-policy.json'], { cwd: root });
+  execFileSync('git', ['commit', '--quiet', '--no-verify', '-m', 'policy'], { cwd: root });
+}
+
+test('policy binding: an unstaged edit to the tracked policy fails closed', () => {
+  const queued = ['app/src/example.ts'];
+  const root = createRepo();
+  commitPolicy(root, { antigravityScope: 'all' });
+  // The committed and staged policy still requires Antigravity; only the working tree narrows it.
+  writePolicy(root, { antigravityScope: 'database' });
+  write(root, '.claude/review-queue.txt', 'app/src/example.ts\n');
+  stage(root, 'app/src/example.ts');
+  writeCodexOnly(root, queued, { riskLevel: 'high', evidenceLevel: 3 });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /review policy .*has unstaged changes/);
+});
+
+test('policy binding: a tracked policy staged for deletion fails closed', () => {
+  const queued = ['app/src/example.ts'];
+  const root = createRepo();
+  commitPolicy(root, { antigravityScope: 'all' });
+  execFileSync('git', ['rm', '--cached', '--quiet', '--', '.claude/antigravity-review-policy.json'], { cwd: root });
+  writePolicy(root, { antigravityScope: 'database' });
+  write(root, '.claude/review-queue.txt', 'app/src/example.ts\n');
+  stage(root, 'app/src/example.ts');
+  writeCodexOnly(root, queued, { riskLevel: 'high', evidenceLevel: 3 });
+  const result = runHook(root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /review policy .*is staged for deletion/);
+});
+
+// git's own "is it modified?" answer can be blinded (assume-unchanged, skip-worktree) or can
+// describe a link instead of the file it points at, so the gate must compare content itself.
+
+function nonDatabaseBatch(root) {
+  const queued = ['app/src/example.ts'];
+  write(root, '.claude/review-queue.txt', 'app/src/example.ts\n');
+  stage(root, 'app/src/example.ts');
+  writeCodexOnly(root, queued, { riskLevel: 'high', evidenceLevel: 3 });
+}
+
+test('policy binding: assume-unchanged and skip-worktree cannot hide a working-tree policy edit', () => {
+  for (const flag of ['--assume-unchanged', '--skip-worktree']) {
+    const root = createRepo();
+    commitPolicy(root, { antigravityScope: 'all' });
+    execFileSync('git', ['update-index', flag, '--', '.claude/antigravity-review-policy.json'], { cwd: root });
+    writePolicy(root, { antigravityScope: 'database' });
+    nonDatabaseBatch(root);
+    const result = runHook(root);
+    assert.equal(result.status, 1, flag);
+    assert.match(result.stderr, /review policy .*has unstaged changes/, flag);
+  }
+});
+
+test(
+  'policy binding: a policy tracked as a symlink is rejected, whatever its target says',
+  { skip: process.platform === 'win32' && 'creating symlinks needs elevation on Windows' },
+  () => {
+    const root = createRepo();
+    const policyPath = path.join(root, '.claude', 'antigravity-review-policy.json');
+    writePolicy(root, { antigravityScope: 'all' });
+    fs.renameSync(policyPath, path.join(root, '.claude', 'policy-target.json'));
+    fs.symlinkSync('policy-target.json', policyPath);
+    execFileSync('git', ['add', '--', '.claude/antigravity-review-policy.json', '.claude/policy-target.json'], { cwd: root });
+    execFileSync('git', ['commit', '--quiet', '--no-verify', '-m', 'policy'], { cwd: root });
+    // Only the link target changes; the staged link itself is untouched.
+    const target = path.join(root, '.claude', 'policy-target.json');
+    const narrowed = { ...JSON.parse(fs.readFileSync(target, 'utf8')), antigravityScope: 'database' };
+    fs.writeFileSync(target, JSON.stringify(narrowed, null, 2) + '\n');
+    nonDatabaseBatch(root);
+    const result = runHook(root);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /review policy .*is not a regular file/);
+  },
+);
+
+test('policy binding: a line-ending-only difference from the staged policy is not a mismatch', () => {
+  const root = createRepo();
+  commitPolicy(root, { antigravityScope: 'database' });
+  const policyPath = path.join(root, '.claude', 'antigravity-review-policy.json');
+  fs.writeFileSync(policyPath, fs.readFileSync(policyPath, 'utf8').replace(/\n/g, '\r\n'));
+  nonDatabaseBatch(root);
+  const result = runHook(root);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('policy binding: fails closed when git cannot list the index', () => {
+  // Outside a repository `git ls-files` fails. That must not read as "never tracked".
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'review-gate-nogit-'));
+  fixtureRoots.push(dir);
+  writePolicy(dir, { antigravityScope: 'database' });
+  const result = spawnSync(
+    process.execPath,
+    ['-e', `try { require(${JSON.stringify(hookPath)}).readPolicy(); console.log('READ'); } catch (e) { console.log('THREW ' + e.message); }`],
+    { cwd: dir, encoding: 'utf8', env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(dir) } },
+  );
+  assert.match(result.stdout, /THREW .*could not be read from the index/);
+});
+
+test('policy binding: a staged policy change is judged by its staged bytes when it is queued and reviewed', () => {
+  const policyPath = '.claude/antigravity-review-policy.json';
+  const queued = ['app/src/example.ts', policyPath];
+  const root = createRepo();
+  commitPolicy(root, { antigravityScope: 'all' });
+  writePolicy(root, { antigravityScope: 'database' });
+  execFileSync('git', ['add', '--', policyPath], { cwd: root });
+  write(root, '.claude/review-queue.txt', queued.map((f) => `${f}\n`).join(''));
+  stage(root, 'app/src/example.ts');
+  writeCodexOnly(root, queued, { riskLevel: 'high', evidenceLevel: 3 });
+  const result = runHook(root);
+  assert.equal(result.status, 0, result.stderr);
 });
 
 test('reviewTier: files that define the review process or the schema contract are never low risk', () => {
