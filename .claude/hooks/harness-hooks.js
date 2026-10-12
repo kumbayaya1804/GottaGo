@@ -43,9 +43,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const MESSAGES = {
   reviewers:
-    'Reviewers needed before committing: check .claude/review-queue.txt, generate ' +
-    '.claude/antigravity-prompt-latest.md and .claude/codex-prompt-latest.md, then have the user ' +
-    'run Antigravity and Codex CLIs and save both review artifacts.',
+    'Reviewers needed before committing: check .claude/review-queue.txt, run ' +
+    'node .claude/hooks/review-packets.js to write the required packets, then have the user ' +
+    'run each reviewer it lists and save the verdicts.',
   staleScan:
     'Stale-information scan is due or missing: run /stale-info-scan before phase transitions, ' +
     'milestone close, release, or dependency/schema/harness changes.',

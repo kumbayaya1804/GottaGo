@@ -16,27 +16,29 @@ Do not start by loading `SPEC.md`, `docs/schema-contract.md`, `AGENTS_ROSTER.md`
 ## Roles
 
 - Claude is the default implementer and GSD orchestrator.
-- Antigravity supplies architecture, PostGIS, RLS, trust, and data-integrity findings under `.claude/antigravity-review-policy.json`; it is advisory during probation.
+- Antigravity supplies architecture, PostGIS, RLS, trust, and data-integrity findings on the batches the policy requires it for (defined below) under `.claude/antigravity-review-policy.json`; it is advisory during probation.
 - Codex is the implementation-quality, security, privacy, TypeScript, test-quality, and user-failure-state reviewer.
 - GSD owns phase lifecycle, planning, execution, verification, and state.
 
-Claude does not self-approve. Non-trivial code, workflow, schema, security, privacy, or review-gate changes require a separate Codex approval. While Antigravity is enabled, they also require its policy-valid review and resolution of every finding, except low-tier batches (below) where Codex alone reviews; probationary `ADVISORY` is not an approval.
+Claude does not self-approve. Non-trivial code, workflow, schema, security, privacy, or review-gate changes require a separate Codex approval. Batches where Antigravity is required (below) also need its policy-valid review and resolution of every finding; probationary `ADVISORY` is not an approval.
 
 ## Current Review Workflow
 
 Before packet preparation, review, staging for review, or commit, read
 `docs/agent-harness.md` for the full workflow, evidence contract, tier rules, and
-commit gate. Claude prepares packets; the user runs the reviewer CLIs. Both reviewers
-apply the shared Artifact QA core and their own overlays to the same staged bytes.
-Generate required packets before either run; keep initial reviews blind and independent
+commit gate. Claude prepares packets; the user runs the reviewer CLIs. Each required
+reviewer applies the shared Artifact QA core and its own overlay to the same staged bytes.
+Generate required packets before any run; keep initial reviews blind and independent
 until all required exact verdicts are archived. Changed queued bytes require fresh packets and reviews.
 
-Commit only after Codex is APPROVE, Antigravity (full tier) has its policy-valid verdict
+Commit only after Codex is APPROVE, Antigravity, when required, has its policy-valid verdict
 (`ADVISORY` during probation), findings are resolved under the harness rules, required
 verdicts are archived, verification is reported, and the user agrees. An implementing
 Codex session cannot supply its own independent approval.
 
-Low tier: when `lowRiskCodexOnly` is on in `.claude/antigravity-review-policy.json`, every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and the Codex packet declares `risk_level: low`, Codex alone reviews. Everything else keeps both reviewers, including slash commands and skills (they can run shell commands and widen tool permissions when invoked), `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `ANTIGRAVITY.md`, and all app, database, hook, settings, policy, and spec files. The gate computes the tier from the staged queue, counting a rename as its old path plus its new path. Declaring `medium` or `high` for a low-tier batch escalates it to both reviewers; declaring `low` for any other batch blocks.
+Who reviews: Codex reviews every batch. Whether Antigravity is also required is set by `antigravityScope` in `.claude/antigravity-review-policy.json`. With `database`, the current setting, it is required only for a database batch: the staged queue touches anything under `supabase/`, `docs/schema-contract.md`, or `app/src/lib/database.types.ts`. With `all`, or with the key absent, it is required for every batch outside the low tier. With policy `mode: disabled` it is never required. `node .claude/hooks/review-packets.js` prints the reviewers a batch requires and writes a packet for each of them; follow that list. Where Antigravity is not required (under the current setting that includes app code that calls database RPCs) it is optional. While the policy mode is `probation` or `active`, an objection saved in `.claude/antigravity-review-latest.md` for the current scope still blocks; with `mode: disabled` every Antigravity artifact is ignored.
+
+Low tier: when `lowRiskCodexOnly` is on in the policy, every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and the Codex packet declares `risk_level: low`, the batch is low tier and Codex alone reviews it at low risk. Every other batch must declare `medium` or `high`: slash commands and skills (they can run shell commands and widen tool permissions when invoked), `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, `ANTIGRAVITY.md`, and all app, database, hook, settings, policy, and spec files; declaring `low` there blocks. The gate computes both rules from the staged queue, counting a rename as its old path plus its new path.
 
 The packet files are inputs, not proof. Reviewers must inspect the actual files from disk and cite exact `file:line` evidence.
 

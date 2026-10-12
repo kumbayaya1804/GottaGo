@@ -5,13 +5,15 @@
 //   node .claude/hooks/review-packets.js
 //
 // 1. Stages exactly the queued paths (harness-hooks stageQueue).
-// 2. Computes the staged scope_hash, a fresh review_id, and the risk tier (the gate's own
-//    reviewTier, only when the policy sets lowRiskCodexOnly).
+// 2. Computes the staged scope_hash, a fresh review_id, the risk tier (the gate's own
+//    reviewTier, only when the policy sets lowRiskCodexOnly), and whether Antigravity is in
+//    scope (the gate's own antigravityRequired, policy key antigravityScope).
 // 3. Wraps Claude's per-task claims (.claude/review-claims.md, gitignored) with the
 //    reviewer-specific role, skills, blind-review rules, staged diffs, and verdict form.
 // 4. Checks every packet against the gate's ARTIFACT_REQUIREMENTS and its leak checks,
 //    and writes nothing unless all packets pass.
-// Low tier writes only the Codex packet. The user still runs the reviewer CLIs.
+// Low tier, and a batch outside Antigravity's scope, write only the Codex packet. The user
+// still runs the reviewer CLIs.
 
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
@@ -268,14 +270,25 @@ function main() {
   const status = stagedStatus(queue);
   const queuedStaged = queue.filter((f) => status.has(f));
 
-  const policyPath = path.join('.claude', 'antigravity-review-policy.json');
-  const policy = fs.existsSync(policyPath) ? JSON.parse(fs.readFileSync(policyPath, 'utf8')) : {};
+  // Read the policy through the gate, so the packets are built from the same validated,
+  // staged policy the gate will judge them by. A missing or unusable policy stops here:
+  // the gate would refuse the commit, so no reviewer should spend a run on the packet.
+  let policy;
+  try {
+    policy = gate.readPolicy();
+  } catch (error) {
+    fail(`no packets written: ${error.message}.`);
+  }
   // Same rule as the gate: low only when the paths qualify AND the claims say low. Claims may
-  // escalate a low-path batch to both reviewers; a full-path batch is never labeled low.
+  // escalate a low-path batch out of the low tier; a full-path batch is never labeled low.
   const pathTier = policy.lowRiskCodexOnly === true ? gate.reviewTier(queuedStaged) : 'full';
   const riskLevel = pathTier === 'full' && meta.risk_level === 'low' ? 'medium' : meta.risk_level;
   const tier = pathTier === 'low' && riskLevel === 'low' ? 'low' : 'full';
-  const reviewers = tier === 'low' || policy.mode === 'disabled' ? ['codex'] : ['antigravity', 'codex'];
+  // Antigravity gets a packet only where the gate requires its verdict: outside the low
+  // tier, and inside its policy scope (antigravityScope "database": database paths only).
+  const antigravityInScope = gate.antigravityRequired(queuedStaged, policy);
+  const reviewers =
+    tier === 'low' || policy.mode === 'disabled' || !antigravityInScope ? ['codex'] : ['antigravity', 'codex'];
 
   const now = new Date();
   const generatedAt = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -303,7 +316,7 @@ function main() {
     `Packets written for ${queue.length} queued path(s).`,
     `scope_hash: ${scope}`,
     `review_id: ${reviewId}`,
-    `tier: ${tier === 'low' ? 'low (Codex only)' : `full (${reviewers.join(' + ')})`}, risk_level: ${riskLevel}`,
+    `tier: ${tier === 'low' ? 'low (Codex only)' : reviewers.length === 1 ? 'full (Codex only: no database paths, or Antigravity disabled)' : `full (${reviewers.join(' + ')})`}, risk_level: ${riskLevel}`,
     '',
     'Run from the project root:',
   ];

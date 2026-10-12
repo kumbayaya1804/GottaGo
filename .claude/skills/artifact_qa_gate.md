@@ -117,6 +117,7 @@ A fresh independent Codex review run is still required.
 
 Antigravity owns architecture, PostGIS, RLS placement, trust/confidence math,
 migrations, concurrency, aggregate correctness, system data integrity, and low-level runtime transport verification.
+Whether it is a required reviewer for a batch is set by policy; the rule is in `AGENTS.md`.
 
 In addition to the shared workflow, Antigravity applies a **Dual-Lens Audit** on every review (inspecting both high-level SQL/code contracts and physical runtime/transport dynamics):
 
@@ -140,13 +141,13 @@ bounded implementation task.
 
 ## Review Independence
 
-- Use the same staged bytes and shared evidence contract for both reviewers.
+- Use the same staged bytes and shared evidence contract for every reviewer of a batch.
 - Preserve distinct reviewer overlays, separate runs, separate artifacts, and separate verdicts.
 - Generate neutral packets from a common claim table; do not include the implementer's preferred conclusion as a premise.
-- Do not expose either reviewer to the other's verdict until both initial verdicts have been saved and archived.
+- When two reviewers are required, do not expose either to the other's verdict until both initial verdicts have been saved and archived.
 - Do not let one review quote or inherit the other's conclusions as proof. A post-comparison revision is a new attempt and may not overwrite the archived initial verdict.
-- Regenerate both packets and obtain both verdicts whenever queued staged bytes change.
-- An implementing Claude or Codex session cannot satisfy either independent reviewer gate.
+- Regenerate every required packet and obtain every required verdict whenever queued staged bytes change.
+- An implementing Claude or Codex session cannot satisfy any independent reviewer gate.
 
 ## Evidence Receipts
 

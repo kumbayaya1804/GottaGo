@@ -10,7 +10,7 @@
               "${CLAUDE_PROJECT_DIR}/.claude/hooks/harness-hooks.js",
               "queue-edit"
             ],
-            "statusMessage": "Queuing file for Antigravity + Codex review..."
+            "statusMessage": "Queuing file for review..."
           }
         ],
         "matcher": "Write|Edit|MultiEdit|NotebookEdit"

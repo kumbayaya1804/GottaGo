@@ -1,6 +1,6 @@
 # /codex-prompt
 
-Generate the blind reviewer packets for the files in `.claude/review-queue.txt`. One script writes both packets, or only the Codex packet for a low-tier batch. Claude prepares the packets; the user runs the reviewers.
+Generate the blind reviewer packets for the files in `.claude/review-queue.txt`. One script writes the Codex packet and, when the policy requires Antigravity for the batch, the Antigravity packet. Claude prepares the packets; the user runs the reviewers.
 
 ## Steps
 
@@ -12,7 +12,7 @@ Generate the blind reviewer packets for the files in `.claude/review-queue.txt`.
    ---
    title: <short batch name>
    attempt: <1, 2, ...>
-   risk_level: medium|high
+   risk_level: low|medium|high   (low only for a low-tier batch)
    runtime_required: true|false
    context_tier: 0|1|2
    ---
@@ -37,13 +37,15 @@ Generate the blind reviewer packets for the files in `.claude/review-queue.txt`.
 
 ## Tiers
 
-With `lowRiskCodexOnly` on in `.claude/antigravity-review-policy.json`, a batch whose every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and whose claims declare `risk_level: low`, is low tier: Codex only. Declaring `medium` or `high` sends it to both reviewers. Commands, skills, root agent files other than the roster, and all app, database, hook, settings, policy, and spec files keep both reviewers (the rule is in `AGENTS.md`). The gate computes the tier the same way, counting a rename as its old path plus its new path, so a packet cannot lower its own tier.
+Codex reviews every batch. Antigravity is added when the review policy (`.claude/antigravity-review-policy.json`) requires it for the batch; the rule, with every setting, is stated once in `AGENTS.md` ("Who reviews"). The script prints the reviewers it wrote packets for.
+
+With `lowRiskCodexOnly` on in the policy, a batch whose every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and whose claims declare `risk_level: low`, is low tier. Commands, skills, root agent files other than the roster, and all app, database, hook, settings, policy, and spec files must declare `medium` or `high`. The gate computes both rules the same way, counting a rename as its old path plus its new path, so a packet cannot lower its own tier. A batch that changes the policy file is judged under the policy it stages; it must queue that file, so Codex reviews the change.
 
 ## Rules
 
 - Never inline a packet into a CLI command; the command only points at the file.
 - Do not include secrets, tokens, `.env` values, service-role keys, or precise user location data.
-- Do not show either reviewer the other's verdict until both are saved and archived (`node .claude/hooks/archive-review-artifact.js antigravity|codex`).
+- When two reviewers are required, do not show either the other's verdict until both are saved and archived (`node .claude/hooks/archive-review-artifact.js antigravity|codex`).
 - If any queued byte changes after the packets are written, run the script again; every verdict must carry the new `review_id`.
 - Do not overwrite or delete an archived verdict. A revision is a new attempt.
 - Do not clear `.claude/review-queue.txt`; it is cleared only after commit.

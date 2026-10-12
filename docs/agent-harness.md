@@ -1,7 +1,7 @@
 # Agent Harness
 
 Status: active project contract.
-Last reviewed: 2026-07-30.
+Last reviewed: 2026-10-10 (reviewer scope and policy binding; the rest was last reviewed 2026-07-30).
 
 This document defines how Claude, Antigravity, Codex, and GSD coordinate on Gotta Go. It focuses on handoff artifacts, review gates, permissions, and failure handling. Context selection is defined in `docs/context-router.md`.
 
@@ -11,7 +11,7 @@ This document defines how Claude, Antigravity, Codex, and GSD coordinate on Gott
    Claude owns GSD workflow execution, file edits, TDD discipline, local verification, packet generation, and finding resolution.
 
 2. Antigravity and Codex are separate reviewers.
-   Codex is the approval-bearing independent reviewer. Antigravity owns architecture, PostGIS, RLS placement, trust math, confidence decay, aggregate correctness, and system data-integrity findings, but is advisory while `.claude/antigravity-review-policy.json` says `mode: probation`. Antigravity findings still block; its clean `ADVISORY` does not count as approval.
+   Codex is the approval-bearing independent reviewer. Antigravity owns architecture, PostGIS, RLS placement, trust math, confidence decay, aggregate correctness, and system data-integrity findings on the batches the policy requires it for (Standard Flow step 7), and is advisory while `.claude/antigravity-review-policy.json` says `mode: probation`. Antigravity findings still block; its clean `ADVISORY` does not count as approval.
 
 3. Review is artifact-driven.
    No reviewer approves from intent alone. A review packet must define scope, queued files, diffs, verification evidence, runtime boundaries, mock boundaries, and required verdict format.
@@ -26,7 +26,7 @@ This document defines how Claude, Antigravity, Codex, and GSD coordinate on Gott
    BLOCK stops the line. REQUEST CHANGES requires a fix and re-review. Security, privacy, RLS, GPS integrity, and data-loss conflicts default to the stricter interpretation.
 
 7. Reviewer independence is preserved.
-   The implementing orchestrator cannot self-approve. Both initial packets are generated from the same neutral claim table before either review runs. Neither reviewer sees the other's output until both initial verdicts are saved in append-only archives.
+   The implementing orchestrator cannot self-approve. Every required initial packet is generated from the same neutral claim table before any review runs. When two reviewers are required, neither sees the other's output until both initial verdicts are saved in append-only archives.
 
 8. Codex orchestration is an explicit contingency.
     When the human explicitly assigns orchestration to Codex, including during a Claude availability or rate-limit interruption, Codex may temporarily own GSD-compatible planning, scoped implementation, verification, packet preparation, and finding resolution. This does not let the implementing Codex session self-approve; a separate Codex review run remains required.
@@ -41,7 +41,7 @@ This document defines how Claude, Antigravity, Codex, and GSD coordinate on Gott
 
 Claude does not invoke reviewer CLIs by default.
 
-- Claude writes `.claude/antigravity-prompt-latest.md`; the user runs `agy` or `antigravity` and saves `.claude/antigravity-review-latest.md`.
+- When Antigravity is required for the batch: Claude writes `.claude/antigravity-prompt-latest.md`; the user runs `agy` or `antigravity` and saves `.claude/antigravity-review-latest.md`.
 - Claude writes `.claude/codex-prompt-latest.md`; the user runs `codex exec` and saves `.claude/codex-review-latest.md`.
 
 If the user explicitly asks Claude to invoke a reviewer CLI, use a short prompt pointing at the packet file. Never inline packet contents into a CLI command.
@@ -49,8 +49,8 @@ If the user explicitly asks Claude to invoke a reviewer CLI, use a short prompt 
 ## Required Review Artifacts
 
 - `.claude/review-queue.txt`: newline-delimited repo-relative paths changed for the current task.
-- `.claude/antigravity-prompt-latest.md`: Antigravity packet.
-- `.claude/antigravity-review-latest.md`: latest saved Antigravity verdict.
+- `.claude/antigravity-prompt-latest.md`: Antigravity packet (current only when Antigravity is required for the batch; otherwise a leftover from an earlier scope).
+- `.claude/antigravity-review-latest.md`: latest saved Antigravity verdict (same condition).
 - `.claude/codex-prompt-latest.md`: Codex packet.
 - `.claude/codex-review-latest.md`: latest saved Codex verdict.
 - `.claude/antigravity-review-policy.json`: machine-enforced Antigravity mode, calibration, evidence, blind-review, and archive policy.
@@ -73,19 +73,20 @@ Artifacts do not replace inspecting actual files from disk.
 4. Claude ensures `.claude/review-queue.txt` matches current changed files.
 5. Claude writes the task's neutral claims to `.claude/review-claims.md` (goal, claim table, User Advocacy answer, runtime/mock audit, verification).
 6. Claude runs `node .claude/hooks/review-packets.js`. It stages the exact queue, computes the staged `scope_hash`, a shared `review_id`, and the risk tier, adds each reviewer's `.claude/skills/artifact_qa_gate.md` overlay and `### Required Skills`, and checks every packet against the gate's own requirements before writing.
-7. Both blind packets exist before either reviewer runs. For a low-tier batch (policy `lowRiskCodexOnly`; every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and the claims declare `risk_level: low`), only the Codex packet is written.
-8. Full tier: user runs Antigravity. In probation, a clean result is `ADVISORY`; `APPROVE` is invalid.
-9. Full tier: the exact Antigravity verdict is archived with `node .claude/hooks/archive-review-artifact.js antigravity`.
+7. Every required blind packet exists before any reviewer runs. Codex gets a packet for every batch. Antigravity gets one when the review policy (`.claude/antigravity-review-policy.json`) requires it for the batch. The rule, with every setting and the current value, is stated once in `AGENTS.md` ("Who reviews"). The packet script prints the reviewers the batch requires. The low tier (policy `lowRiskCodexOnly`; every queued path is Markdown under `docs/` (except `docs/agent-harness.md`, `docs/review-severity.md`, `docs/schema-contract.md`, and `docs/legal/`) or `AGENTS_ROSTER.md`, and the claims declare `risk_level: low`) is the only place `risk_level: low` is allowed, and Codex alone reviews it.
+   Scope decision, 2026-10-10: Antigravity was narrowed to database batches because, in four blind reviews of non-database batches where Codex found blocking defects, Antigravity reported none. Widen it again by setting `antigravityScope` to `all` in a reviewed batch. The user's intent is to do that only after a blind rerun on known cases shows it catches them; that is a decision rule, not something the gate enforces. A batch that changes the policy file is judged under the policy it stages.
+8. When Antigravity is required: user runs Antigravity. In probation, a clean result is `ADVISORY`; `APPROVE` is invalid.
+9. When Antigravity is required: the exact Antigravity verdict is archived with `node .claude/hooks/archive-review-artifact.js antigravity`.
 10. User runs a separate Codex review without access to any Antigravity verdict.
 11. The exact Codex verdict is archived with `node .claude/hooks/archive-review-artifact.js codex`.
 12. Only after every required archive exists may the outputs be compared and the full `node .claude/hooks/check-review-artifacts.js` gate be run. A blind reviewer may run only the `--print-staged-scope-hash` form; the full gate reads the verdicts and belongs to the orchestrator after archival. Claude resolves all BLOCK and REQUEST CHANGES findings. Findings only in lines the batch did not change are follow-ups recorded in `.planning/todos/pending/`, unless the change depends on them.
 13. Affected files re-enter the queue; changed bytes are re-staged, re-fingerprinted, and reviewers re-review as new archived attempts.
-14. During Antigravity probation, commit requires Codex `APPROVE`, Antigravity `ADVISORY` (full tier only), and no unresolved finding. In the low tier, an Antigravity objection on the current scope still blocks if one exists. Active two-approval mode is allowed only after passed blind calibration and an explicit human policy change.
+14. During Antigravity probation, commit requires Codex `APPROVE`, Antigravity `ADVISORY` (when required), and no unresolved finding. Where Antigravity is optional and the policy mode is `probation` or `active`, an objection it raised on the current scope still blocks; with `mode: disabled` its artifacts are ignored. Active two-approval mode is allowed only after passed blind calibration and an explicit human policy change.
 
 ## Scope Rules
 
 - Small docs-only changes may be made directly, but still require reviewer approval if they alter security, schema, workflow, review gates, product scope, launch constraints, or agent instructions.
-- Schema, RLS, GPS verification, trust/confidence, shadowban, privacy, auth, and service-role handling require Codex approval plus Antigravity review while Antigravity remains enabled.
+- Database changes (anything under `supabase/`, `docs/schema-contract.md`, or `app/src/lib/database.types.ts`), which is where schema, RLS, server-side GPS verification, trust/confidence, shadowban, and service-role logic live, require Codex approval, plus Antigravity review whenever the policy requires Antigravity for the batch (Standard Flow step 7). Client-side auth, privacy, GPS, and trust-display changes require Codex approval, and Antigravity review only when the policy requires it for the batch. App code that calls database RPCs (for example the submit and access-code callers under `app/src/features/`) is not a database batch: it can change what the app sends, the server functions remain the enforcement boundary, and under `database` Codex alone reviews it. A change that needs Antigravity's database lens must include the database path it depends on.
 - Frontend-only changes require Codex review when they affect location permission, map behavior, error states, user identity, privacy, Supabase calls, or emergency-user availability.
 - Reviewer prompts must name exact files and dependency boundaries. Do not ask reviewers to infer scope from chat history.
 - Named/focused verdicts cannot satisfy the commit gate. The canonical packets and verdicts must cover the complete queued staged scope.
@@ -154,7 +155,7 @@ BLOCKING STALE INFO and UPDATE REQUIRED findings that affect the current task mu
 - Empty queue: report that there is nothing to review.
 - Missing prompt: generate the prompt before asking a reviewer to act.
 - Missing reviewer tool: give the exact manual CLI command or prompt; do not claim review completed.
-- Stale reviewer verdict or staged-scope hash mismatch: regenerate both packets and request both reviews again.
+- Stale reviewer verdict or staged-scope hash mismatch: regenerate every required packet and request every required review again.
 - Failed verification: report the command and failure; do not approve or commit.
 - Conflicting reviewer findings: document both sides and choose the stricter safety interpretation unless the user decides otherwise.
 - Scope drift: stop and update the task, queue, or packet before continuing.
@@ -166,9 +167,9 @@ A commit is allowed only when all are true:
 - `.claude/review-queue.txt` contains the files changed for the task.
 - Local verification has run or exact blockers are documented.
 - Relevant stale-info findings are resolved or explicitly deferred.
-- `.claude/antigravity-review-latest.md` has the policy-allowed verdict (`ADVISORY` in probation, `APPROVE` only in calibrated active mode) for the current packet scope.
+- When Antigravity is required for the batch, `.claude/antigravity-review-latest.md` has the policy-allowed verdict (`ADVISORY` in probation, `APPROVE` only in calibrated active mode) for the current packet scope. When it is not required and the policy mode is `probation` or `active`, an Antigravity objection saved in that file for the current scope still blocks. With `mode: disabled` the gate ignores every Antigravity artifact.
 - `.claude/codex-review-latest.md` is APPROVE for the current packet scope.
-- Prompt packets include the evidence-contract fields and current staged `scope_hash`; both verdicts repeat them, mention every staged queued file, and have byte-identical append-only archives.
+- Prompt packets include the evidence-contract fields and current staged `scope_hash`; every required verdict repeats them, mentions every staged queued file, and has a byte-identical append-only archive.
 - Runtime-required changes have executed runtime evidence. High-risk verdicts meet the Level 3 evidence floor.
 - Reviewer conflicts are documented and resolved.
 - The commit message records verification and reviewer verdicts.
@@ -179,8 +180,7 @@ The commit gate above is not a fully closed system. Two architectural gaps are d
 were accepted as explicit risk by the user (commit `d03bfe7`, 2026-07-31) rather than being silently
 carried or resolved:
 
-1. **Working-tree reads for decision-bearing trust inputs.** `check-review-artifacts.js` reads policy
-   (`.claude/antigravity-review-policy.json`), the review queue (`.claude/review-queue.txt` — itself
+1. **Working-tree reads for decision-bearing trust inputs.** (Narrowed 2026-10-10 for the policy file only: for a tracked policy the gate and the packet script parse the staged blob, require it to be a single regular-file index entry, and refuse a working copy whose parsed content differs or a policy staged for deletion. The comparison reads the content itself, so git's assume-unchanged and skip-worktree flags and symlinked policies cannot hide a difference. The other inputs below are unchanged.) `check-review-artifacts.js` reads the review queue (`.claude/review-queue.txt` — itself
    gitignored and never part of any commit), calibration contract/evidence and its cited prompt and
    verdict-receipt files, prompt packets, and canonical verdicts from the working tree
    (`fs.readFileSync`), not the Git index. The queue's working-tree content directly drives
@@ -198,7 +198,7 @@ carried or resolved:
    older or different bytes. Calibration receipt archives under `.claude/reviews/**` get no such
    guarantee — content-addressed and existence-checked, but never required to be staged, so a
    calibration row can cite a real, correctly-hashed archive that was never committed. For every
-   other input in this list — policy, the review queue, calibration contract/evidence, prompt
+   other input in this list — the review queue, calibration contract/evidence, prompt
    packets — an unstaged edit is genuinely invisible to what a commit records: nothing else in the
    gate captures a committed copy of their reviewed bytes the way `hasArchivedCopy()` does for
    canonical verdict content.
@@ -208,7 +208,7 @@ carried or resolved:
    `ANTIGRAVITY.md` § Calibration Exit Gate) all narrow forgery, but none of them proves a calibration
    run actually detected a hidden failing case — they prove a review occurred, not that it was correct.
 
-Both gaps were reaffirmed as real and unchanged by both reviewers across rounds 3-8 of the 2026-07-30/31
+Both gaps were reaffirmed as real and unchanged (apart from the policy file, bound to the index on 2026-10-10) by both reviewers across rounds 3-8 of the 2026-07-30/31
 review-gate hardening workstream; neither reviewer's approval treats them as resolved. Closing them
 requires an architectural change (index-based reads for all trust inputs; a trusted case manifest or
 oracle for calibration) considered out of scope for the session that authored the surrounding hardening,

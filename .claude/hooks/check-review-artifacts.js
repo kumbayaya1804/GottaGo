@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Pre-commit gate for the Antigravity + Codex review artifacts.
+ * Pre-commit gate for the review artifacts (Codex always; Antigravity when the policy requires it).
  *
  * Two checks:
  *
@@ -134,6 +134,25 @@ const FULL_RISK_OVERRIDES = [
   /^docs\/legal\//,
 ];
 
+// Antigravity scope (policy key antigravityScope). "all", or the key absent, requires the
+// Antigravity verdict for every batch outside the low tier. "database" requires it only
+// when the staged queue touches database work: anything under supabase/ (migrations,
+// pgTAP tests, Edge Functions, config, scripts), the schema contract, or the generated
+// database types. Codex is required for every batch either way, and risk rules are
+// unchanged. An empty list is not evidence of "no database work", so it stays required.
+// Policy mode "disabled" overrides every scope value: the requirement loop skips Antigravity.
+const DATABASE_PATTERNS = [
+  /^supabase\//,
+  /^docs\/schema-contract\.md$/,
+  /^app\/src\/lib\/database\.types\.ts$/,
+];
+
+function antigravityRequired(files, policy) {
+  if (policy.antigravityScope !== 'database') return true;
+  if (files.length === 0) return true;
+  return files.some((f) => DATABASE_PATTERNS.some((re) => re.test(f)));
+}
+
 function reviewTier(files) {
   if (files.length === 0) return 'full';
   const low = files.every(
@@ -220,6 +239,60 @@ function artifactField(content, field) {
   return match ? match[1].trim() : null;
 }
 
+// The policy decides which reviewers a batch needs, so the policy the gate judges must be the
+// policy the commit records. Returns the policy text to parse, or throws.
+// - Tracked policy: the text comes from the index blob. The entry must be one regular file
+//   (a symlink's blob is only its target path), and the working copy must parse to the same
+//   content. That comparison reads the bytes itself: git's "modified?" answer can be blinded
+//   by assume-unchanged and skip-worktree, and a byte comparison would trip on line endings.
+// - In HEAD but not in the index: the policy is staged for deletion.
+// - Never tracked (a fresh repository, a test fixture): there are no staged bytes, so the
+//   working copy is the policy.
+function gitOutput(args) {
+  try {
+    return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch (error) {
+    return null;
+  }
+}
+
+function policyText(policyPath) {
+  const rel = policyPath.split(path.sep).join('/');
+  const problem = (reason) =>
+    new Error(
+      'review policy (' +
+        policyPath +
+        ') ' +
+        reason +
+        '; the gate judges the policy the commit records, so stage the policy change (and queue it for review) or revert it'
+    );
+  if (!fs.lstatSync(policyPath).isFile()) throw problem('is not a regular file');
+  const working = fs.readFileSync(policyPath, 'utf8');
+
+  const listed = gitOutput(['ls-files', '-s', '--', rel]);
+  if (listed === null) throw problem('could not be read from the index');
+  const entries = listed.split('\n').filter(Boolean);
+  if (entries.length === 0) {
+    if (gitOutput(['cat-file', '-e', 'HEAD:' + rel]) !== null) throw problem('is staged for deletion');
+    return working;
+  }
+  const entry = entries.length === 1 ? entries[0].match(/^(\d{6}) ([0-9a-f]{40,64}) 0\t/) : null;
+  if (entry === null) throw problem('is unmerged or unreadable in the index');
+  if (entry[1] !== '100644' && entry[1] !== '100755') throw problem('is not a regular file in the index');
+  const staged = gitOutput(['cat-file', 'blob', entry[2]]);
+  if (staged === null) throw problem('could not be read from the index');
+
+  const canonical = (text) => {
+    try {
+      return JSON.stringify(JSON.parse(text));
+    } catch (error) {
+      return 'unparsed:' + text;
+    }
+  };
+  if (canonical(working) !== canonical(staged)) throw problem('has unstaged changes');
+  return staged;
+}
+
 function readPolicy() {
   const policyPath = path.join('.claude', 'antigravity-review-policy.json');
   if (!fs.existsSync(policyPath)) {
@@ -236,8 +309,9 @@ function readPolicy() {
   }
 
   let policy;
+  const text = policyText(policyPath);
   try {
-    policy = JSON.parse(fs.readFileSync(policyPath, 'utf8'));
+    policy = JSON.parse(text);
   } catch (error) {
     throw new Error('invalid Antigravity review policy (' + error.message + ')');
   }
@@ -253,6 +327,9 @@ function readPolicy() {
   }
   if ('lowRiskCodexOnly' in policy && typeof policy.lowRiskCodexOnly !== 'boolean') {
     throw new Error('Antigravity review policy lowRiskCodexOnly must be true or false');
+  }
+  if ('antigravityScope' in policy && !['all', 'database'].includes(policy.antigravityScope)) {
+    throw new Error('Antigravity review policy antigravityScope must be "all" or "database"');
   }
   if (policy.mode === 'active') {
     validateCalibration(policy);
@@ -618,9 +695,9 @@ function referencesReviewerOutput(content, reviewer) {
 }
 
 // A blind reviewer may recompute the staged fingerprint, but must not run the
-// full cross-review gate before both initial verdicts have been saved and
-// archived. The full gate reads both canonical verdicts and its diagnostics can
-// expose the other reviewer's scope, review id, or verdict.
+// full cross-review gate before every required initial verdict has been saved and
+// archived. The full gate reads every canonical verdict, and when two reviewers are
+// required its diagnostics can expose the other reviewer's scope, review id, or verdict.
 //
 // Line-level and fail-closed: canonicalize (slash, encoding, character-reference
 // variants), turn quote characters into spaces, and remove the one allowed form,
@@ -688,7 +765,7 @@ function workingTreeBlobOid(file) {
 }
 
 // The CLI. It runs only when this file is executed directly, never on require(): a run
-// reads both canonical verdicts, and its diagnostics would expose them to whoever
+// reads every canonical verdict, and its diagnostics would expose them to whoever
 // imported the module (2026-09-26 review finding). Arguments are validated before
 // anything is read, so a mistyped flag cannot silently fall through to a full gate run.
 function main(argv) {
@@ -802,21 +879,24 @@ function main(argv) {
     const REQUIRED = ARTIFACT_REQUIREMENTS;
     const contractValues = new Map();
     // Low only when the staged paths qualify AND the Codex packet declares risk_level: low.
-    // An author may escalate a low-path batch (declare medium/high: both reviewers), never
+    // An author may escalate a low-path batch out of the low tier (declare medium/high), never
     // de-escalate a full-path batch (declaring low there blocks below).
     const pathTier = policy.lowRiskCodexOnly === true ? reviewTier(queuedStagedFiles) : 'full';
     const codexPacketText = readFileSafe(path.join('.claude', 'codex-prompt-latest.md'));
     const declaredRisk = codexPacketText === null ? null : artifactField(codexPacketText, 'risk_level');
     const tier = pathTier === 'low' && declaredRisk === 'low' ? 'low' : 'full';
+    // Antigravity is optional in the low tier, and outside its policy scope.
+    const antigravityOptional = tier === 'low' || !antigravityRequired(queuedStagedFiles, policy);
 
     for (const req of REQUIRED) {
       if (policy.mode === 'disabled' && req.reviewer === 'antigravity') {
         continue;
       }
 
-      // Low tier: Antigravity is optional, but an objection it raised against THIS scope
-      // still blocks. Its artifacts for other scopes are ignored.
-      if (tier === 'low' && req.reviewer === 'antigravity') {
+      // Where Antigravity is optional (and enabled: mode disabled was skipped above), an
+      // objection it raised against THIS scope still blocks. Its artifacts for other
+      // scopes are ignored.
+      if (antigravityOptional && req.reviewer === 'antigravity') {
         const optional = req.verdict ? readFileSafe(req.file) : null;
         if (optional !== null && artifactScopeHash(optional) === expectedScopeHash) {
           const objections = artifactVerdicts(optional).filter((v) => v === 'BLOCK' || v === 'REQUEST CHANGES');
@@ -828,7 +908,7 @@ function main(argv) {
                 req.file +
                 ') declares ' +
                 objections.join(', ') +
-                ' for the current scope. Antigravity is optional for low-tier batches, but its objections still block.'
+                ' for the current scope. Antigravity is optional for this batch, but its objections still block.'
             );
             failed = true;
           }
@@ -836,14 +916,14 @@ function main(argv) {
         continue;
       }
 
-      if (req.reviewer === 'codex' && !req.verdict && policy.lowRiskCodexOnly === true) {
+      if (req.reviewer === 'codex' && !req.verdict) {
         if (pathTier === 'full' && declaredRisk === 'low') {
           console.error(
             'BLOCKED: ' +
               req.label +
               ' (' +
               req.file +
-              ') declares risk_level: low, but the queue includes full-tier paths, so both reviewers are required.'
+              ') declares risk_level: low, but the queue includes full-tier paths, where risk_level: low is not allowed.'
           );
           failed = true;
         }
@@ -1000,7 +1080,7 @@ function main(argv) {
                 req.label +
                 ' (' +
                 req.file +
-                ') tells a blind reviewer to run the full cross-review gate before both initial verdicts are archived.'
+                ') tells a blind reviewer to run the full cross-review gate before every required initial verdict is archived.'
             );
             console.error(
               'Use only --print-staged-scope-hash during blind review; run the full gate afterward from the orchestrator.'
@@ -1073,7 +1153,9 @@ function main(argv) {
 
 module.exports = {
   ARTIFACT_REQUIREMENTS,
+  antigravityRequired,
   canonicalizePathText,
+  readPolicy,
   referencesReviewerOutput,
   referencesUnsafeFullGateInvocation,
   requiresReview,

@@ -117,7 +117,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 
 **Parent segment:** Changing table data is the feature that drives word-of-mouth in parenting communities (Facebook groups, Reddit parenting subs, Buy Nothing networks). "Changing Table NOW" emergency mode is the single-feature driver for this segment.
 
-**Multi-agent workflow:** Claude (primary coder via GSD + TDD), Antigravity CLI (correctness/logic/architecture/PostGIS), Codex app (quality/security/style/test coverage). Review workflow: Claude implements → logs files to `.claude/review-queue.txt` → Antigravity + Codex review → address all BLOCK/REQUEST CHANGES → commit with reviewer verdicts. Claude does not self-approve.
+**Multi-agent workflow:** Claude (primary coder via GSD + TDD), Antigravity CLI (correctness/logic/architecture/PostGIS), Codex app (quality/security/style/test coverage). Review workflow: Claude implements → logs files to `.claude/review-queue.txt` → Codex review, plus Antigravity review when the review policy requires it (the rule is in `AGENTS.md`) → address all BLOCK/REQUEST CHANGES → commit with reviewer verdicts. Claude does not self-approve.
 
 **TDD:** Probity (`@nizos/probity`, `probity.config.ts`) enforces TDD on `app/src/**`. Red → Green → Refactor enforced for all non-trivial behavior. Tests must cover security-sensitive and data-integrity behavior, not only rendering or happy paths.
 
@@ -133,7 +133,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 - **Gamification ordering**: If reward tiers are implemented, "Just used this" freshness confirmation must be lowest-reward or capped per location/user/window — not 3rd highest as in original design.
 - **Coverage density requirement**: local usefulness matters more than raw global count. Marketing and community seeding should build useful clusters in promoted regions, but no city is hardcoded as the launch gate.
 - **Security**: No raw SQL strings unless migrations or safely parameterized server-only code. GPS coordinates in PostGIS geometry/geography columns only. No PII in logs.
-- **Review gate**: No commit without APPROVE from both Antigravity and Codex (or all BLOCK/REQUEST CHANGES resolved).
+- **Review gate**: No commit without Codex APPROVE and, when the review policy requires Antigravity for the batch, its policy-valid verdict (`ADVISORY` during probation), with all BLOCK/REQUEST CHANGES resolved. The rule is in `AGENTS.md`.
 
 ## Key Decisions
 
@@ -148,7 +148,7 @@ The real product is not just restroom locations, but **certainty under urgency**
 | Accessibility-focused users as primary segment | IBS/Crohn's, wheelchair users, and parents have the highest urgency and will contribute + share most organically | Implemented |
 | Access codes (PINs) gated to signed-in users only | Businesses may not want codes publicly indexed; community-reported tolerance is the signal, not blanket exposure | Implemented |
 | Chill Spots as the primary map category | Walk-in welcoming places (bars, hotel lobbies, libraries) are the most valuable, safest to list, and most community-shareable | Implemented |
-| Multi-agent review (Claude + Antigravity + Codex) | No self-approval; PostGIS correctness audited by Antigravity; security/privacy audited by Codex | Implemented |
+| Multi-agent review (Claude + Codex, plus Antigravity where the review policy requires it) | No self-approval; security, privacy, and implementation quality audited by Codex on every batch; Antigravity also audits the batches the review policy requires it for (the rule is in `AGENTS.md`), which under the database setting means database files only, so app-side data-integrity changes are reviewed by Codex alone | Implemented; the policy narrowed Antigravity to database batches on 2026-10-10 |
 | `family_mode`/`access_sensitivity` filtering added to Phase 3/4 | 2026-07-01 App Store audit found both columns already live in schema and already promised as RPC-layer-enforced by Phase 1.5's UI spec, but no phase implemented the filter — closing an existing, unimplemented requirement rather than adding new scope | Implemented |
 | Report/block-user via anonymous `report_user` RPC + existing `shadowban_user`, no self-service block UI | Timing tips currently carry no visible author attribution; adding a "block" button would require adding new identity exposure. Satisfies Apple Guideline 1.2 / Play UGC through report + moderator action instead | Decided — Phase 7 (not yet built) |
 | Save/favorite locations added to Phase 8 | Own research (FEATURES.md) flagged this as a high-value, low-cost retention lever for the parent segment that had never been triaged into a phase | Decided — Phase 8 (not yet built) |
