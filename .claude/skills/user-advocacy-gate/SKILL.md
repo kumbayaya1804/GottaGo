@@ -11,7 +11,7 @@ Apply the `AGENTS.md` gate, "Does this decision serve someone with 60 seconds be
 
 ## Sources
 
-- `docs/design/design-system.md` section 15 (Error-State Copy Matrix, ERR-01 to ERR-11) and section 17 (Emergency-Use UX Rules).
+- `docs/design/design-system.md` section 15 (Error-State Copy Matrix, ERR-01 to ERR-12) and section 17 (Emergency-Use UX Rules).
 - `docs/design/flows.md` Emergency Mode, Offline, No-Location, and No-Results flows.
 - `SPEC.md` Core User Flows.
 

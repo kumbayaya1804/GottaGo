@@ -97,4 +97,41 @@ describe('requestGpsConsent', () => {
 
     expect(mockSupabase.rpc).not.toHaveBeenCalled();
   });
+
+  // A granted OS permission whose consent record failed to save must not be
+  // reported as 'granted': the database row is the authoritative consent record.
+  it('returns "error" when the set_gps_consent RPC resolves with an error', async () => {
+    (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+      status: 'granted',
+    });
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'network down' } });
+
+    const result = await requestGpsConsent();
+
+    expect(result).toBe('error');
+  });
+
+  // A thrown network failure (rejected promise) is the same failure as a resolved
+  // error: the consent record was not saved.
+  it('returns "error" when the set_gps_consent RPC rejects', async () => {
+    (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+      status: 'granted',
+    });
+    mockSupabase.rpc.mockRejectedValue(new Error('fetch failed'));
+
+    const result = await requestGpsConsent();
+
+    expect(result).toBe('error');
+  });
+
+  it('returns "error" without calling the RPC when the permission request rejects', async () => {
+    (Location.requestForegroundPermissionsAsync as jest.Mock).mockRejectedValue(
+      new Error('permission request failed'),
+    );
+
+    const result = await requestGpsConsent();
+
+    expect(result).toBe('error');
+    expect(mockSupabase.rpc).not.toHaveBeenCalled();
+  });
 });

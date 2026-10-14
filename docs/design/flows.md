@@ -34,7 +34,10 @@ flowchart TD
     TapFind --> PrePrompt
     PrePrompt --> OSDialog
     OSDialog -->|Granted| WriteConsent
-    WriteConsent --> MapGPS
+    WriteConsent -->|Saved| MapGPS
+    WriteConsent -->|Save fails| ConsentError[Consent Not Saved ERR-12 on Pre-prompt]
+    ConsentError -->|Try again| OSDialog
+    ConsentError -->|Skip for now| MapGPS
     MapGPS --> EndMain
     OSDialog -->|Denied| MapCity
     MapCity --> EndMain
@@ -60,9 +63,13 @@ flowchart TD
     PrePrompt --> TapEnable
     TapEnable --> OSDialog
     OSDialog -->|Granted| Write
-    Write --> MapGPS
+    Write -->|Saved| MapGPS
+    Write -->|Save fails| ConsentError[Consent Not Saved ERR-12: stay on Pre-prompt]
+    ConsentError -->|Try again| OSDialog
+    ConsentError -->|Skip for now| MapGPS
 
     style MapGPS fill:#E6F4EA,stroke:#34A853
+    style ConsentError fill:#FCE8E6,stroke:#EA4335
 ```
 
 ---
