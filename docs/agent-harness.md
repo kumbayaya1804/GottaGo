@@ -32,7 +32,7 @@ This document defines how Claude, Antigravity, Codex, and GSD coordinate on Gott
     When the human explicitly assigns orchestration to Codex, including during a Claude availability or rate-limit interruption, Codex may temporarily own GSD-compatible planning, scoped implementation, verification, packet preparation, and finding resolution. This does not let the implementing Codex session self-approve; a separate Codex review run remains required.
 
 9. Artifact QA is a shared permanent gate.
-   For artifact creation, modification, review, debugging, finalization, and handoff-state changes, load `.claude/skills/artifact_qa_gate.md`. Codex and Antigravity apply the same shared evidence core plus their distinct role overlays. The shared skill standardizes proof without merging reviewer roles or verdicts.
+   For artifact creation, modification, review, debugging, finalization, and handoff-state changes, load `.claude/skills/artifact_qa_gate.md`. The implementer, Codex, and Antigravity apply the same shared evidence core plus their own role overlays. The shared skill standardizes proof without merging reviewer roles or verdicts.
 
 10. Superpowers and Artifact QA compose.
     When Superpowers is installed, invoke `superpowers:using-superpowers` before task actions, then the task-relevant process skills. Artifact QA defines what evidence is required; Superpowers defines how the task is performed. Antigravity always applies `superpowers:verification-before-completion` before an approval claim. Packets declare `### Required Skills`; verdicts declare `### Skills Applied`.

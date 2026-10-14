@@ -13,7 +13,7 @@ These skills define specialized workflows and audit rules for Gotta Go. Load thi
 
 ## Workflow Skills
 
-- [Artifact QA Gate](artifact_qa_gate.md) - Mandatory shared evidence gate for artifact work, with separate Codex and Antigravity reviewer overlays.
+- [Artifact QA Gate](artifact_qa_gate.md) - Mandatory shared evidence gate for artifact work, with an implementer overlay and separate Codex and Antigravity reviewer overlays.
 - [Pitfall Scan](pitfall-scan/SKILL.md) - Focused checks against `.planning/research/PITFALLS.md`.
 - [Stale Info Scan](stale_info_scan.md) - Periodic drift scans across docs, code, migrations, prompts, and planning artifacts.
 - [Review Packet Generator](review_packet_generator.md) - Tiered Antigravity and Codex packet generation.
