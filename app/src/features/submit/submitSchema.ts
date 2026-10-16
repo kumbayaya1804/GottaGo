@@ -16,7 +16,9 @@ import { z } from 'zod';
  */
 export const submitSchema = z
   .object({
-    name: z.string().min(1, 'Name is required.').max(120, 'Name is too long.'),
+    // trim() before min(1): submit_location rejects a blank name server-side, so a
+    // spaces-only name must fail here, on the field, rather than as a generic RPC error.
+    name: z.string().trim().min(1, 'Name is required.').max(120, 'Name is too long.'),
     address: z.string().max(200, 'Description is too long.').optional(),
     policyTag: z.enum(['chill_spot', 'purchase_required', 'code_required', 'public_facility']),
     accessSensitivity: z.boolean().default(false),

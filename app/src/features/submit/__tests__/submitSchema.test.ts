@@ -19,6 +19,16 @@ describe('submitSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects a spaces-only name with the same field error as an empty one', () => {
+    // The server rejects a blank name (it could never publish), so the form must stop
+    // it on the field — otherwise the user gets a generic error and an endless Retry.
+    const result = submitSchema.safeParse(validInput({ name: '   ' }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]).toMatchObject({ path: ['name'], message: 'Name is required.' });
+    }
+  });
+
   it('accepts a valid full object', () => {
     const result = submitSchema.safeParse(validInput());
     expect(result.success).toBe(true);
