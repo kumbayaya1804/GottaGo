@@ -140,6 +140,21 @@ describe('SubmitScreen — Step 1 (D-04 / D-10 / D-13)', () => {
     expect(utils.getByText(ADDRESS_AFFORDANCE)).toBeTruthy();
   });
 
+  it('keeps a spaces-only name on Step 1 with the field error, never reaching submit', async () => {
+    // The server rejects a blank name; reaching it would show a generic network error
+    // whose Retry resends the same name forever.
+    const utils = await renderWizard();
+    fireEvent.changeText(utils.getByLabelText('Name'), '   ');
+    fireEvent.press(utils.getByText('Chill Spot'));
+    await act(async () => {
+      fireEvent.press(utils.getByText(CTA_NEXT));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(utils.getByText('Name is required.')).toBeTruthy());
+    expect(utils.queryByLabelText('Hours')).toBeNull();
+    expect(mockSubmitLocation).not.toHaveBeenCalled();
+  });
+
   it('renders the sensitivity control as an RN Switch (not a chip)', async () => {
     const utils = await renderWizard();
     const toggle = utils.getByLabelText(SENSITIVITY_LABEL);
@@ -259,6 +274,29 @@ describe('SubmitScreen — sensitivity confirm gate (D-15)', () => {
     expect(mockSubmitLocation).toHaveBeenCalledWith(
       expect.objectContaining({ hours: 'Open 7am-10pm' })
     );
+  });
+
+  it('submits the trimmed name, so a padded name cannot exceed the 120-character limit', async () => {
+    // The schema validates the trimmed name, but getValues() returns the raw input, so
+    // buildInput must send the same trimmed value the length check approved.
+    const utils = await renderWizard();
+    fireEvent.changeText(utils.getByLabelText('Name'), ' '.repeat(121) + 'Corner Cafe' + ' '.repeat(5));
+    fireEvent.press(utils.getByText('Chill Spot'));
+    await act(async () => {
+      fireEvent.press(utils.getByText(CTA_NEXT));
+      await Promise.resolve();
+    });
+    await advanceToStep3(utils);
+    await waitFor(() => {
+      const cta = utils.getByLabelText(CTA_AT_LOCATION);
+      expect(cta.props.accessibilityState.disabled).toBe(false);
+    });
+    await act(async () => {
+      fireEvent.press(utils.getByLabelText(CTA_AT_LOCATION));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(mockSubmitLocation).toHaveBeenCalledTimes(1));
+    expect(mockSubmitLocation).toHaveBeenCalledWith(expect.objectContaining({ name: 'Corner Cafe' }));
   });
 
   // buildInput() in submit.tsx is the ONLY place the accessibility toggle state becomes the

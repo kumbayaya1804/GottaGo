@@ -79,7 +79,7 @@ function buildInput(
   accessibility: Record<string, boolean>
 ): SubmitInput {
   return {
-    name: values.name,
+    name: values.name.trim(), // getValues() is raw; send the trimmed value the schema validated (≤120)
     lat: sample.coord.lat,
     lng: sample.coord.lng,
     accuracy: sample.accuracy,
