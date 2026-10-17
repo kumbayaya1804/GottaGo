@@ -1,11 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, useColorScheme } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  AccessibilityInfo,
+  Platform,
+  StyleSheet,
+  useColorScheme,
+} from 'react-native';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { Colors } from '../../constants/Colors';
 import { spacing } from '../../constants/spacing';
 import { typography } from '../../constants/typography';
 import { radius } from '../../constants/radius';
-import type { PendingSubmissionProperties } from '../../features/submit/types';
+import type { PendingSubmissionProperties, UnseenPublication } from '../../features/submit/types';
 import WithdrawConfirmModal from './WithdrawConfirmModal';
 
 /**
@@ -23,6 +32,11 @@ import WithdrawConfirmModal from './WithdrawConfirmModal';
  * `withdraw_submission`); on success this calls `onWithdrawn` so the caller invalidates the
  * pending query and the pin disappears from the map entirely (D-29). No access code or any
  * signed-in-only value is ever shown here.
+ *
+ * It also shows the "Published!" resolution (D-68). The pending query drops a submission
+ * the moment it publishes, so that state comes from a separate `publication` prop and
+ * never from `submission`. It is the in-app way the creator learns the outcome, whether
+ * or not a push notification arrived.
  */
 
 // A location publishes after 2 independent GPS verifications (PROJECT data-integrity
@@ -32,6 +46,13 @@ export const PUBLISH_THRESHOLD = 2;
 // [LOCKED — 04-UI-SPEC.md] verbatim copy; the count is dynamic, the rest is not paraphrasable.
 const PENDING_BADGE = 'Pending';
 const WITHDRAW_CTA = 'Withdraw submission';
+// [05-UI-SPEC.md Copywriting Contract] verbatim.
+const PUBLISHED_HEADING = 'Published!';
+const PUBLISHED_BODY =
+  'Your bathroom is now live on the map. Thanks for helping people find a place to go.';
+const PUBLISHED_DONE = 'Done';
+
+const PUBLISHED_ICON_SIZE = 22; // design-system §7
 
 /** LOCKED verification-progress body (D-27) — only the leading count is dynamic. */
 function progressCopy(confirmationCount: number): string {
@@ -45,29 +66,51 @@ export interface PendingStatusSheetProps {
   onDismiss: () => void;
   /** Called after a successful withdraw so the caller invalidates ['pendingSubmissions', uid]. */
   onWithdrawn: () => void;
+  /**
+   * One of the owner's submissions that has published and that they have not been shown
+   * yet, or null. Shown in place of `submission` when both are set.
+   */
+  publication?: UnseenPublication | null;
+  /** Called with the submission id when the owner taps Done on the Published state. */
+  onPublicationSeen?: (submissionId: string) => void;
 }
 
 export default function PendingStatusSheet({
   submission,
   onDismiss,
   onWithdrawn,
+  publication = null,
+  onPublicationSeen,
 }: PendingStatusSheetProps) {
   const colorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = Colors[colorScheme];
   const sheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['30%', '55%'], []);
   const [confirmVisible, setConfirmVisible] = useState(false);
+  const isOpen = submission !== null || publication !== null;
+  const publishedId = publication?.submissionId ?? null;
 
-  // Open to peek when a pending pin is selected; close (animate out) when cleared, and
-  // drop any open confirm dialog so it never lingers over a dismissed sheet.
+  // Open to peek when there is something to show; close (animate out) when cleared, and
+  // drop any open confirm dialog so it never lingers over a dismissed sheet. A new
+  // publication re-opens it too: swiping one away can move straight to the next unseen
+  // one while `isOpen` stays true, and without this the next would render into the sheet
+  // the swipe just closed, with no visible way to acknowledge it.
   useEffect(() => {
-    if (submission !== null) {
+    if (isOpen) {
       sheetRef.current?.snapToIndex(0);
     } else {
       sheetRef.current?.close();
       setConfirmVisible(false);
     }
-  }, [submission]);
+  }, [isOpen, publishedId]);
+
+  // The sheet slides up without taking focus, and iOS has no live regions, so the news
+  // is spoken there. Android reads the live region on the heading row.
+  useEffect(() => {
+    if (publishedId !== null && Platform.OS === 'ios') {
+      AccessibilityInfo.announceForAccessibility(`${PUBLISHED_HEADING} ${PUBLISHED_BODY}`);
+    }
+  }, [publishedId]);
 
   const handleChange = useCallback(
     (index: number) => {
@@ -80,6 +123,53 @@ export default function PendingStatusSheet({
     setConfirmVisible(false);
     onWithdrawn();
   }, [onWithdrawn]);
+
+  if (publication !== null) {
+    return (
+      <BottomSheet
+        ref={sheetRef}
+        index={-1}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        onChange={handleChange}
+        backgroundStyle={{ backgroundColor: colors.surface, borderRadius: radius.md }}
+        handleIndicatorStyle={{ backgroundColor: colors.border }}
+      >
+        <BottomSheetView style={styles.content}>
+          {/* Status is words plus a mark, never color alone (design-system §18.4). */}
+          <View style={styles.publishedHeadingRow} accessibilityLiveRegion="polite">
+            <Ionicons
+              name="checkmark-circle"
+              size={PUBLISHED_ICON_SIZE}
+              color={colors.successGreen}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+            <Text accessibilityRole="header" style={[styles.name, { color: colors.textPrimary }]}>
+              {PUBLISHED_HEADING}
+            </Text>
+          </View>
+          <Text style={[styles.publishedName, { color: colors.textPrimary }]}>
+            {publication.name}
+          </Text>
+          <Text style={[styles.body, { color: colors.textPrimary }]}>{PUBLISHED_BODY}</Text>
+
+          <View style={styles.actionRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={PUBLISHED_DONE}
+              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+              onPress={() => onPublicationSeen?.(publication.submissionId)}
+            >
+              <Text style={[styles.primaryButtonLabel, { color: colors.textInverse }]}>
+                {PUBLISHED_DONE}
+              </Text>
+            </Pressable>
+          </View>
+        </BottomSheetView>
+      </BottomSheet>
+    );
+  }
 
   if (submission === null) return null;
 
@@ -153,6 +243,17 @@ const styles = StyleSheet.create({
     fontWeight: typography.h2.fontWeight,
     lineHeight: typography.h2.lineHeight,
   },
+  publishedHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  publishedName: {
+    marginTop: spacing.sm,
+    fontSize: typography.bodyMedium.fontSize,
+    fontWeight: typography.bodyMedium.fontWeight,
+    lineHeight: typography.bodyMedium.lineHeight,
+  },
   badgeRow: {
     marginTop: spacing.sm,
     flexDirection: 'row',
@@ -178,6 +279,18 @@ const styles = StyleSheet.create({
   actionRow: {
     marginTop: spacing.xl,
     flexDirection: 'row',
+  },
+  primaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonLabel: {
+    fontSize: typography.bodyMedium.fontSize,
+    fontWeight: typography.bodyMedium.fontWeight,
+    lineHeight: typography.bodyMedium.lineHeight,
   },
   destructiveButton: {
     flex: 1,

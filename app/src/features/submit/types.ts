@@ -112,3 +112,24 @@ export interface PendingSubmissionFeatureCollection {
   type: 'FeatureCollection';
   features: PendingSubmissionFeature[];
 }
+
+/** snake_case row returned by the `get_my_unseen_submission_publications` RPC. */
+export interface UnseenPublicationRpcRow {
+  submission_id: string;
+  location_id: string;
+  name: string;
+  published_at: string;
+}
+
+/**
+ * One of the signed-in user's submissions that has published and that they have not
+ * yet been shown (D-68). `get_my_pending_submissions` drops a submission the moment it
+ * publishes, so this separate owner-scoped list is what makes "Published!" reachable
+ * without a push notification.
+ */
+export interface UnseenPublication {
+  submissionId: string;
+  locationId: string;
+  name: string;
+  publishedAt: string;
+}

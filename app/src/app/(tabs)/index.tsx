@@ -19,10 +19,18 @@ import { fetchLocationsBbox } from '../../features/locations/useLocationsBbox';
 import { useFiltersStore } from '../../features/filters/useFiltersStore';
 import { useSession } from '../../features/auth/useSession';
 import { fetchMyPendingSubmissions } from '../../features/submit/useMyPendingSubmissions';
+import {
+  acknowledgePublication,
+  unseenPublicationsKey,
+  useMySubmissionPublications,
+  PUBLICATIONS_IDLE_POLL_MS,
+  PUBLICATIONS_POLL_MS,
+} from '../../features/submit/useMySubmissionPublications';
 import type { LocationFeatureCollection } from '../../features/locations/types';
 import type {
   PendingSubmissionFeatureCollection,
   PendingSubmissionProperties,
+  UnseenPublication,
 } from '../../features/submit/types';
 import LocationDetailSheet from '../(components)/LocationDetailSheet';
 import PendingStatusSheet from '../(components)/PendingStatusSheet';
@@ -109,6 +117,54 @@ export default function MapScreen() {
     enabled: !!session,
   });
   const pendingCollection = pendingQuery.data ?? EMPTY_PENDING_FC;
+
+  // "Published!" for the creator (D-68). The pending query above drops a submission the
+  // moment it publishes, so this comes from its own owner-scoped query; it does not depend
+  // on a push notification or on anything in `pendingCollection`.
+  // Polls every minute unless the pending list has loaded and is empty: only pending
+  // submissions can be published by another user's verification, which nothing in this
+  // session would otherwise notice. A failed or unfinished pending load says nothing about
+  // that, so it keeps the fast interval. An empty list slows the check to
+  // PUBLICATIONS_IDLE_POLL_MS rather than stopping it: the user may submit from another
+  // device while this Map stays open.
+  const knownNothingPending = pendingQuery.isSuccess && pendingCollection.features.length === 0;
+  // Publications the user has dismissed in this app session, keyed by account. A failed
+  // acknowledgement leaves the row unseen on the server, so every poll returns it again;
+  // without this the sheet would reopen on the Map every minute. It is shown again in a
+  // later session, which also retries the acknowledgement.
+  const [dismissedPublications, setDismissedPublications] = useState<ReadonlySet<string>>(new Set());
+  const dismissalKey = (submissionId: string) => `${session?.user?.id}:${submissionId}`;
+  const publication =
+    useMySubmissionPublications({
+      pollMs: knownNothingPending ? PUBLICATIONS_IDLE_POLL_MS : PUBLICATIONS_POLL_MS,
+    }).data?.find(
+      (item) => !dismissedPublications.has(dismissalKey(item.submissionId)),
+    ) ?? null;
+  const markPublicationSeen = useCallback(
+    (submissionId: string) => {
+      const key = unseenPublicationsKey(session?.user?.id);
+      // Close at once: the server call must not hold the sheet open.
+      setDismissedPublications((prev) => new Set(prev).add(`${session?.user?.id}:${submissionId}`));
+      queryClient.setQueryData<UnseenPublication[]>(key, (list) =>
+        list?.filter((item) => item.submissionId !== submissionId),
+      );
+      // If the acknowledgement fails the row stays unseen on the server; it stays closed
+      // for this session (above) and is shown again in the next one. There is nothing
+      // for the user to fix.
+      // The pending pins are refetched too: the published submission is still in the
+      // cached pending list, which would otherwise keep its pin (and the polling above)
+      // alive until something else refreshed it.
+      acknowledgePublication(submissionId).then(
+        () =>
+          Promise.all([
+            queryClient.invalidateQueries({ queryKey: key }),
+            queryClient.invalidateQueries({ queryKey: ['pendingSubmissions', session?.user?.id] }),
+          ]),
+        () => undefined,
+      );
+    },
+    [queryClient, session?.user?.id],
+  );
 
   const activeRpcFilters = useFiltersStore((s) => s.activeRpcFilters);
   const clearAllFilters = useFiltersStore((s) => s.clearAll);
@@ -367,7 +423,13 @@ export default function MapScreen() {
 
       <PendingStatusSheet
         submission={selectedPending}
-        onDismiss={() => setSelectedPending(null)}
+        publication={publication}
+        onPublicationSeen={markPublicationSeen}
+        onDismiss={() => {
+          // Swiping the Published state away counts as having seen it.
+          if (publication !== null) markPublicationSeen(publication.submissionId);
+          else setSelectedPending(null);
+        }}
         onWithdrawn={() => {
           // Pin vanishes from the map entirely (D-29): drop the sheet + refetch the
           // now-shorter pending set for this submitter.

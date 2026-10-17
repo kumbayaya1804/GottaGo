@@ -4,7 +4,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SessionProvider } from '../features/auth/SessionProvider';
 import { useSession } from '../features/auth/useSession';
-import { nextRoute } from '../features/auth/redirect';
+import {
+  forgetPostAuthReturn,
+  isInAuthFlow,
+  nextRoute,
+  takePostAuthReturn,
+} from '../features/auth/redirect';
 import { supabase } from '../lib/supabase';
 
 const queryClient = new QueryClient();
@@ -38,9 +43,23 @@ function GuardComponent() {
   useEffect(() => {
     if (loading || suppressGuardRedirect) return;
     const route = nextRoute(segments as string[], !!session);
+    if (route === '/(tabs)') {
+      // Just signed in. If a screen asked to be resumed (ERR-10), go back to it: it is
+      // still on the stack beneath the auth screens, so dismissTo unwinds to it instead
+      // of stacking a second copy or dropping the user on the tabs.
+      const resume = takePostAuthReturn();
+      if (resume !== null) {
+        router.dismissTo(resume as never);
+        return;
+      }
+    }
     if (route !== null) {
       // as never required: expo-router replace type is strict about known routes
       router.replace(route as never);
+    } else if (!session && !isInAuthFlow(segments as string[])) {
+      // Left the sign-in flow without signing in: a later, unrelated sign-in must not
+      // jump back to a screen the user already walked away from.
+      forgetPostAuthReturn();
     }
   }, [loading, suppressGuardRedirect, session, segments, router]);
 
@@ -60,7 +79,14 @@ function GuardComponent() {
     return null;
   }
 
-  return <Stack />;
+  return (
+    <Stack>
+      {/* Every other route keeps the Stack's defaults. The verify flow is a modal
+          (05-UI-SPEC.md); presentation has to be declared here, before the screen is
+          pushed, and the screen sets its own title and Cancel button. */}
+      <Stack.Screen name="(modals)/verify" options={{ presentation: 'modal' }} />
+    </Stack>
+  );
 }
 
 /**

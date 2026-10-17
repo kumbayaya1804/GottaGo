@@ -2,9 +2,12 @@
  * GPS Consent Screen
  *
  * Shown after account creation. Explains GPS usage, offers:
- * - "Enable Location": calls requestGpsConsent(). On grant or denial it continues to
- *   /(tabs). If the consent save fails it stays here and shows ERR-12 with "Try again".
- * - "Skip for now": navigates directly to /(tabs) WITHOUT calling requestGpsConsent
+ * - "Enable Location": calls requestGpsConsent(). On grant or denial it continues. If the
+ *   consent save fails it stays here and shows ERR-12 with "Try again".
+ * - "Skip for now": continues at once WITHOUT calling requestGpsConsent
+ *
+ * Both exits continue through resumeAfterAuth (ERR-10): back to the screen that asked
+ * for an account, if one is remembered (e.g. /verify), otherwise to /(tabs).
  *
  * T-02-04: The "Skip for now" path MUST NOT call requestGpsConsent or set_gps_consent.
  * Writing consent before the OS grants permission is a GDPR violation.
@@ -27,6 +30,7 @@ import { spacing } from '../constants/spacing';
 import { typography } from '../constants/typography';
 import { radius } from '../constants/radius';
 import { requestGpsConsent } from '../features/auth/gpsConsent';
+import { resumeAfterAuth } from '../features/auth/redirect';
 
 // ERR-12 (docs/design/design-system.md, Error-State Copy Matrix)
 const SAVE_FAILED_MESSAGE =
@@ -66,13 +70,14 @@ export default function GpsConsentScreen() {
       }
       return;
     }
-    router.replace('/(tabs)');
+    // Back to the screen that asked for an account, if any (ERR-10); otherwise the tabs.
+    resumeAfterAuth(router);
   }
 
   function handleSkip() {
     // T-02-04: Do NOT call requestGpsConsent on skip
     skippedRef.current = true;
-    router.replace('/(tabs)');
+    resumeAfterAuth(router);
   }
 
   const styles = StyleSheet.create({

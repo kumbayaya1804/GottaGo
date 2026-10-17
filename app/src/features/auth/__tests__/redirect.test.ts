@@ -1,4 +1,11 @@
-import { isProtected, nextRoute } from '../redirect';
+import {
+  forgetPostAuthReturn,
+  isInAuthFlow,
+  isProtected,
+  nextRoute,
+  rememberPostAuthReturn,
+  takePostAuthReturn,
+} from '../redirect';
 
 describe('isProtected', () => {
   it('returns true for the submit route', () => {
@@ -71,5 +78,34 @@ describe('nextRoute', () => {
     it('returns null for root route without session', () => {
       expect(nextRoute([], false)).toBeNull();
     });
+  });
+});
+
+describe('post-auth return (ERR-10: signing in resumes the action that asked for it)', () => {
+  afterEach(() => forgetPostAuthReturn());
+
+  it('hands back a remembered route exactly once', () => {
+    rememberPostAuthReturn('/verify');
+    expect(takePostAuthReturn()).toBe('/verify');
+    expect(takePostAuthReturn()).toBeNull();
+  });
+
+  it('ignores a route outside the allowlist', () => {
+    rememberPostAuthReturn('/(tabs)/profile');
+    expect(takePostAuthReturn()).toBeNull();
+  });
+
+  it('forgets a remembered route on request', () => {
+    rememberPostAuthReturn('/verify');
+    forgetPostAuthReturn();
+    expect(takePostAuthReturn()).toBeNull();
+  });
+
+  it('treats the auth screens and the OAuth callback route as the sign-in flow', () => {
+    expect(isInAuthFlow(['(auth)', 'sign-in'])).toBe(true);
+    expect(isInAuthFlow(['(auth)', 'sign-up'])).toBe(true);
+    expect(isInAuthFlow(['auth', 'callback'])).toBe(true);
+    expect(isInAuthFlow(['(modals)', 'verify'])).toBe(false);
+    expect(isInAuthFlow(['(tabs)'])).toBe(false);
   });
 });

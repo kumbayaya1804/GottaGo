@@ -8,13 +8,14 @@
  */
 
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
 import { AccessibilityInfo, Platform, StyleSheet, useColorScheme } from 'react-native';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
+const mockDismissTo = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: jest.fn(() => ({ push: mockPush, replace: mockReplace })),
+  useRouter: jest.fn(() => ({ push: mockPush, replace: mockReplace, dismissTo: mockDismissTo })),
   useSegments: jest.fn(() => []),
 }));
 
@@ -51,6 +52,55 @@ describe('GpsConsentScreen', () => {
 
     expect(mockRequestGpsConsent).not.toHaveBeenCalled();
     expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+  });
+
+  describe('resuming the action that asked for an account (ERR-10)', () => {
+    // A new user who chose Create Account from Verify passes through this screen after
+    // sign-up; both exits must return to Verify rather than the tabs.
+    const { forgetPostAuthReturn, rememberPostAuthReturn } = jest.requireActual('../../features/auth/redirect');
+    afterEach(() => forgetPostAuthReturn());
+
+    it('returns to the remembered screen after "Enable Location"', async () => {
+      rememberPostAuthReturn('/verify');
+      const { getByText } = render(<GpsConsentScreen />);
+      fireEvent.press(getByText('Enable Location'));
+
+      await waitFor(() => expect(mockDismissTo).toHaveBeenCalledWith('/verify'));
+      expect(mockReplace).not.toHaveBeenCalled();
+    });
+
+    it('returns to the remembered screen after "Skip for now"', () => {
+      rememberPostAuthReturn('/verify');
+      const { getByText } = render(<GpsConsentScreen />);
+      fireEvent.press(getByText('Skip for now'));
+
+      expect(mockDismissTo).toHaveBeenCalledWith('/verify');
+      expect(mockReplace).not.toHaveBeenCalled();
+    });
+
+    it('does not navigate again when Enable Location settles after Skip for now', async () => {
+      rememberPostAuthReturn('/verify');
+      let resolveConsent!: (result: string) => void;
+      const consent = new Promise<string>((resolve) => {
+        resolveConsent = resolve;
+      });
+      mockRequestGpsConsent.mockReturnValue(consent);
+
+      const { getByText } = render(<GpsConsentScreen />);
+      fireEvent.press(getByText('Enable Location'));
+      fireEvent.press(getByText('Skip for now'));
+
+      await act(async () => {
+        resolveConsent('granted');
+        await consent;
+      });
+
+      await waitFor(() => {
+        expect(mockDismissTo).toHaveBeenCalledTimes(1);
+        expect(mockDismissTo).toHaveBeenCalledWith('/verify');
+        expect(mockReplace).not.toHaveBeenCalled();
+      });
+    });
   });
 
   it('after requestGpsConsent resolves, router.replace("/(tabs)") is called', async () => {

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, FlatList, StyleSheet, useColorScheme } from 'react-native';
+import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { useQuery } from '@tanstack/react-query';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { formatDistanceToNow } from 'date-fns';
 import { Colors } from '../../constants/Colors';
 import { spacing } from '../../constants/spacing';
@@ -23,6 +25,9 @@ import LocationDetailSheet from '../(components)/LocationDetailSheet';
  * row's (the row does not hand its own locally-known distance to the sheet —
  * per 03-03-SUMMARY.md's design, the sheet re-fetches its own server-echoed
  * distanceM). No Mapbox dependency in this file.
+ *
+ * Also the entry point to the Verify modal (plan 05-03): pending bathrooms are not in
+ * the published list below, so a separate "Verify nearby" row opens them.
  */
 
 // [LOCKED ERR-06] truly-empty vs. the distinct filtered-empty state (D-10).
@@ -37,6 +42,9 @@ const LOCATION_UNAVAILABLE_COPY =
   "We couldn't get your location. Check your connection and try again.";
 const LOCATION_DENIED_COPY =
   'Location permission is off. Open settings to enable it and see nearby bathrooms.';
+const VERIFY_NEARBY = 'Verify nearby';
+
+const VERIFY_ICON_SIZE = 22; // design-system §7, "GPS Verify action"
 
 function confidenceLabel(row: NearbyLocation): string {
   return `${row.confidenceTier ?? 'Unrated'} confidence`;
@@ -48,6 +56,7 @@ function rowAccessibilityLabel(row: NearbyLocation, usesMiles: boolean): string 
 }
 
 export default function NearbyScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = Colors[colorScheme];
   const { coords, status: positionStatus, retry: retryPosition } = useCurrentPosition();
@@ -75,6 +84,25 @@ export default function NearbyScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      {/* Shown in every state: the verify modal reads GPS itself, so it does not depend
+          on this screen having a position. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={VERIFY_NEARBY}
+        accessibilityHint="Lists nearby bathrooms waiting to be verified"
+        onPress={() => router.push('/verify')}
+        style={[styles.verifyEntry, { borderBottomColor: colors.divider }]}
+      >
+        <Ionicons
+          name="location-outline"
+          size={VERIFY_ICON_SIZE}
+          color={colors.primary}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+        <Text style={[styles.verifyEntryText, { color: colors.primary }]}>{VERIFY_NEARBY}</Text>
+      </Pressable>
+
       {coords === null && (
         <View style={styles.centerOverlay}>
           <Text style={[styles.cardHeading, { color: colors.textPrimary }]}>
@@ -192,6 +220,20 @@ export default function NearbyScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+  },
+  verifyEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  verifyEntryText: {
+    fontSize: typography.bodyMedium.fontSize,
+    fontWeight: typography.bodyMedium.fontWeight,
+    lineHeight: typography.bodyMedium.lineHeight,
   },
   centerOverlay: {
     flex: 1,
