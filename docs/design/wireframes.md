@@ -511,7 +511,7 @@ Route: `/(tabs)/submit` (auth required)
 
 ## Verify Flow Screen
 
-Modal: `router.push('/modals/verify')`
+Modal: `router.push('/verify')` (file `app/src/app/(modals)/verify.tsx`; the `(modals)` group is not part of the path)
 
 ```
 ┌──────────────────────────────────┐
@@ -542,7 +542,7 @@ Modal: `router.push('/modals/verify')`
 
 ## Verify Flow Error State
 
-Modal: `router.push('/modals/verify')`
+Modal: `router.push('/verify')` (file `app/src/app/(modals)/verify.tsx`; the `(modals)` group is not part of the path)
 
 ```
 ┌──────────────────────────────────┐
@@ -574,7 +574,7 @@ Modal: `router.push('/modals/verify')`
 
 ## Verify Flow Success State
 
-Modal: `router.push('/modals/verify')`
+Modal: `router.push('/verify')` (file `app/src/app/(modals)/verify.tsx`; the `(modals)` group is not part of the path)
 
 ```
 ┌──────────────────────────────────┐
@@ -888,9 +888,9 @@ Inset frame (not full screen)
 | 13 | Submit Flow: Step 2 | /(tabs)/submit | Phase 4 |
 | 14 | Submit Flow: Step 3 | /(tabs)/submit | Phase 4 |
 | 15 | Submit Flow: Success | /(tabs)/submit | Phase 4 |
-| 16 | Verify Flow Screen | modal: /modals/verify | Phase 5 |
-| 17 | Verify Flow: Error State | modal: /modals/verify | Phase 5 |
-| 18 | Verify Flow: Success State | modal: /modals/verify | Phase 5 |
+| 16 | Verify Flow Screen | modal: /verify | Phase 5 |
+| 17 | Verify Flow: Error State | modal: /verify | Phase 5 |
+| 18 | Verify Flow: Success State | modal: /verify | Phase 5 |
 | 19 | Report Flow: Step 1 | modal: /modals/report | Phase 7 |
 | 20 | Report Flow: Step 2 | modal: /modals/report | Phase 7 |
 | 21 | Rating Screen | modal: /modals/rating | Phase 8 |

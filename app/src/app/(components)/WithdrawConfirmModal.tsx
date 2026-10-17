@@ -13,7 +13,7 @@ import { withdrawSubmission } from '../../features/submit/withdrawSubmission';
  * and its synchronous `submittingRef` re-entrancy guard (a `submitting` state check
  * alone can't stop two presses dispatched before the first re-render commits). Swipe /
  * hardware-back dismiss is FORBIDDEN on a destructive confirm (design-system.md §16) —
- * `onRequestClose` is a no-op, close only via explicit Cancel.
+ * `onRequestClose` is a no-op, close only via the explicit "Keep it" button.
  *
  * On confirm this calls the server-scoped `withdraw_submission` RPC (04-01 enforces
  * `submitter_id = auth.uid()`, T-04-21 — this UI cannot withdraw another user's pin) and,
@@ -22,8 +22,11 @@ import { withdrawSubmission } from '../../features/submit/withdrawSubmission';
  * does NOT call `onWithdrawn`.
  */
 
-// [LOCKED — 04-UI-SPEC.md Destructive actions / D-30] verbatim, do not paraphrase.
-const WITHDRAW_CONFIRM_COPY = "Are you sure? This can't be undone";
+// [05-UI-SPEC.md Destructive actions / D-58] verbatim, do not paraphrase. Since Phase 5 a
+// withdrawal that already has verification events is cancelled with its evidence kept,
+// not deleted, so the Phase 4 "This can't be undone" wording no longer fits.
+const WITHDRAW_CONFIRM_COPY =
+  "Withdraw this submission? It won't publish, but any verifications already given are kept.";
 const WITHDRAW_FAILURE_COPY =
   "Couldn't withdraw your submission. Check your connection and try again.";
 const WITHDRAW_CONFIRM_LABEL = 'Withdraw';
@@ -119,12 +122,12 @@ export default function WithdrawConfirmModal({
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Cancel"
+            accessibilityLabel="Keep it"
             style={styles.ghostButton}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             onPress={onCancel}
           >
-            <Text style={[styles.ghostButtonLabel, { color: colors.textSecondary }]}>Cancel</Text>
+            <Text style={[styles.ghostButtonLabel, { color: colors.textSecondary }]}>Keep it</Text>
           </Pressable>
         </View>
       </View>

@@ -59,6 +59,7 @@ jest.mock('../../(components)/LocationDetailSheet', () => ({
   },
 }));
 
+import { useRouter } from 'expo-router';
 import NearbyScreen from '../../(tabs)/nearby';
 
 const COORDS = { userLat: 44.051, userLng: -123.092 };
@@ -237,5 +238,21 @@ describe('NearbyScreen', () => {
     fireEvent.press(getByLabelText('Retry getting location'));
     expect(retry).toHaveBeenCalledTimes(1);
     expect(mockUseNearby).not.toHaveBeenCalled();
+  });
+
+  it('offers a "Verify nearby" entry in every state that opens the verify modal', async () => {
+    // expo-router is mocked in jest.setup.ts.
+    const push = jest.fn();
+    (useRouter as jest.Mock).mockReturnValue({ push });
+    // Even with no position: the verify modal does its own GPS read.
+    mockUseCurrentPosition.mockReturnValue({ coords: null, status: 'denied', isStale: false });
+    const { getByLabelText } = await renderScreen();
+
+    const entry = getByLabelText('Verify nearby');
+    expect(entry.props.accessibilityRole).toBe('button');
+    expect(entry.props.accessibilityHint).toBe('Lists nearby bathrooms waiting to be verified');
+    fireEvent.press(entry);
+
+    expect(push).toHaveBeenCalledWith('/verify');
   });
 });

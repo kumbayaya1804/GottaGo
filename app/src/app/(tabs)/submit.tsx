@@ -532,8 +532,9 @@ export default function SubmitScreen() {
           )}
 
           {/* Live accuracy readout — every status pairs color + glyph + text (WCAG 1.4.1,
-              design-system.md §18.4). This app ships no icon library; an accessible text
-              glyph stands in for the Ionicons checkmark/warning marks. */}
+              design-system.md §18.4). These text glyphs predate the icon package added in
+              plan 05-03 (@react-native-vector-icons/ionicons); replacing them with the
+              Ionicons marks is tracked in .planning/todos/pending. */}
           {!gpsLoading && gpsSample !== null && gpsSample.accuracy !== null && (
             <View style={styles.gpsRow}>
               <Text

@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { Colors } from '../../constants/Colors';
 import { handleAuthCallback } from '../../features/auth/oauth';
+import { resumeAfterAuth } from '../../features/auth/redirect';
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
@@ -30,7 +31,8 @@ export default function AuthCallbackScreen() {
 
     handleAuthCallback(url)
       .then(() => {
-        router.replace('/(tabs)');
+        // Resume the screen that asked for sign-in, if any (ERR-10); otherwise the tabs.
+        resumeAfterAuth(router);
       })
       .catch(() => {
         router.replace({ pathname: '/(auth)/sign-in', params: { authError: '1' } });

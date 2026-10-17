@@ -62,6 +62,17 @@ jest.mock('react-native-mmkv', () => {
   };
 });
 
+jest.mock('@react-native-vector-icons/ionicons', () => {
+  // The real icon set loads a .ttf font at runtime, which jest cannot do. Icons in this
+  // app are decoration beside text, so tests get a plain View carrying the caller's
+  // props and an `icon-<name>` testID to assert which mark was chosen.
+  const RealReact = require('react');
+  const { View } = require('react-native');
+  const Ionicons = ({ name, ...props }: { name: string; testID?: string }) =>
+    RealReact.createElement(View, { ...props, testID: props.testID ?? `icon-${name}` });
+  return { __esModule: true, Ionicons, default: Ionicons };
+});
+
 jest.mock('expo-web-browser', () => ({
   maybeCompleteAuthSession: jest.fn(),
   openAuthSessionAsync: jest.fn(),

@@ -28,7 +28,7 @@ created: 2026-07-11
 | Tool | none — React Native / Expo SDK 55. shadcn is a web (React/Next/Vite) tool and is **not applicable**; `components.json` is correctly absent. No initialization gate applies. |
 | Preset | not applicable |
 | Component library | none (project-native RN components + `@gorhom/bottom-sheet` for sheets). Reuse existing components — see Component Inventory below. |
-| Icon library | `@expo/vector-icons` — **Ionicons set only** (design-system §7; one icon source per project) |
+| Icon library | `@react-native-vector-icons/ionicons` — **Ionicons set only** (design-system §7; one icon source per project; changed from `@expo/vector-icons` on 2026-10-11 because Expo marks that package as due for deprecation) |
 | Font | System font — SF Pro (iOS) / Roboto (Android). No custom font bundle; no `fontFamily` declaration. |
 | Token source | `docs/design/design-system.md` (§1 color, §2 typography, §3 spacing, §4 radius, §5 shadow). Component files reference `Colors[colorScheme]`, `typography`, `spacing`, `radius` constants — never raw values. |
 
@@ -180,7 +180,7 @@ Per additional-context: reuse established sheet/card patterns.
 
 | Surface | Reuse | Notes |
 |---------|-------|-------|
-| Verify modal | `/modals/verify` route (§16 nav model) | Full-screen modal; starts in list mode, selection transitions in-route to GPS verification; explicit Cancel close |
+| Verify modal | `/verify` route, file `(modals)/verify.tsx` (§16 nav model) | Full-screen modal; starts in list mode, selection transitions in-route to GPS verification; explicit Cancel close |
 | Candidate discovery list | Nearby entry + list-item pattern | Nearby opens `/verify`; row = `[●] Name — {dist} — < Pending >`; tap selects within the existing modal, never navigates to itself |
 | Candidate/pending detail sheet | `@gorhom/bottom-sheet` scaffold from `LocationDetailSheet` / `PendingStatusSheet` | Snap points 30%/55% only (§11) |
 | Progress indicator | `PendingStatusSheet.tsx` (Phase 4, creator-side) | Extend to render the "Published!" resolved state; keep `PUBLISH_THRESHOLD=2` |

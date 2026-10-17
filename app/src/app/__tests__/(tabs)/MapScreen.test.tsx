@@ -65,6 +65,17 @@ jest.mock('../../../features/submit/useMyPendingSubmissions', () => ({
   fetchMyPendingSubmissions: (...args: unknown[]) => mockUseMyPendingSubmissions(...args),
 }));
 
+// The unseen-publication hook is real; only its transport is mocked, so the test covers
+// the Map screen's wiring down to the RPC names.
+const mockRpc = jest.fn();
+jest.mock('../../../lib/supabase', () => ({
+  supabase: { rpc: (...args: unknown[]) => mockRpc(...args) },
+}));
+
+import {
+  PUBLICATIONS_IDLE_POLL_MS,
+  PUBLICATIONS_POLL_MS,
+} from '../../../features/submit/useMySubmissionPublications';
 import MapScreen from '../../(tabs)/index';
 
 const VIEWPORT = { minLng: -123.1, minLat: 44.04, maxLng: -123.08, maxLat: 44.06 };
@@ -245,5 +256,280 @@ describe('MapScreen', () => {
     await renderScreen();
     const lastProps = mockPendingSheetSpy.mock.calls.at(-1)?.[0];
     expect(lastProps).toMatchObject({ submission: null });
+  });
+
+  it('shows a published submission to its owner from the unseen-publication query, though the pending query no longer returns it, and acknowledges it once seen', async () => {
+    const PUBLICATION_ROW = {
+      submission_id: 'sub-published',
+      location_id: 'loc-new',
+      name: 'Trailhead Port-a-Potty',
+      published_at: '2026-10-11T12:00:00Z',
+    };
+    let acknowledged = false;
+    mockRpc.mockImplementation((name: string) => {
+      if (name === 'acknowledge_submission_publication') acknowledged = true;
+      return Promise.resolve(
+        name === 'get_my_unseen_submission_publications'
+          ? { data: acknowledged ? [] : [PUBLICATION_ROW], error: null }
+          : { data: null, error: null },
+      );
+    });
+    mockSessionValue = { session: { user: { id: 'user-a' } } };
+    // Publication removed the row from the pending-only query.
+    mockUseMyPendingSubmissions.mockResolvedValue(EMPTY_FC);
+
+    await renderScreen();
+
+    await waitFor(() => {
+      expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+        submission: null,
+        publication: {
+          submissionId: 'sub-published',
+          locationId: 'loc-new',
+          name: 'Trailhead Port-a-Potty',
+          publishedAt: '2026-10-11T12:00:00Z',
+        },
+      });
+    });
+
+    // The owner taps Done.
+    await act(async () => {
+      mockPendingSheetSpy.mock.calls.at(-1)?.[0].onPublicationSeen('sub-published');
+    });
+
+    expect(mockRpc).toHaveBeenCalledWith('acknowledge_submission_publication', {
+      p_submission_id: 'sub-published',
+    });
+    await waitFor(() => {
+      expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0]).toMatchObject({ publication: null });
+    });
+  });
+
+  it('finds a publication made while the Map stays open, then refreshes the pending pins once it is seen', async () => {
+    // The creator's first look finds nothing; another user's verification publishes the
+    // submission a minute later. Nothing in this session invalidates the query, so only
+    // the Map's own refresh can surface "Published!" when push never arrives (D-68).
+    jest.useFakeTimers();
+    try {
+      const PENDING_FC = {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [-123.09, 44.05] },
+            properties: { id: 'sub-published', name: 'Trailhead Port-a-Potty', confirmation_count: 1 },
+          },
+        ],
+      };
+      let published = false;
+      let acknowledged = false;
+      mockRpc.mockImplementation((name: string) => {
+        if (name === 'acknowledge_submission_publication') acknowledged = true;
+        const row = { submission_id: 'sub-published', location_id: 'loc-new', name: 'Trailhead Port-a-Potty', published_at: '2026-10-11T12:00:00Z' };
+        return Promise.resolve(
+          name === 'get_my_unseen_submission_publications'
+            ? { data: published && !acknowledged ? [row] : [], error: null }
+            : { data: null, error: null },
+        );
+      });
+      mockSessionValue = { session: { user: { id: 'user-a' } } };
+      mockUseMyPendingSubmissions.mockResolvedValue(PENDING_FC);
+
+      await renderScreen();
+      await waitFor(() =>
+        expect(mockRpc.mock.calls.filter(([name]) => name === 'get_my_unseen_submission_publications')).toHaveLength(1),
+      );
+      expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0]).toMatchObject({ publication: null });
+
+      // Published elsewhere; the Map stays open past one refresh interval.
+      published = true;
+      await act(async () => {
+        jest.advanceTimersByTime(PUBLICATIONS_POLL_MS);
+      });
+      await waitFor(() => {
+        expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+          publication: { submissionId: 'sub-published' },
+        });
+      });
+
+      // Once seen, the pending pins are refetched so the published one drops off.
+      const pendingFetchesBefore = mockUseMyPendingSubmissions.mock.calls.length;
+      mockUseMyPendingSubmissions.mockResolvedValue(EMPTY_FC);
+      await act(async () => {
+        mockPendingSheetSpy.mock.calls.at(-1)?.[0].onPublicationSeen('sub-published');
+      });
+      await waitFor(() => expect(mockUseMyPendingSubmissions.mock.calls.length).toBeGreaterThan(pendingFetchesBefore));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps checking for publications when the pending list failed to load', async () => {
+    // A failed pending fetch says nothing about whether the user has pending
+    // submissions, so it must not switch off the only in-session publication refresh.
+    jest.useFakeTimers();
+    try {
+      let published = false;
+      mockRpc.mockImplementation((name: string) => {
+        const row = { submission_id: 'sub-published', location_id: 'loc-new', name: 'Trailhead Port-a-Potty', published_at: '2026-10-11T12:00:00Z' };
+        return Promise.resolve(
+          name === 'get_my_unseen_submission_publications'
+            ? { data: published ? [row] : [], error: null }
+            : { data: null, error: null },
+        );
+      });
+      mockSessionValue = { session: { user: { id: 'user-a' } } };
+      mockUseMyPendingSubmissions.mockRejectedValue(new Error('offline'));
+
+      await renderScreen();
+      await waitFor(() =>
+        expect(mockRpc.mock.calls.filter(([name]) => name === 'get_my_unseen_submission_publications')).toHaveLength(1),
+      );
+
+      published = true;
+      await act(async () => {
+        jest.advanceTimersByTime(PUBLICATIONS_POLL_MS);
+      });
+      await waitFor(() => {
+        expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+          publication: { submissionId: 'sub-published' },
+        });
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps a dismissed publication closed for the session when acknowledging it fails, even as polling continues', async () => {
+    // The server keeps a failed acknowledgement unseen, so every poll returns the same
+    // publication. Re-opening "Published!" on the Map every minute would interrupt the
+    // emergency read surface; once dismissed it stays dismissed until the next session.
+    jest.useFakeTimers();
+    try {
+      const PENDING_FC = {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [-123.09, 44.05] },
+            properties: { id: 'sub-other', name: 'Other pending', confirmation_count: 1 },
+          },
+        ],
+      };
+      mockRpc.mockImplementation((name: string) =>
+        Promise.resolve(
+          name === 'get_my_unseen_submission_publications'
+            ? {
+                data: [{ submission_id: 'sub-published', location_id: 'loc-new', name: 'Trailhead', published_at: '2026-10-11T12:00:00Z' }],
+                error: null,
+              }
+            : { data: null, error: { message: 'offline' } },
+        ),
+      );
+      mockSessionValue = { session: { user: { id: 'user-a' } } };
+      mockUseMyPendingSubmissions.mockResolvedValue(PENDING_FC);
+
+      await renderScreen();
+      await waitFor(() => {
+        expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0].publication).not.toBeNull();
+      });
+      await act(async () => {
+        mockPendingSheetSpy.mock.calls.at(-1)?.[0].onDismiss();
+      });
+
+      // Two more poll intervals, one at a time (each next timer is scheduled after the
+      // previous fetch settles): the server still reports it unseen each time.
+      for (let i = 0; i < 2; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(PUBLICATIONS_POLL_MS);
+        });
+      }
+      await waitFor(() =>
+        expect(mockRpc.mock.calls.filter(([name]) => name === 'get_my_unseen_submission_publications').length).toBeGreaterThanOrEqual(3),
+      );
+      expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0]).toMatchObject({ publication: null });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('after an empty pending list, still checks for publications on a slower interval', async () => {
+    // Empty now is not empty forever: the user can submit from another device while this
+    // Map stays open, and that submission can be published by others. A slower check
+    // keeps a way for "Published!" to arrive without polling every minute for nothing.
+    jest.useFakeTimers();
+    try {
+      let published = false;
+      mockRpc.mockImplementation((name: string) => {
+        const row = { submission_id: 'sub-elsewhere', location_id: 'loc-new', name: 'Library Restroom', published_at: '2026-10-11T12:00:00Z' };
+        return Promise.resolve(
+          name === 'get_my_unseen_submission_publications'
+            ? { data: published ? [row] : [], error: null }
+            : { data: null, error: null },
+        );
+      });
+      mockSessionValue = { session: { user: { id: 'user-a' } } };
+      mockUseMyPendingSubmissions.mockResolvedValue(EMPTY_FC);
+
+      await renderScreen();
+      const publicationCalls = () =>
+        mockRpc.mock.calls.filter(([name]) => name === 'get_my_unseen_submission_publications').length;
+      await waitFor(() => expect(publicationCalls()).toBe(1));
+
+      // Not every minute while nothing is pending...
+      for (let i = 0; i < 3; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(PUBLICATIONS_POLL_MS);
+        });
+      }
+      expect(publicationCalls()).toBe(1);
+
+      // ...but within the idle interval a publication made elsewhere is found.
+      published = true;
+      await act(async () => {
+        jest.advanceTimersByTime(PUBLICATIONS_IDLE_POLL_MS - PUBLICATIONS_POLL_MS * 3);
+      });
+      await waitFor(() => {
+        expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+          publication: { submissionId: 'sub-elsewhere' },
+        });
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('asks for unseen publications only when signed in (guard)', async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    await renderScreen();
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0]).toMatchObject({ publication: null });
+  });
+
+  it('closes the Published state at once even if the acknowledgement fails, and does not ask again in a loop (guard)', async () => {
+    mockRpc.mockImplementation((name: string) =>
+      Promise.resolve(
+        name === 'get_my_unseen_submission_publications'
+          ? {
+              data: [{ submission_id: 'sub-published', location_id: 'loc-new', name: 'Trailhead', published_at: '2026-10-11T12:00:00Z' }],
+              error: null,
+            }
+          : { data: null, error: { message: 'offline' } },
+      ),
+    );
+    mockSessionValue = { session: { user: { id: 'user-a' } } };
+    await renderScreen();
+    await waitFor(() => {
+      expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0].publication).not.toBeNull();
+    });
+
+    // Swiping the sheet away counts as seen, the same as Done.
+    await act(async () => {
+      mockPendingSheetSpy.mock.calls.at(-1)?.[0].onDismiss();
+    });
+
+    expect(mockPendingSheetSpy.mock.calls.at(-1)?.[0]).toMatchObject({ publication: null });
+    expect(mockRpc.mock.calls.filter(([name]) => name === 'get_my_unseen_submission_publications')).toHaveLength(1);
+    expect(mockRpc.mock.calls.filter(([name]) => name === 'acknowledge_submission_publication')).toHaveLength(1);
   });
 });

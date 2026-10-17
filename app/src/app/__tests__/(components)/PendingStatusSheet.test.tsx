@@ -14,19 +14,23 @@
  *    confirming calls withdrawSubmission(id) then onWithdrawn (so the pin vanishes).
  */
 import React from 'react';
+import { AccessibilityInfo, Platform } from 'react-native';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 
 // --- Mock @gorhom/bottom-sheet: render children as plain Views so content is queryable.
+// The imperative open/close calls are shared spies so tests can see when the sheet opens.
+const mockSnapToIndex = jest.fn();
+const mockClose = jest.fn();
 jest.mock('@gorhom/bottom-sheet', () => {
   const RealReact = require('react');
   const { View } = require('react-native');
   const BottomSheet = RealReact.forwardRef(
     ({ children }: { children: React.ReactNode }, ref: React.Ref<unknown>) => {
       RealReact.useImperativeHandle(ref, () => ({
-        snapToIndex: jest.fn(),
+        snapToIndex: mockSnapToIndex,
         expand: jest.fn(),
         collapse: jest.fn(),
-        close: jest.fn(),
+        close: mockClose,
       }));
       return RealReact.createElement(View, { testID: 'pending-status-sheet' }, children);
     },
@@ -125,10 +129,19 @@ describe('PendingStatusSheet', () => {
     expect(getByLabelText('Withdraw submission')).toBeTruthy();
   });
 
-  it('tapping "Withdraw submission" opens the D-30 confirm dialog', () => {
-    const { getByLabelText, getByText } = renderSheet();
+  it('tapping "Withdraw submission" opens the confirm dialog with the Phase 5 copy: it will not publish, and verifications already given are kept (D-58)', () => {
+    const { getByText, getByLabelText, queryByText } = renderSheet();
     fireEvent.press(getByLabelText('Withdraw submission'));
-    expect(getByText("Are you sure? This can't be undone")).toBeTruthy();
+    // Since Phase 5 a withdrawal with verification events is cancelled, not deleted, so
+    // the old "This can't be undone" wording no longer describes what happens.
+    expect(
+      getByText("Withdraw this submission? It won't publish, but any verifications already given are kept."),
+    ).toBeTruthy();
+    expect(queryByText("Are you sure? This can't be undone")).toBeNull();
+    // Visible button labels from 05-UI-SPEC: confirm "Withdraw", cancel "Keep it".
+    expect(getByText('Withdraw')).toBeTruthy();
+    expect(getByLabelText('Keep it')).toBeTruthy();
+    expect(getByText('Keep it')).toBeTruthy();
   });
 
   it('confirming the withdraw calls withdrawSubmission with the submission id', async () => {
@@ -167,5 +180,67 @@ describe('PendingStatusSheet', () => {
     fireEvent(getByTestId('withdraw-confirm-modal'), 'requestClose');
     // A swipe/back gesture on the destructive confirm must not silently withdraw or dismiss.
     expect(mockWithdrawSubmission).not.toHaveBeenCalled();
+  });
+});
+
+describe('PendingStatusSheet: published resolution (D-68)', () => {
+  // The pending-only query drops a submission the moment it publishes, so this state is
+  // driven by a separate `publication` prop, never by `submission`.
+  const PUBLICATION = {
+    submissionId: ID,
+    locationId: '33333333-3333-3333-3333-333333333333',
+    name: 'Trailhead Port-a-Potty',
+    publishedAt: '2026-10-11T12:00:00Z',
+  };
+  const originalOS = Platform.OS;
+  afterEach(() => {
+    Platform.OS = originalOS;
+    jest.restoreAllMocks();
+  });
+
+  it('opens again for the next publication after the previous one is swiped away', () => {
+    // The owner can have several unseen publications. Swiping one away moves straight to
+    // the next while the sheet stays "open" in props; it must be presented again, not
+    // rendered into the sheet the swipe just closed.
+    const NEXT = { ...PUBLICATION, submissionId: '44444444-4444-4444-4444-444444444444', name: 'Library Restroom' };
+    const props = { submission: null, onDismiss: jest.fn(), onWithdrawn: jest.fn(), onPublicationSeen: jest.fn() };
+    const { rerender } = render(<PendingStatusSheet {...props} publication={PUBLICATION} />);
+    expect(mockSnapToIndex).toHaveBeenCalledTimes(1);
+
+    rerender(<PendingStatusSheet {...props} publication={NEXT} />);
+    expect(mockSnapToIndex).toHaveBeenCalledTimes(2);
+    expect(mockSnapToIndex).toHaveBeenLastCalledWith(0);
+    expect(mockClose).not.toHaveBeenCalled();
+  });
+
+  it('tells the creator their bathroom published (seen, and spoken on iOS) and reports it seen on Done', () => {
+    Platform.OS = 'ios';
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    const onPublicationSeen = jest.fn();
+
+    const { getByText, getByLabelText, getByTestId, queryByText, queryByLabelText } = renderSheet({
+      submission: null,
+      publication: PUBLICATION,
+      onPublicationSeen,
+    });
+
+    expect(getByText('Published!')).toBeTruthy();
+    expect(getByText('Trailhead Port-a-Potty')).toBeTruthy();
+    expect(
+      getByText('Your bathroom is now live on the map. Thanks for helping people find a place to go.'),
+    ).toBeTruthy();
+    // Status is words plus a mark, never colour alone; the mark is hidden from screen readers.
+    expect(getByTestId('icon-checkmark-circle', { includeHiddenElements: true })).toBeTruthy();
+    // Nothing from the pending variant.
+    expect(queryByText(/GPS verifications received/)).toBeNull();
+    expect(queryByText('Pending')).toBeNull();
+    expect(queryByLabelText('Withdraw submission')).toBeNull();
+    // The sheet slides up without taking focus; iOS has no live regions.
+    expect(announce).toHaveBeenCalledWith(
+      'Published! Your bathroom is now live on the map. Thanks for helping people find a place to go.',
+    );
+
+    fireEvent.press(getByLabelText('Done'));
+    expect(onPublicationSeen).toHaveBeenCalledWith(ID);
   });
 });

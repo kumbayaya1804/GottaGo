@@ -10,8 +10,9 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 
 const mockReplace = jest.fn();
+const mockDismissTo = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: jest.fn(() => ({ replace: mockReplace })),
+  useRouter: jest.fn(() => ({ replace: mockReplace, dismissTo: mockDismissTo })),
   useSegments: jest.fn(() => []),
 }));
 
@@ -60,6 +61,18 @@ describe('AuthCallbackScreen', () => {
       );
       expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
     });
+  });
+
+  it('returns to a remembered screen after Google sign-in instead of the tabs', async () => {
+    const { rememberPostAuthReturn } = require('../../../features/auth/redirect');
+    rememberPostAuthReturn('/verify');
+    mockUseURL.mockReturnValue('gotta-go://auth/callback?code=abc123');
+    mockHandleAuthCallback.mockResolvedValue({ access_token: 'x' });
+
+    render(<AuthCallbackScreen />);
+
+    await waitFor(() => expect(mockDismissTo).toHaveBeenCalledWith('/verify'));
+    expect(mockReplace).not.toHaveBeenCalledWith('/(tabs)');
   });
 
   it('replaces to sign-in with an authError param when handleAuthCallback fails', async () => {
